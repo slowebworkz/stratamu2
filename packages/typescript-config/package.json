@@ -2,6 +2,12 @@
   "name": "@repo/typescript-config",
   "version": "0.0.0",
   "private": true,
+  "main": "index.js",
+  "exports": {
+    "./base": "./base.json",
+    "./esm": "./esm.json",
+    "./vitest": "./vitest.json"
+  },
   "license": "MIT",
   "publishConfig": {
     "access": "public"

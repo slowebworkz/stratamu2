@@ -1,0 +1,14 @@
+node_modules/
+dist/
+build/
+coverage/
+*.lock
+*.log
+
+# Ignore YAML files in node_modules and dist
+dist/**/*.yaml
+node_modules/**/*.yaml
+pnpm-lock.yaml
+
+# Example: ignore auto-generated config
+**/auto-generated-config.yaml
