@@ -1,0 +1,11 @@
+{
+  "name": "@stratamu2/prettier-config",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "main": "./prettier.config.js",
+  "devDependencies": {
+    "prettier": "^3.6.2",
+    "prettier-plugin-organize-imports": "^4.2.0"
+  }
+}
