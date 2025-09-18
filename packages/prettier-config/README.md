@@ -1,18 +1,15 @@
 # @stratamu2/prettier-config
 
-Shared Prettier configuration for the stratamu2 monorepo.
+This package provides a shared Prettier configuration for the stratamu2 monorepo.
 
 ## Usage
 
-In any package, add to your `package.json`:
+Reference this config in your root or package-level Prettier setup:
 
 ```
-"prettier": "@stratamu2/prettier-config"
+prettier --config packages/prettier-config/prettier.config.js --write "**/*.{ts,tsx,md}"
 ```
 
-Or create a `.prettierrc.js` with:
+## Config
 
-```js
-import config from '@stratamu2/prettier-config'
-export default config
-```
+See `prettier.config.js` for the actual configuration values.

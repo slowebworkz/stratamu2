@@ -7,11 +7,15 @@
     "dev": "turbo run dev",
     "lint": "turbo run lint",
     "lint:fix": "pnpm run lint || (pnpm run format && pnpm run lint)",
-    "format": "pnpm --filter prettier-config exec prettier --write \"**/*.{ts,tsx,md}\"",
-    "check-types": "turbo run check-types"
+    "format": "pnpm exec prettier --config packages/prettier-config/prettier.config.js --write \"**/*.{ts,tsx,md}\"",
+    "check-types": "turbo run check-types",
+    "prepare": "husky"
+  ,"test": "turbo run test"
   },
   "devDependencies": {
-    "prettier": "@stratamu2/prettier-config",
+    "husky": "^9.1.7",
+    "prettier": "^3.6.2",
+    "prettier-plugin-organize-imports": "^4.2.0",
     "turbo": "^2.5.6",
     "typescript": "5.9.2"
   },
