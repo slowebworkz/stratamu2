@@ -3,8 +3,18 @@
   "version": "0.0.0",
   "type": "module",
   "private": true,
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
   "exports": {
-    ".": "./index.js"
+    ".": {
+      "import": "./dist/index.js",
+      "require": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "scripts": {
+    "clean": "rm -rf dist",
+    "build": "pnpm run clean && tsc --project tsconfig.json"
   },
   "devDependencies": {
     "@eslint/js": "^9.34.0",

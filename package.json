@@ -9,14 +9,16 @@
     "lint:fix": "pnpm run lint || (pnpm run format && pnpm run lint)",
     "format": "pnpm exec prettier --config packages/prettier-config/prettier.config.js --write \"**/*.{ts,tsx,md}\"",
     "check-types": "turbo run check-types",
-    "prepare": "husky"
-  ,"test": "turbo run test"
+    "prepare": "husky",
+    "test": "turbo run test"
   },
   "devDependencies": {
+    "globals": "^16.3.0",
     "husky": "^9.1.7",
     "prettier": "^3.6.2",
     "prettier-plugin-organize-imports": "^4.2.0",
     "turbo": "^2.5.6",
+    "type-fest": "^5.0.0",
     "typescript": "5.9.2"
   },
   "packageManager": "pnpm@9.0.0",
