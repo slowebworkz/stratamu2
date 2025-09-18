@@ -1,8 +1,8 @@
-import js from '@eslint/js';
-import eslintPluginPrettierRecommended from 'eslint-plugin-prettier/recommended';
-import globals from 'globals';
-import { config, configs } from 'typescript-eslint';
-import type { ConfigArray } from 'typescript-eslint';
+import js from '@eslint/js'
+import eslintPluginPrettierRecommended from 'eslint-plugin-prettier/recommended'
+import globals from 'globals'
+import type { ConfigArray } from 'typescript-eslint'
+import { config, configs } from 'typescript-eslint'
 
 const eslintConfig: ConfigArray = config(
   {
@@ -17,6 +17,6 @@ const eslintConfig: ConfigArray = config(
     },
   },
   eslintPluginPrettierRecommended,
-);
+)
 
-export default eslintConfig;
+export default eslintConfig

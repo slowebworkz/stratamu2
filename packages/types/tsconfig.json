@@ -1,0 +1,13 @@
+{
+  "extends": "../typescript-config/types-only.json",
+  "compilerOptions": {
+    "baseUrl": ".",
+    "paths": {
+      "@types/*": ["src/*"],
+      "@networking/*": ["src/networking/*"],
+      "@special/*": ["src/special/*"]
+    }
+  },
+  "include": ["index.ts"],
+  "exclude": ["node_modules"]
+}
