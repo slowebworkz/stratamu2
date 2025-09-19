@@ -6,7 +6,8 @@
   "exports": {
     "./base": "./base.json",
     "./esm": "./esm.json",
-    "./vitest": "./vitest.json"
+    "./vitest": "./vitest.json",
+    "./types": "./types-only.json"
   },
   "license": "MIT",
   "publishConfig": {
