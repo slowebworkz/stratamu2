@@ -1,1 +1,1 @@
-export * from "./base-event-map.js";
+export * from './base-event-map.js'

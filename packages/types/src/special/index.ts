@@ -1,4 +1,4 @@
 // Entry point for the special features some games have
-export * from "./client.ts";
-export * from "./output.ts";
-export * from "./args.ts";
+export * from './args.ts'
+export * from './client.ts'
+export * from './output.ts'

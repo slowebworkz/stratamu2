@@ -2,12 +2,12 @@
 // Extend or override in specific modules as needed.
 
 export type BaseEventMap<T = unknown> = {
-  [key: string]: T;
-};
+  [key: string]: T
+}
 
 /** testing type */
 
 export type TestEvents = BaseEventMap & {
-  foo: [string];
-  bar: [number];
-};
+  foo: [string]
+  bar: [number]
+}

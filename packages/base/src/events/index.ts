@@ -1,1 +1,1 @@
-export * from "./FilteredPriorityEmitter.js";
+export * from './FilteredPriorityEmitter.js'

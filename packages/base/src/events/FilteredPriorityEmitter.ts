@@ -1,5 +1,5 @@
-import Emittery from "emittery";
-import type { Args, BaseEventMap } from "@repo/types";
+import type { Args, BaseEventMap } from '@repo/types'
+import Emittery from 'emittery'
 
 /**
  * FilteredPriorityEmitter extends Emittery to support advanced listener options:
@@ -13,7 +13,7 @@ import type { Args, BaseEventMap } from "@repo/types";
  * @template EventMap - The event map for this emitter.
  */
 export class FilteredPriorityEmitter<
-  EventMap extends BaseEventMap = BaseEventMap<unknown>
+  EventMap extends BaseEventMap = BaseEventMap<unknown>,
 > extends Emittery<EventMap> {
   /**
    * Internal map of event names to arrays of priority listeners.
@@ -41,21 +41,21 @@ export class FilteredPriorityEmitter<
     options?: {
       priority?: number
       filter?: (...args: Args<EventMap[EventName]>) => boolean
-    }
+    },
   ): () => void {
     const arr = this._priorityListeners[event] ?? []
     const listener = {
       callback,
       priority: options?.priority ?? 0,
-      filter: options?.filter
+      filter: options?.filter,
     }
     arr.push(listener)
     arr.sort((a, b) => b.priority - a.priority)
     this._priorityListeners[event] = arr
     return () => {
-      this._priorityListeners[event] = (
-        this._priorityListeners[event] || []
-      ).filter((l) => l !== listener)
+      this._priorityListeners[event] = (this._priorityListeners[event] || []).filter(
+        (l) => l !== listener,
+      )
     }
   }
 
