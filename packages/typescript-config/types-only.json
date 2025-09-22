@@ -3,6 +3,8 @@
   "extends": "./base.json",
   "compilerOptions": {
     "composite": false,
-    "emitDeclarationOnly": true
+    "emitDeclarationOnly": true,
+    "allowImportingTsExtensions": true,
+    "skipLibCheck": false
   }
 }

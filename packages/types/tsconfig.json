@@ -9,6 +9,6 @@
       "@special/*": ["src/special/*"]
     }
   },
-  "include": ["index.ts"],
+  "include": ["src/index.ts", "src/**/*.ts"],
   "exclude": ["node_modules"]
 }

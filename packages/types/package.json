@@ -10,7 +10,7 @@
   },
   "scripts": {
     "clean": "rm -rf dist",
-    "build": "pnpm run clean && tsc --project tsconfig.json && dts-bundle-generator -o dist/index.d.ts index.ts"
+    "build": "pnpm run clean && tsc --project tsconfig.json && pnpm exec dts-bundle-generator -o dist/index.d.ts index.ts"
   },
   "devDependencies": {
     "dts-bundle-generator": "^9.5.1",
