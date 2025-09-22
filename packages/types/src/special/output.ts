@@ -1,6 +1,6 @@
-import type { Promisable, ValueOf } from 'type-fest'
-import type { BaseClient } from '../networking/client.ts'
-import type { FilterName } from './client.ts'
+import type { Promisable, ValueOf } from "type-fest";
+import type { BaseClient } from "../networking/client.ts";
+import type { FilterName } from "./client.ts";
 
 /**
  * Shared types for the stratamu monorepo.
@@ -8,7 +8,7 @@ import type { FilterName } from './client.ts'
  * These types are intended for use across all packages.
  */
 
-export type OutputPipeline = (text: string) => Promisable<string>
+export type OutputPipeline = (text: string) => Promisable<string>;
 
 /**
  * A function that transforms output text for a client, possibly chaining to the next filter.
@@ -21,9 +21,9 @@ export type OutputFilter = (
   client: BaseClient,
   text: string,
   next: OutputPipeline,
-) => Promisable<string>
+) => Promisable<string>;
 
 /**
  * A type representing any output filter function for any filter name.
  */
-export type AnyFilter = ValueOf<Record<FilterName, OutputFilter>>
+export type AnyFilter = ValueOf<Record<FilterName, OutputFilter>>;

@@ -32,6 +32,12 @@ add_typescript_dev_dependency() {
   jq --arg ts_version "$ts_version" '.devDependencies.typescript = $ts_version' "$pkg_json" > "$pkg_json.tmp" && mv "$pkg_json.tmp" "$pkg_json"
 }
 
+# Given a package directory, find the relative path to typescript-config/base.json
+get_tsconfig_base_relative_path() {
+  local pkg_dir="$1"
+  node -p "require('path').relative('$pkg_dir', '$BASE_DIR/packages/typescript-config/base.json')"
+}
+
 ###############################################################################
 # ERROR HANDLING
 ###############################################################################
@@ -92,23 +98,27 @@ create_package_json() {
   fest_version="$(jq -r '.devDependencies["type-fest"]' "$BASE_DIR/package.json")"
 
   jq -n --arg pkg_id "$2" --arg ts_version "$ts_version" --arg fest_version "$fest_version" '
-    {
-      name: $pkg_id,
-      version: "0.1.0",
-      type: "module",
-      main: "dist/index.js",
-      "exports": {
-        ".": "dist/index.js"
-      },
-      types: "dist/index.d.ts",
-      scripts: {
-        build: "tsc --project tsconfig.json"
-      },
-      devDependencies: {
-        typescript: $ts_version,
-        "type-fest": $fest_version
+  {
+    "name": $pkg_id,
+    "version": "0.1.0",
+    "type": "module",
+    "main": "./dist/index.js",
+    "types": "./dist/index.d.ts",
+    "exports": {
+      ".": {
+        "import": "./dist/index.js",
+        "default": "./dist/index.js",
+        "types": "./dist/index.d.ts"
       }
+    },
+    "scripts": {
+      "build": "tsc --project tsconfig.json"
+    },
+    "devDependencies": {
+      "typescript": $ts_version,
+      "type-fest": $fest_version
     }
+  }
   ' > "$pkg_json"
 }
 
@@ -124,27 +134,24 @@ create_tsconfig_json() {
   # Error if tsconfig.json already exists
   validate "[ -f \"$tsconfig_path\" ]" "tsconfig.json already exists at $tsconfig_path"
 
+  # Build initial JSON without extends
   cat > "$tsconfig_path" <<EOF
 {
   "compilerOptions": {
-    "target": "ES2020",
-    "module": "NodeNext",
-    "declaration": true,
-    "outDir": "dist",
-    "rootDir": ".",
-    "esModuleInterop": true,
-    "skipLibCheck": true,
-    "forceConsistentCasingInFileNames": true,
-    "moduleResolution": "nodenext",
     "baseUrl": ".",
     "paths": {
       "@/*": ["src/*"]
     }
   },
-  "include": ["src", "index.ts"],
+  "include": ["index.ts"],
   "exclude": ["node_modules", "dist"]
 }
 EOF
+
+  # Inject extends field using jq
+  local extends_path
+  extends_path=$(get_tsconfig_base_relative_path "$pkg_dir")
+  jq --arg extends "$extends_path" '.extends = $extends' "$tsconfig_path" > "$tsconfig_path.tmp" && mv "$tsconfig_path.tmp" "$tsconfig_path"
 }
 
 ###############################################################################
@@ -165,7 +172,8 @@ main() {
 
   echo "Creating workspace: $pkg_id at $pkg_dir"
   validate_dir "$pkg_dir"
-  mkdir -p "$pkg_dir"
+  mkdir -p "$pkg_dir/src"
+  touch "$pkg_dir/index.ts"
 
   create_tsconfig_json "$pkg_dir"
   create_package_json "$pkg_dir" "$pkg_id"

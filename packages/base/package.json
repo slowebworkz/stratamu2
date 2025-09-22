@@ -1,8 +1,9 @@
 {
   "name": "@repo/base",
   "version": "0.1.0",
-  "main": "dist/index.js",
-  "types": "dist/index.d.ts",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
   "exports": {
     ".": {
       "import": "./dist/index.js",
@@ -10,15 +11,16 @@
       "types": "./dist/index.d.ts"
     }
   },
-  "type": "module",
   "scripts": {
     "build": "tsc --project tsconfig.json"
   },
   "devDependencies": {
-    "typescript": "^5.9.2"
+    "@repo/types": "workspace:*",
+    "type-fest": "^5.0.0",
+    "typescript": "5.9.2"
   },
   "dependencies": {
     "emittery": "^1.2.0",
-    "pino": "^9.10.0"
+    "pino": "^9.11.0"
   }
 }

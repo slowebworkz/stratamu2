@@ -2,15 +2,19 @@
   "name": "@repo/types",
   "version": "0.1.0",
   "type": "module",
-  "types": "index.ts",
+  "types": "dist/index.d.ts",
   "exports": {
-    ".": "./index.ts"
+    ".": {
+      "types": "./dist/index.d.ts"
+    }
   },
   "scripts": {
-    "build": "tsc --project tsconfig.json"
+    "clean": "rm -rf dist",
+    "build": "pnpm run clean && tsc --project tsconfig.json && dts-bundle-generator -o dist/index.d.ts index.ts"
   },
   "devDependencies": {
-    "typescript": "^5.9.2",
-    "type-fest": "^5.0.0"
+    "dts-bundle-generator": "^9.5.1",
+    "type-fest": "^5.0.0",
+    "typescript": "^5.9.2"
   }
 }

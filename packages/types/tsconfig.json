@@ -1,6 +1,7 @@
 {
   "extends": "../typescript-config/types-only.json",
   "compilerOptions": {
+    "outDir": "dist",
     "baseUrl": ".",
     "paths": {
       "@types/*": ["src/*"],

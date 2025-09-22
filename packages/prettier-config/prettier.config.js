@@ -12,4 +12,4 @@ export default {
   quoteProps: 'as-needed',
   jsxSingleQuote: false,
   plugins: ['prettier-plugin-organize-imports'],
-};
+}
