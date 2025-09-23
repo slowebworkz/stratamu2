@@ -3,7 +3,11 @@
   "compilerOptions": {
     "baseUrl": ".",
     "paths": {
-      "@/*": ["src/*"]
+      "@/*": ["src/*"],
+      "@/data": ["src/data/index.ts"],
+      "@/data/*": ["src/data/*"],
+      "@/events": ["src/events/index.ts"],
+      "@/events/*": ["src/events/*"]
     }
   },
   "include": ["index.ts", "src/**/*.ts"],

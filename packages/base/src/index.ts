@@ -1,1 +1,2 @@
-export * from './data/index.ts'
+export * from '@/data'
+export * from '@/events'

@@ -27,6 +27,10 @@ out/
 build
 dist
 
+# TypeScript build info
+*.tsbuildinfo
+tsconfig.tsbuildinfo
+
 
 # Debug
 npm-debug.log*
