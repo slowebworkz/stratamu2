@@ -14,7 +14,8 @@
   },
   "scripts": {
     "clean": "rm -rf dist",
-    "build": "pnpm run clean && tsc --project tsconfig.json"
+    "build": "pnpm run clean && tsc --project tsconfig.json",
+    "lint:fix": "pnpm run lint || (pnpm run format && pnpm run lint)"
   },
   "devDependencies": {
     "@eslint/js": "^9.34.0",

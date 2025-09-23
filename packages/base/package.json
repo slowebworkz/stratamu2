@@ -12,7 +12,8 @@
     }
   },
   "scripts": {
-    "build": "tsc --project tsconfig.json"
+    "build": "tsc --project tsconfig.json",
+    "lint:fix": "pnpm run lint || (pnpm run format && pnpm run lint)"
   },
   "devDependencies": {
     "@repo/types": "workspace:*",

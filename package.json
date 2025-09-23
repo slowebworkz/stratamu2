@@ -6,7 +6,7 @@
     "clean": "turbo run clean",
     "dev": "turbo run dev",
     "lint": "turbo run lint",
-    "lint:fix": "pnpm run lint || (pnpm run format && pnpm run lint)",
+    "lint:fix": "turbo run lint:fix",
     "format:sh": "shfmt -w scripts/*",
     "format": "pnpm exec prettier --config packages/prettier-config/prettier.config.js --write \"**/*.{ts,tsx,md}\" && pnpm run format:sh",
     "check-types": "turbo run check-types",
