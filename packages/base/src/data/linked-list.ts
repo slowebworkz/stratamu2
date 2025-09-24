@@ -45,10 +45,15 @@ export class LinkedList<T> implements Iterable<T> {
     if (typeof iterableOrCompare === 'function') {
       this.compareFn = iterableOrCompare
     } else if (iterableOrCompare) {
+      // Set compareFn first if provided
+      if (maybeCompare) this.compareFn = maybeCompare
+
+      // Now add items (they will be sorted if compareFn is set)
       for (const v of iterableOrCompare) this.push(v)
     }
 
-    if (maybeCompare) this.compareFn = maybeCompare
+    // Set compareFn if it wasn't set above
+    if (maybeCompare && !this.compareFn) this.compareFn = maybeCompare
   }
 
   /** Number of items */

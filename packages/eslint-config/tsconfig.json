@@ -1,5 +1,6 @@
 {
   "compilerOptions": {
+    "types": ["eslint"],
     "target": "ES2020",
     "module": "NodeNext",
     "declaration": true,
@@ -14,6 +15,6 @@
       "@/*": ["src/*"]
     }
   },
-  "include": ["src", "index.ts"],
+  "include": ["src", "index.ts", "index.d.ts"],
   "exclude": ["node_modules", "dist/src"]
 }

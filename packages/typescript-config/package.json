@@ -9,8 +9,5 @@
     "./vitest": "./vitest.json",
     "./types": "./types-only.json"
   },
-  "license": "MIT",
-  "publishConfig": {
-    "access": "public"
-  }
+  "license": "MIT"
 }

@@ -6,19 +6,24 @@
   "types": "./dist/index.d.ts",
   "exports": {
     ".": {
+      "types": "./dist/index.d.ts",
       "import": "./dist/index.js",
-      "default": "./dist/index.js",
-      "types": "./dist/index.d.ts"
+      "default": "./dist/index.js"
     }
   },
   "scripts": {
+    "clean": "rm -rf dist",
     "build": "tsc --project tsconfig.json",
+    "test": "vitest run",
     "lint:fix": "pnpm run lint || (pnpm run format && pnpm run lint)"
   },
   "devDependencies": {
     "@repo/types": "workspace:*",
+    "@repo/vitest-config": "workspace:*",
     "type-fest": "^5.0.0",
-    "typescript": "5.9.2"
+    "typescript": "5.9.2",
+    "vite-tsconfig-paths": "^5.1.4",
+    "vitest": "^3.2.4"
   },
   "dependencies": {
     "emittery": "^1.2.0",

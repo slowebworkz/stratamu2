@@ -1,7 +1,9 @@
 {
-  "extends": "../typescript-config/types-only.json",
+  "extends": "../typescript-config/base.json",
   "compilerOptions": {
+    "types": ["vitest"],
     "baseUrl": ".",
+    "outDir": "./dist",
     "paths": {
       "@/*": ["src/*"],
       "@/data": ["src/data/index.ts"],
@@ -11,5 +13,5 @@
     }
   },
   "include": ["index.ts", "src/**/*.ts"],
-  "exclude": ["node_modules", "dist"]
+  "exclude": ["node_modules", "dist", "vitest.config.ts"]
 }

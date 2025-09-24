@@ -18,10 +18,9 @@
     "husky": "^9.1.7",
     "prettier": "^3.6.2",
     "prettier-plugin-organize-imports": "^4.2.0",
-    "turbo": "latest",
+    "turbo": "^2.5.7",
     "type-fest": "^5.0.0",
-    "typescript": "5.9.2",
-    "vitest": "^3.2.4"
+    "typescript": "5.9.2"
   },
   "packageManager": "pnpm@9.0.0",
   "engines": {

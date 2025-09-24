@@ -1,1 +1,1 @@
-export * from './linked-list.ts'
+export * from './linked-list.js'

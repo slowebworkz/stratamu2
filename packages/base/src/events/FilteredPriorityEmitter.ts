@@ -1,4 +1,4 @@
-import { LinkedList } from '@/data'
+import { LinkedList } from '@/data/index.js'
 import type { Args, BaseEventMap } from '@repo/types'
 import Emittery from 'emittery'
 import type { Simplify } from 'type-fest'
@@ -141,7 +141,8 @@ export class FilteredPriorityEmitter<
     const list =
       this._priorityListeners[event] ??
       (this._priorityListeners[event] = new LinkedList<PriorityListener<EventMap, EventName>>(
-        (a, b) => b.priority - a.priority,
+        (a: PriorityListener<EventMap, EventName>, b: PriorityListener<EventMap, EventName>) =>
+          b.priority - a.priority,
       ))
     const listener = {
       callback,
@@ -231,7 +232,7 @@ export class FilteredPriorityEmitter<
   ): Promise<void> {
     const list = this._priorityListeners[event]
     const errors: unknown[] = []
-    if (list) {
+    if (list && Symbol.iterator in list) {
       for (const listener of list) {
         if (!listener.filter || listener.filter(...args)) {
           try {
@@ -313,11 +314,14 @@ export class FilteredPriorityEmitter<
     if (Array.isArray(eventName)) {
       let priorityCount = 0
       for (const name of eventName) {
-        priorityCount += this._priorityListeners[name]?.size ?? 0
+        const singleName = name as Name
+        priorityCount += this._priorityListeners[singleName]?.size ?? 0
       }
-      return priorityCount + super.listenerCount(eventName)
+      return priorityCount + super.listenerCount(eventName as readonly Name[])
     }
-    const priorityCount = this._priorityListeners[eventName]?.size ?? 0
-    return priorityCount + super.listenerCount(eventName)
+    // At this point, eventName is definitely Name (single event name)
+    const singleEventName = eventName as Name
+    const priorityCount = this._priorityListeners[singleEventName]?.size ?? 0
+    return priorityCount + super.listenerCount(singleEventName)
   }
 }

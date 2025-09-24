@@ -1,0 +1,11 @@
+{
+  "extends": "../typescript-config/no-emit.json",
+  "compilerOptions": {
+    "types": ["vitest"],
+    "baseUrl": ".",
+    "rootDir": ".",
+    "outDir": "./dist"
+  },
+  "include": ["*.ts"],
+  "exclude": ["node_modules", "dist", "**/*.test.ts", "**/*.spec.ts"]
+}
