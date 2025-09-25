@@ -4,6 +4,7 @@ import { LoggedEmitter } from './logged-emitter.js'
 import type { Args, BaseEventMap } from '@repo/types'
 import type {
   ListenerCallback,
+  Priority,
   PriorityListener,
   PriorityListenerOptions,
   UnsubscribeFunction,
@@ -86,7 +87,7 @@ export abstract class FilteredPriorityEmitter<
       ))
     const listener = {
       callback,
-      priority: options?.priority ?? 0,
+      priority: (options?.priority ?? 0) as Priority,
       filter: options?.filter,
     }
 

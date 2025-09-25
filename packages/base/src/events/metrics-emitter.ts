@@ -4,12 +4,9 @@ import { perfNow } from '@/performance'
 import { EventMetrics } from './event-metrics.js'
 
 import type { BaseEventMap } from '@repo/types'
-import type { Exact } from 'type-fest'
 
 import type { OmnipresentEventData, UnsubscribeFunction } from 'emittery'
 import type {
-  Bindings,
-  ChildLoggerOptions,
   Count,
   DatalessEventNames,
   ErrorCount,
@@ -20,38 +17,14 @@ import type {
 } from './types.js'
 
 /**
- * MetricsEmitter extends FilteredPriorityEmitter to add comprehensive per-event metrics.
+ * Event emitter with comprehensive per-event performance metrics and error tracking.
  *
- * ## Features:
- * - **Event metrics tracking**: Tracks emission count, total/last time, and slowest listener per event
- * - **High-precision timing**: Wraps listeners to time their execution with microsecond precision
- * - **Comprehensive reporting**: Provides getEventMetrics() for detailed performance analysis
- * - **Error tracking**: Separately tracks successful emissions vs errors
- * - **Built-in reset**: resetMetrics event for clearing metrics (protected listener cannot be removed)
- * - **Priority & filtering**: Inherits advanced listener management from FilteredPriorityEmitter
- * - **Structured logging**: Full pino integration from LoggedEmitter base class
+ * Automatically tracks emission count, timing, slowest listeners, and errors for all events.
+ * Provides getEventMetrics() for performance analysis and resetMetrics event for clearing data.
  *
- * ## Usage Example:
- * ```typescript
- * const emitter = new MetricsEmitter<{
- *   playerMove: { x: number, y: number }
- *   gameEvent: { type: string, data: any }
- * }>()
- *
- * // Add listeners with priority and filtering
- * emitter.onWithOptions('playerMove', handleMove, { priority: 10 })
- *
- * // Emit events (automatically tracked)
- * await emitter.emit('playerMove', { x: 10, y: 20 })
- *
- * // Analyze performance
- * const metrics = emitter.getEventMetrics()
- * console.log(metrics.find(m => m.event === 'playerMove')?.averageTimeMs)
- * ```
- *
- * @template EventMap - The event map for this emitter, constrained to proper event structure
+ * @template EventMap - The event map for this emitter
  */
-export class MetricsEmitter<
+export abstract class MetricsEmitter<
   EventMap extends BaseEventMap<any[]> = BaseEventMap<unknown[]>,
 > extends FilteredPriorityEmitter<EventMap & MetricsEmitterEvents> {
   // =============================================================================
@@ -60,7 +33,6 @@ export class MetricsEmitter<
 
   /**
    * Protected listener for the built-in resetMetrics event.
-   * Uses a stable reference to allow protection in off() method.
    */
   private _resetListener = ([eventName]: [string?]) => {
     this._resetMetrics(eventName)
@@ -92,7 +64,7 @@ export class MetricsEmitter<
   private _eventErrors: Map<string, ErrorCount> = new Map()
 
   /**
-   * Set up the protected reset listener that cannot be removed by users.
+   * Set up the protected reset listener.
    */
   private _setupProtectedResetListener() {
     super.on('resetMetrics', this._resetListener)
@@ -100,9 +72,10 @@ export class MetricsEmitter<
 
   /**
    * Record the slowest listener for an event.
-   * @param event Event name.
-   * @param listener Listener function.
-   * @param elapsed Time in ms.
+   *
+   * @param event Event name
+   * @param listener Listener function
+   * @param elapsed Time in ms
    */
   private _recordListenerTime(event: string, listener: (...args: any[]) => any, elapsed: number) {
     const prev = this._eventSlowest.get(event)
@@ -116,7 +89,8 @@ export class MetricsEmitter<
 
   /**
    * Reset all metrics, or metrics for a specific event.
-   * @param event Optional event name to reset.
+   *
+   * @param event Optional event name to reset
    */
   private _resetMetrics(event?: string) {
     // Collect all metric maps for consistent operations
@@ -152,25 +126,9 @@ export class MetricsEmitter<
   // =============================================================================
 
   /**
-   * Create a child logger with additional bindings.
-   * Returns a new MetricsEmitter instance with the child logger configured.
+   * Get metrics for all events as EventMetrics instances.
    *
-   * @param bindings - Key-value pairs to include in all log messages
-   * @param options - Optional child logger configuration
-   * @returns A new MetricsEmitter instance with the child logger
-   */
-  createChildLogger<T extends Bindings>(
-    bindings: Exact<T, Bindings>,
-    options?: Exact<ChildLoggerOptions, ChildLoggerOptions>,
-  ): this {
-    const childEmitter = new MetricsEmitter<EventMap>() as this
-    this._initializeChildLogger(childEmitter, bindings, options)
-    return childEmitter
-  }
-
-  /**
-   * Get metrics for all events as type-safe EventMetrics class instances.
-   * @returns Array of EventMetrics objects with branded types and computed properties
+   * @returns Array of EventMetrics objects with computed properties
    */
   getEventMetrics(): EventMetrics[] {
     const metrics: EventMetrics[] = []
@@ -223,23 +181,26 @@ export class MetricsEmitter<
   }
 
   /**
-   * Emit an event with no payload (dataless event).
-   * @param eventName The event name.
+   * Emit an event with no payload.
+   *
+   * @param eventName The event name
    */
   async emit<EventName extends DatalessEventNames<EventMap>>(eventName: EventName): Promise<void>
   /**
-   * Emit an event with a payload.
-   * @param eventName The event name.
-   * @param eventData The event payload.
+   * Emit an event with payload.
+   *
+   * @param eventName The event name
+   * @param eventData The event payload
    */
   async emit<EventName extends keyof EventMap>(
     eventName: EventName,
     eventData: EventMap[EventName],
   ): Promise<void>
   /**
-   * Emit an event (overload for optional payload).
-   * @param eventName The event name.
-   * @param eventData The event payload (optional).
+   * Emit an event with optional payload.
+   *
+   * @param eventName The event name
+   * @param eventData The event payload (optional)
    */
   async emit<EventName extends keyof EventMap>(
     eventName: EventName,
@@ -278,12 +239,12 @@ export class MetricsEmitter<
   }
 
   /**
-   * Override on() to wrap listeners for timing and error tracking.
+   * Add listener with automatic timing and error tracking.
    *
-   * @param eventName The event name or array of names.
-   * @param listener The listener function.
-   * @param options Optional: { signal } for abortable listeners.
-   * @returns Unsubscribe function.
+   * @param eventName The event name or array of names
+   * @param listener The listener function
+   * @param options Optional signal for abortable listeners
+   * @returns Unsubscribe function
    */
   on<EventName extends keyof (EventMap & MetricsEmitterEvents) | keyof OmnipresentEventData>(
     eventName: EventName | readonly EventName[],
@@ -316,12 +277,10 @@ export class MetricsEmitter<
   }
 
   /**
-   * Override off() to protect the built-in resetMetrics listener from being removed.
-   * Silently ignores attempts to remove the protected listener while allowing
-   * user listeners on resetMetrics to be removed normally.
+   * Remove listener with protection for built-in resetMetrics listener.
    *
-   * @param eventName The event name to remove listeners from.
-   * @param listener The specific listener to remove.
+   * @param eventName The event name to remove listeners from
+   * @param listener The specific listener to remove
    */
   off<EventName extends keyof (EventMap & MetricsEmitterEvents) | keyof OmnipresentEventData>(
     eventName: EventName | readonly EventName[],

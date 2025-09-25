@@ -1,7 +1,7 @@
 import Emittery from 'emittery'
 import type { LevelMapping, Logger } from 'pino'
 import pino from 'pino'
-import type { Exact, ReadonlyDeep, Simplify } from 'type-fest'
+import type { Exact } from 'type-fest'
 
 import type { BaseEventMap } from '@repo/types'
 import isPlainObject from 'is-plain-object'
@@ -12,43 +12,11 @@ import type {
   LogLevel,
   LogLevelWithSilent,
   LoggerOptions,
+  PinoLogArgs,
+  SafeMergingObject,
+  ThrowConfig,
 } from './types.js'
 import { LOGGER_LEVELS } from './types.js'
-
-// =============================================================================
-// Types
-// =============================================================================
-
-/**
- * Precise parameter types for pino log methods.
- * Based on LogFn interface overloads, supports:
- * 1. Message-first: (msg: string, ...args: unknown[])
- * 2. Object-first: (obj: Record<string, any>, msg?: string, ...args: unknown[])
- *
- * Enhanced with type-fest for maximum type safety.
- */
-type PinoLogArgs = Simplify<
-  | readonly [msg: string, ...args: readonly unknown[]]
-  | readonly [obj: Record<string, any>, msg?: string, ...args: readonly unknown[]]
->
-
-/**
- * Immutable bindings type for safer binding operations.
- */
-type SafeBindings = ReadonlyDeep<Bindings>
-
-/**
- * Type-safe shouldThrow configuration in merging objects.
- */
-type ThrowConfig = Simplify<{
-  readonly shouldThrow: true
-  readonly ErrorClass?: new (message: string) => Error
-}>
-
-/**
- * Enhanced merging object with type-safe throw configuration.
- */
-type SafeMergingObject = Simplify<Record<string, unknown> & Partial<ThrowConfig>>
 
 // =============================================================================
 // Class Definition
@@ -111,46 +79,31 @@ export abstract class LoggedEmitter<
 
   /**
    * Create a child logger with additional bindings.
-   * Useful for adding context to all log messages from this instance.
-   * Enhanced with type-safe bindings and exact parameter matching.
-   *
-   * Note: This method must be implemented by concrete subclasses since
-   * LoggedEmitter is abstract and cannot be instantiated directly.
+   * Updates this instance's logger with additional context that will be included in all subsequent log messages.
    *
    * @param bindings - Key-value pairs to include in all log messages
    * @param options - Optional child logger configuration
-   * @returns A new instance of the concrete class with the child logger
+   * @returns This instance with the updated child logger
    */
-  abstract createChildLogger<T extends Bindings>(
+  createChildLogger<T extends Bindings>(
     bindings: Exact<T, Bindings>,
     options?: Exact<ChildLoggerOptions, ChildLoggerOptions>,
-  ): this
-
-  /**
-   * Protected helper method for concrete classes to implement createChildLogger.
-   * Creates a child logger and reinitializes the log methods.
-   *
-   * @param childInstance - The concrete instance to configure
-   * @param bindings - Key-value pairs to include in all log messages
-   * @param options - Optional child logger configuration
-   */
-  protected _initializeChildLogger<T extends Bindings>(
-    childInstance: this,
-    bindings: Exact<T, Bindings>,
-    options?: Exact<ChildLoggerOptions, ChildLoggerOptions>,
-  ): void {
-    childInstance.logger = this.logger.child(bindings, options)
+  ): this {
+    // Create child logger and update this instance
+    this.logger = this.logger.child(bindings, options)
 
     // Reinitialize log methods with the child logger
     for (const level of LOGGER_LEVELS) {
-      childInstance.log[level] = (...args: PinoLogArgs) => {
+      this.log[level] = (...args: PinoLogArgs) => {
         // Cast args to Parameters<Logger[typeof level]> for pino compatibility
-        childInstance.logger[level](...(args as Parameters<Logger[typeof level]>))
+        this.logger[level](...(args as Parameters<Logger[typeof level]>))
         if (args.length >= 1) {
-          childInstance._shouldThrow(level, ...args)
+          this._shouldThrow(level, ...args)
         }
       }
     }
+
+    return this
   }
 
   /**
