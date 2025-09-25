@@ -20,13 +20,15 @@
   "devDependencies": {
     "@repo/types": "workspace:*",
     "@repo/vitest-config": "workspace:*",
-    "type-fest": "^5.0.0",
+    "@types/node": "^24.5.2",
+    "type-fest": "^5.0.1",
     "typescript": "5.9.2",
     "vite-tsconfig-paths": "^5.1.4",
     "vitest": "^3.2.4"
   },
   "dependencies": {
     "emittery": "^1.2.0",
+    "is-plain-object": "^2.0.4",
     "pino": "^9.11.0"
   }
 }

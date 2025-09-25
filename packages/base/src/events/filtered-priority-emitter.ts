@@ -1,83 +1,26 @@
-import { LinkedList } from '@/data/index.js'
+import { LinkedList } from '@/data'
+import { LoggedEmitter } from './logged-emitter.js'
+
 import type { Args, BaseEventMap } from '@repo/types'
-import Emittery from 'emittery'
-import type { Simplify } from 'type-fest'
+import type {
+  ListenerCallback,
+  PriorityListener,
+  PriorityListenerOptions,
+  UnsubscribeFunction,
+} from './types.js'
 
 /**
- * Callback function signature for event listeners.
- * Can be synchronous or asynchronous.
- *
- * @template EventMap - The event map defining event names and their data types
- * @template EventName - The specific event name being handled
- */
-type ListenerCallback<EventMap, EventName extends keyof EventMap> = (
-  ...args: Args<EventMap[EventName]>
-) => void | Promise<void>
-
-/**
- * Filter function signature for conditional event handling.
- * Returns `true` to allow the listener to execute, `false` to skip it.
- *
- * @template EventMap - The event map defining event names and their data types
- * @template EventName - The specific event name being handled
- */
-type ListenerFilter<EventMap, EventName extends keyof EventMap> = (
-  ...args: Args<EventMap[EventName]>
-) => boolean
-
-/**
- * Options for registering priority listeners.
- * Uses type-fest's Simplify for cleaner type display.
- *
- * @template EventMap - The event map defining event names and their data types
- * @template EventName - The specific event name being handled
- */
-type PriorityListenerOptions<EventMap, EventName extends keyof EventMap> = Simplify<{
-  /** Priority level (default: 0). Higher numbers execute first */
-  priority?: number
-  /** Optional filter function. Return true to execute, false to skip */
-  filter?: ListenerFilter<EventMap, EventName>
-}>
-
-/**
- * Unsubscribe function returned by listener registration methods.
- * Calling this function removes the listener from the emitter.
- */
-type UnsubscribeFunction = () => void
-
-/**
- * Configuration object for a priority listener.
- * Uses type-fest's Simplify to flatten the interface for better IDE display.
- *
- * @template EventMap - The event map defining event names and their data types
- * @template EventName - The specific event name being handled
- */
-export type PriorityListener<EventMap, EventName extends keyof EventMap> = Simplify<{
-  /** The function to call when the event is emitted */
-  callback: ListenerCallback<EventMap, EventName>
-  /** Priority level (higher numbers run first) */
-  priority: number
-  /** Optional filter to conditionally execute the callback */
-  filter?: ListenerFilter<EventMap, EventName>
-}>
-
-/**
- * Advanced event emitter that extends Emittery with priority and filtering capabilities.
+ * Abstract event emitter with priority and filtering capabilities.
  *
  * ## Features:
- * - **Priority listeners**: Register listeners with priority levels (higher numbers execute first)
+ * - **Priority listeners**: Higher priority numbers execute first
  * - **Filtered listeners**: Use filter functions to conditionally execute listeners
  * - **One-time listeners**: Support for `once` semantics with priority/filter options
  * - **Error handling**: Catches errors from priority listeners and emits them as 'error' events
- * - **Type safety**: Full TypeScript support with proper event argument typing
+ * - **Structured logging**: Inherits pino logging from LoggedEmitter
  *
  * ## Usage Example:
  * ```typescript
- * const emitter = new FilteredPriorityEmitter<{
- *   message: { text: string; timestamp: number }
- *   error: Error
- * }>()
- *
  * // High priority logger
  * emitter.onWithOptions('message', (msg) => console.log(msg), {
  *   priority: 10
@@ -85,16 +28,15 @@ export type PriorityListener<EventMap, EventName extends keyof EventMap> = Simpl
  *
  * // Conditional handler
  * emitter.onWithOptions('message', (msg) => saveToFile(msg), {
- *   filter: (msg) => msg.text.includes('important')
+ *   filter: (msg) => msg.important === true
  * })
  * ```
  *
  * @template EventMap - The event map defining event names and their data types
  */
-export class FilteredPriorityEmitter<
-  EventMap extends BaseEventMap = BaseEventMap<unknown>,
-> extends Emittery<EventMap> {
-  // --- Private Fields ---
+export abstract class FilteredPriorityEmitter<
+  EventMap extends BaseEventMap<unknown> = BaseEventMap,
+> extends LoggedEmitter<EventMap> {
   /**
    * Internal storage for priority listeners, organized by event name.
    * Uses LinkedList for efficient sorted insertion based on priority.
@@ -102,8 +44,6 @@ export class FilteredPriorityEmitter<
   private _priorityListeners: {
     [EventName in keyof EventMap]?: LinkedList<PriorityListener<EventMap, EventName>>
   } = {}
-
-  // --- Public API ---
 
   /**
    * Register a listener with optional priority and filter capabilities.
