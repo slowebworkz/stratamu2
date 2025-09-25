@@ -1,11 +1,13 @@
 import type { Args, BaseEventMap } from '@repo/types'
-import type { Simplify } from 'type-fest';
+import type { Simplify } from 'type-fest'
 import { SafeEmitter } from './safe-emitter.js'
 import type { ArgsForParent } from './types.js'
 
 export abstract class BubblingEmitter<
   EventMap extends BaseEventMap<unknown[]> = BaseEventMap<unknown[]>,
-  ParentEventMap extends Simplify<BaseEventMap<unknown[]> & Record<keyof EventMap, unknown[]>> = EventMap,
+  ParentEventMap extends Simplify<
+    BaseEventMap<unknown[]> & Record<keyof EventMap, unknown[]>
+  > = EventMap,
 > extends SafeEmitter<EventMap> {
   /**
    * Optional parent emitter to which events may bubble.
@@ -93,7 +95,7 @@ export abstract class BubblingEmitter<
     await this.emitSafe(eventName, ...args)
     if (this.bubbleEvents.has(eventName)) {
       // Fire-and-forget: don't await parent bubbling
-      this.bubbleToParent(eventName, args).catch(error => {
+      this.bubbleToParent(eventName, args).catch((error) => {
         // Log error to console to prevent unhandled promise rejections
         console.error('BubblingEmitter: Failed to bubble event to parent:', error)
       })

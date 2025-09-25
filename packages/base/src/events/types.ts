@@ -103,7 +103,11 @@ export type {
  * Enhanced with type-fest for maximum type safety.
  */
 type MessageFirstArgs = readonly [msg: string, ...args: readonly unknown[]]
-type ObjectFirstArgs = readonly [obj: Record<string, unknown>, msg?: string, ...args: readonly unknown[]]
+type ObjectFirstArgs = readonly [
+  obj: Record<string, unknown>,
+  msg?: string,
+  ...args: readonly unknown[],
+]
 
 export type PinoLogArgs = Simplify<MessageFirstArgs | ObjectFirstArgs>
 
@@ -290,7 +294,9 @@ type EmissionContextCore<EventName = string> = {
   stackTrace?: string
 }
 
-export type EmissionContext<EventName = string> = ImmutableSimplified<EmissionContextCore<EventName>>
+export type EmissionContext<EventName = string> = ImmutableSimplified<
+  EmissionContextCore<EventName>
+>
 
 /**
  * Event validation result for type-safe event handling.
@@ -309,9 +315,8 @@ type ValidationResultCore<T extends readonly unknown[]> = {
   schemaVersion?: SchemaVersion
 }
 
-export type EventValidationResult<T extends readonly unknown[] = readonly unknown[]> = ImmutableSimplified<
-  ValidationResultCore<T>
->
+export type EventValidationResult<T extends readonly unknown[] = readonly unknown[]> =
+  ImmutableSimplified<ValidationResultCore<T>>
 
 // =============================================================================
 // Advanced Event Utilities
@@ -336,7 +341,9 @@ type AdvancedListenerExtensions<EventMap, EventName extends keyof EventMap> = {
   /** Middleware to apply before listener execution */
   middleware?: EventMiddleware<EventMap, EventName>[]
   /** Validate event data before calling listener */
-  validate?: (...args: Args<EventMap[EventName]>) => EventValidationResult<Args<EventMap[EventName]>>
+  validate?: (
+    ...args: Args<EventMap[EventName]>
+  ) => EventValidationResult<Args<EventMap[EventName]>>
   /** Maximum number of times this listener can be called */
   maxCalls?: Count
   /** Timeout in milliseconds for listener execution */
@@ -413,7 +420,7 @@ export type ImmutableSimplified<T> = Simplify<ReadonlyDeep<T>>
 export type ArgsForParent<
   EventMap extends AnyEventMap,
   ParentEventMap extends AnyEventMap,
-  EventName extends keyof EventMap
+  EventName extends keyof EventMap,
 > = Args<ParentEventMap[EventName & keyof ParentEventMap]>
 
 /**
