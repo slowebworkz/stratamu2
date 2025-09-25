@@ -1,3 +1,5 @@
+export * from './bubbling-emitter.js'
+export * from './destroyable-emitter.js'
 export * from './event-metrics.js'
 export * from './filtered-priority-emitter.js'
 export * from './logged-emitter.js'
