@@ -17,6 +17,13 @@ export class DestroyableEmitter<
    */
   unsubscribeAll(): void {
     super.clearListeners()
+    // Also clear priority listeners if this emitter has them
+    if (
+      'clearPriorityListeners' in this &&
+      typeof (this as any).clearPriorityListeners === 'function'
+    ) {
+      ;(this as any).clearPriorityListeners()
+    }
   }
 
   /**
@@ -24,7 +31,16 @@ export class DestroyableEmitter<
    * Calls logger.flush if available.
    */
   destroy(): void {
-    this.dispose() // clears parent & bubbleEvents & listeners
-    this.logger.flush?.()
+    try {
+      this.dispose() // clears parent & bubbleEvents & listeners
+    } catch {
+      // Ignore dispose errors during destruction
+    }
+
+    try {
+      this.logger.flush?.()
+    } catch {
+      // Ignore logger flush errors during destruction
+    }
   }
 }

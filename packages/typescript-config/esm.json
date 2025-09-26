@@ -2,11 +2,14 @@
   "$schema": "https://json.schemastore.org/tsconfig",
   "extends": "./base.json",
   "compilerOptions": {
+    "experimentalDecorators": true,
     "module": "ESNext",
     "moduleResolution": "node",
     "outDir": "dist",
     "declaration": true,
     "declarationDir": "dist"
   },
-  "include": ["src/index.ts"]
+  "include": [
+    "src/index.ts"
+  ]
 }

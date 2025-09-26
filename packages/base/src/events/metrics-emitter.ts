@@ -218,24 +218,29 @@ export abstract class MetricsEmitter<
       error = err
     }
     const elapsed = perfNow() - start
-    if (!error) {
-      this._eventCounts.set(
+
+    // Don't track metrics for the resetMetrics event itself
+    if (eventName !== 'resetMetrics') {
+      if (!error) {
+        this._eventCounts.set(
+          eventName as string,
+          ((this._eventCounts.get(eventName as string) || 0) + 1) as Count,
+        )
+      } else {
+        // Track errors
+        this._eventErrors.set(
+          eventName as string,
+          ((this._eventErrors.get(eventName as string) || 0) + 1) as ErrorCount,
+        )
+      }
+      this._eventTotalTime.set(
         eventName as string,
-        ((this._eventCounts.get(eventName as string) || 0) + 1) as Count,
+        ((this._eventTotalTime.get(eventName as string) || 0) + elapsed) as TimeInMs,
       )
-    } else {
-      // Track errors
-      this._eventErrors.set(
-        eventName as string,
-        ((this._eventErrors.get(eventName as string) || 0) + 1) as ErrorCount,
-      )
+      this._eventLastTime.set(eventName as string, elapsed as TimeInMs)
     }
-    this._eventTotalTime.set(
-      eventName as string,
-      ((this._eventTotalTime.get(eventName as string) || 0) + elapsed) as TimeInMs,
-    )
-    this._eventLastTime.set(eventName as string, elapsed as TimeInMs)
-    if (error) throw error
+    // Don't re-throw error - SafeEmitter should handle listener errors gracefully
+    // if (error) throw error
   }
 
   /**
@@ -257,11 +262,20 @@ export abstract class MetricsEmitter<
       eventData: (EventMap & MetricsEmitterEvents & OmnipresentEventData)[EventName],
     ) => {
       const start = perfNow()
-      let error: unknown = undefined
       try {
         await listener(eventData)
       } catch (err) {
-        if (error === undefined) error = err
+        // Record timing even for failed listeners
+        const elapsed = perfNow() - start
+        if (Array.isArray(eventName)) {
+          for (const e of eventName) {
+            this._recordListenerTime(e as string, listener, elapsed)
+          }
+        } else {
+          this._recordListenerTime(eventName as string, listener, elapsed)
+        }
+        // Let SafeEmitter handle error reporting
+        throw err
       }
       const elapsed = perfNow() - start
       if (Array.isArray(eventName)) {
@@ -271,7 +285,6 @@ export abstract class MetricsEmitter<
       } else {
         this._recordListenerTime(eventName as string, listener, elapsed)
       }
-      if (error !== undefined) throw error
     }
     return super.on(eventName, wrapped, options)
   }

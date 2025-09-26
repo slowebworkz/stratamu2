@@ -18,12 +18,13 @@
     "husky": "^9.1.7",
     "prettier": "^3.6.2",
     "prettier-plugin-organize-imports": "^4.2.0",
-    "turbo": "^2.5.7",
+    "turbo": "^2.5.8",
     "type-fest": "^5.0.1",
     "typescript": "5.9.2"
   },
   "packageManager": "pnpm@9.0.0",
   "engines": {
-    "node": ">=18"
+    "node": ">=22.19.0",
+    "pnpm": ">=9.0.0"
   }
 }

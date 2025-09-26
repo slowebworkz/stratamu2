@@ -126,9 +126,12 @@ export abstract class BubblingEmitter<
     visited: Set<BubblingEmitter<any>> = new Set(),
   ): Promise<void> {
     const parent = this.parent
-    if (!parent || visited.has(this) || visited.has(parent)) return
+    if (!parent) return
 
-    visited.add(this)
+    // Check if we've already visited this exact parent to prevent infinite loops
+    if (visited.has(parent)) return
+
+    // Add current parent to visited set before continuing
     visited.add(parent)
 
     // Type-safe bubbling using helper type to reduce casting
@@ -136,6 +139,10 @@ export abstract class BubblingEmitter<
     const parentArgs = args as unknown as ArgsForParent<EventMap, ParentEventMap, Name>
 
     await parent.emitSafe(parentEventName, ...parentArgs)
-    await parent.bubbleToParent(parentEventName, parentArgs, visited)
+
+    // Only continue bubbling if the parent has bubbling enabled for this event
+    if (parent.bubbleEvents.has(parentEventName)) {
+      await parent.bubbleToParent(parentEventName, parentArgs, visited)
+    }
   }
 }

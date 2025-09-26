@@ -1,4 +1,5 @@
-import type { Args } from '@repo/types'
+import type { Args, BaseEventMap } from '@repo/types'
+import type { OmnipresentEventData } from 'emittery'
 import type {
   Bindings,
   ChildLoggerOptions,
@@ -12,7 +13,8 @@ import type {
   LoggerOptions,
   SerializerFn,
 } from 'pino'
-import type { IntRange, LiteralUnion, ReadonlyDeep, Simplify, Tagged } from 'type-fest'
+import type { IntRange, LiteralUnion, Promisable, ReadonlyDeep, Simplify, Tagged } from 'type-fest'
+import type { InternalEventMap } from './private-events.js'
 
 // =============================================================================
 // SafeEmitter Types
@@ -23,6 +25,25 @@ import type { IntRange, LiteralUnion, ReadonlyDeep, Simplify, Tagged } from 'typ
  * Re-exported from emittery for convenience.
  */
 export type { EmitteryOncePromise } from 'emittery'
+// =============================================================================
+// SafeEmitter Internal Types
+// =============================================================================
+
+/** Error log entry type for listener errors (deeply immutable) */
+export type ListenerErrorLogEntry = ReadonlyDeep<{
+  timestamp: number
+  error: unknown
+  listener: string
+}>
+
+/** Combined event map type for SafeEmitter (flattened for IDE support) */
+export type SafeEmitterEventMap<
+  EventMap extends BaseEventMap<unknown[]>,
+  WithOmnipresent extends boolean = false,
+> = Simplify<
+  (EventMap & InternalEventMap<EventMap>) &
+    (WithOmnipresent extends true ? OmnipresentEventData : {})
+>
 
 // =============================================================================
 // LoggedEmitter Types
@@ -205,7 +226,7 @@ export type ListenerPerformanceRecord = Simplify<
  */
 export type ListenerCallback<EventMap, EventName extends keyof EventMap> = (
   ...args: Args<EventMap[EventName]>
-) => void | Promise<void>
+) => Promisable<void>
 
 /**
  * Filter function signature for conditional event handling.
@@ -252,6 +273,8 @@ export type PriorityListener<EventMap, EventName extends keyof EventMap> = Simpl
   priority: Priority
   /** Optional filter to conditionally execute the callback */
   filter?: ListenerFilter<EventMap, EventName>
+  /** Sequence number for maintaining insertion order within same priority level */
+  sequence: number
 }>
 
 // =============================================================================

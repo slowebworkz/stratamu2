@@ -29,6 +29,7 @@
   "dependencies": {
     "emittery": "^1.2.0",
     "is-plain-object": "^2.0.4",
+    "nanoid": "^5.1.6",
     "pino": "^9.11.0"
   }
 }

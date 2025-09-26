@@ -47,6 +47,11 @@ export abstract class FilteredPriorityEmitter<
   } = {}
 
   /**
+   * Sequence counter for maintaining insertion order within same priority level.
+   */
+  private _sequenceCounter = 0
+
+  /**
    * Register a listener with optional priority and filter capabilities.
    *
    * @param event - The event name to listen for
@@ -82,13 +87,17 @@ export abstract class FilteredPriorityEmitter<
     const list =
       this._priorityListeners[event] ??
       (this._priorityListeners[event] = new LinkedList<PriorityListener<EventMap, EventName>>(
-        (a: PriorityListener<EventMap, EventName>, b: PriorityListener<EventMap, EventName>) =>
-          b.priority - a.priority,
+        (a: PriorityListener<EventMap, EventName>, b: PriorityListener<EventMap, EventName>) => {
+          const priorityDiff = b.priority - a.priority
+          // If same priority, use sequence for insertion order (lower sequence = earlier insertion)
+          return priorityDiff !== 0 ? priorityDiff : a.sequence - b.sequence
+        },
       ))
     const listener = {
       callback,
       priority: (options?.priority ?? 0) as Priority,
       filter: options?.filter,
+      sequence: this._sequenceCounter++,
     }
 
     list.sortedInsert(listener)
@@ -175,12 +184,16 @@ export abstract class FilteredPriorityEmitter<
     const errors: unknown[] = []
     if (list && Symbol.iterator in list) {
       for (const listener of list) {
-        if (!listener.filter || listener.filter(...args)) {
-          try {
-            await listener.callback(...args)
-          } catch (err) {
-            errors.push(err)
+        try {
+          let shouldExecute = true
+          if (listener.filter) {
+            shouldExecute = listener.filter(...args)
           }
+          if (shouldExecute) {
+            await listener.callback(...args)
+          }
+        } catch (err) {
+          errors.push(err)
         }
       }
     }
