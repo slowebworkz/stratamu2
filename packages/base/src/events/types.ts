@@ -42,7 +42,7 @@ export type SafeEmitterEventMap<
   WithOmnipresent extends boolean = false,
 > = Simplify<
   (EventMap & InternalEventMap<EventMap>) &
-    (WithOmnipresent extends true ? OmnipresentEventData : {})
+    (WithOmnipresent extends true ? OmnipresentEventData : object)
 >
 
 // =============================================================================

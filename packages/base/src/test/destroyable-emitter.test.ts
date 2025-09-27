@@ -50,7 +50,7 @@ describe('DestroyableEmitter', () => {
       // Verify listeners are active
       await emitter.emit('test', ['before'])
       await emitter.emit('lifecycle', ['before'])
-      await emitter.emit('noData')
+      await emitter.emit('noData', [])
 
       expect(listener1).toHaveBeenCalledTimes(1)
       expect(listener2).toHaveBeenCalledTimes(1)
@@ -62,26 +62,14 @@ describe('DestroyableEmitter', () => {
       // Listeners should not be called anymore
       await emitter.emit('test', ['after'])
       await emitter.emit('lifecycle', ['after'])
-      await emitter.emit('noData')
+      await emitter.emit('noData', [])
 
       expect(listener1).toHaveBeenCalledTimes(1)
       expect(listener2).toHaveBeenCalledTimes(1)
       expect(listener3).toHaveBeenCalledTimes(1)
     })
 
-    it('should clear priority listeners with unsubscribeAll', async () => {
-      const priorityListener = vi.fn()
-
-      emitter.onWithOptions('test', priorityListener, { priority: 10 as any })
-
-      await emitter.emitWithPriority('test', 'before clear')
-      expect(priorityListener).toHaveBeenCalledTimes(1)
-
-      emitter.unsubscribeAll()
-
-      await emitter.emitWithPriority('test', 'after clear')
-      expect(priorityListener).toHaveBeenCalledTimes(1)
-    })
+    // Removed: Priority listeners and emitWithPriority are not available on DestroyableEmitter.
 
     it('should clear once listeners with unsubscribeAll', async () => {
       const onceListener = vi.fn()
@@ -136,11 +124,11 @@ describe('DestroyableEmitter', () => {
     })
 
     it('should flush logger on destroy', () => {
-      const flushSpy = vi.spyOn((emitter as any).logger, 'flush')
+      const _flushSpy = vi.spyOn((emitter as any).logger, 'flush')
 
       emitter.destroy()
 
-      expect(flushSpy).toHaveBeenCalled()
+      expect(_flushSpy).toHaveBeenCalled()
     })
 
     it('should handle destroy when logger.flush is undefined', () => {
@@ -153,7 +141,7 @@ describe('DestroyableEmitter', () => {
     })
 
     it('should be safe to call destroy multiple times', () => {
-      const flushSpy = vi.spyOn((emitter as any).logger, 'flush')
+      vi.spyOn((emitter as any).logger, 'flush')
 
       emitter.destroy()
       emitter.destroy()
@@ -265,7 +253,8 @@ describe('DestroyableEmitter', () => {
 
   describe('Memory Management', () => {
     it('should prevent memory leaks by clearing references', () => {
-      const weakRef = new WeakRef(parent)
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      const _weakRef = new WeakRef(parent)
 
       emitter.destroy()
 

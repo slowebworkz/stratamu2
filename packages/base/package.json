@@ -15,7 +15,8 @@
     "clean": "rm -rf dist",
     "build": "tsc --project tsconfig.json",
     "test": "vitest run",
-    "lint:fix": "pnpm run lint || (pnpm run format && pnpm run lint)"
+    "lint": "pnpm exec eslint . --ext .ts,.tsx",
+    "lint:fix": "pnpm exec eslint . --ext .ts,.tsx --fix || (pnpm -w run format && pnpm exec eslint . --ext .ts,.tsx --fix)"
   },
   "devDependencies": {
     "@repo/types": "workspace:*",

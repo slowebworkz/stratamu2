@@ -234,6 +234,7 @@ describe('Event Ordering and Timing', () => {
     })
 
     it('should not wait for parent emission to complete', async () => {
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
       let parentStarted = false
       let childCompleted = false
 

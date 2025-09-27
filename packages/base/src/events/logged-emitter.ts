@@ -227,7 +227,7 @@ export abstract class LoggedEmitter<
  * Uses isPlainObject for more accurate plain object detection.
  * Enhanced with type-fest for safer type narrowing.
  */
-function isObjectFirstArgs(
+export function isObjectFirstArgs(
   args: PinoLogArgs,
 ): args is readonly [obj: SafeMergingObject, msg?: string, ...args: readonly unknown[]] {
   return args.length >= 1 && args[0] !== null && isPlainObject(args[0])
@@ -237,16 +237,16 @@ function isObjectFirstArgs(
  * Type guard to determine if args follow the message-first pattern.
  * Enhanced with readonly tuple for immutability.
  */
-function isMessageFirstArgs(
-  args: PinoLogArgs,
-): args is readonly [msg: string, ...args: readonly unknown[]] {
-  return args.length >= 1 && typeof args[0] === 'string'
-}
+// function isMessageFirstArgs(
+//   args: PinoLogArgs,
+// ): args is readonly [msg: string, ...args: readonly unknown[]] {
+//   return args.length >= 1 && typeof args[0] === "string";
+// }
 
 /**
  * Type-safe check for shouldThrow configuration in merging objects.
  * Uses exact type matching for maximum safety.
  */
-function hasThrowConfig(obj: SafeMergingObject): obj is SafeMergingObject & ThrowConfig {
+export function hasThrowConfig(obj: SafeMergingObject): obj is SafeMergingObject & ThrowConfig {
   return obj.shouldThrow === true
 }

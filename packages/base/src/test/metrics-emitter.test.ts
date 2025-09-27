@@ -78,8 +78,8 @@ describe('MetricsEmitter', () => {
 
       try {
         await emitter.emit('error', [new Error('Test error')])
-      } catch (error) {
-        // Expected to throw
+      } catch {
+        // error handled
       }
 
       const metrics = emitter.getEventMetrics()
@@ -104,7 +104,7 @@ describe('MetricsEmitter', () => {
       shouldThrow = true
       try {
         await emitter.emit('test', ['failure'])
-      } catch (error) {
+      } catch {
         // Expected
       }
 
@@ -278,13 +278,7 @@ describe('MetricsEmitter', () => {
 
     it('should handle EventMetrics creation errors gracefully', async () => {
       // Force an error by mocking EventMetrics constructor
-      const originalEventMetrics = EventMetrics
-      const MockEventMetrics = vi.fn(() => {
-        throw new Error('EventMetrics creation error')
-      })
-
       // This test verifies error handling, but we can't easily mock the import
-      // so we'll test the error case through the logging
       await emitter.emit('test', ['error test'])
 
       // The test passes if no exception is thrown from getEventMetrics
@@ -298,7 +292,7 @@ describe('MetricsEmitter', () => {
 
       try {
         await emitter.emit('error', [new Error('Test')])
-      } catch (error) {
+      } catch {
         // Expected
       }
 

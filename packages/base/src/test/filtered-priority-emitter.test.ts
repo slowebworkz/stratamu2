@@ -3,11 +3,11 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 // Concrete test implementation
 class TestFilteredPriorityEmitter extends (await import('../events/filtered-priority-emitter.js'))
   .FilteredPriorityEmitter<{
-  test: [string]
-  priority: [number]
-  noData: []
-  error: [Error]
-}> {}
+    test: [string]
+    priority: [number]
+    noData: []
+    error: [Error]
+  }> { }
 
 describe('FilteredPriorityEmitter', () => {
   let emitter: TestFilteredPriorityEmitter
@@ -109,12 +109,14 @@ describe('FilteredPriorityEmitter', () => {
 
     it('should return unsubscribe function', async () => {
       const listener = vi.fn()
-
-      const unsubscribe = emitter.onWithOptions('test', listener, { priority: 1 as any })
+      const unsubscribe = emitter.onWithOptions('test', listener, {
+        priority: 1 as any,
+      })
 
       await emitter.emitWithPriority('test', 'before')
       expect(listener).toHaveBeenCalledTimes(1)
 
+      // Unsubscribe after first emit
       unsubscribe()
 
       await emitter.emitWithPriority('test', 'after')
@@ -241,7 +243,7 @@ describe('FilteredPriorityEmitter', () => {
     it('should register once listeners with filters', async () => {
       const filteredOnceListener = vi.fn()
 
-      const unsubscribe = emitter.onceWithOptions('test', filteredOnceListener, {
+      emitter.onceWithOptions('test', filteredOnceListener, {
         filter: (msg) => msg === 'trigger',
       })
 
@@ -259,7 +261,9 @@ describe('FilteredPriorityEmitter', () => {
     it('should return unsubscribe function for once listeners', async () => {
       const onceListener = vi.fn()
 
-      const unsubscribe = emitter.onceWithOptions('test', onceListener, { priority: 5 as any })
+      const unsubscribe = emitter.onceWithOptions('test', onceListener, {
+        priority: 5 as any,
+      })
 
       unsubscribe()
 
@@ -273,7 +277,9 @@ describe('FilteredPriorityEmitter', () => {
         return msg
       })
 
-      emitter.onceWithOptions('test', asyncOnceListener, { priority: 5 as any })
+      emitter.onceWithOptions('test', asyncOnceListener, {
+        priority: 5 as any,
+      })
 
       await emitter.emitWithPriority('test', 'async')
       expect(asyncOnceListener).toHaveBeenCalledWith('async')
@@ -387,7 +393,9 @@ describe('FilteredPriorityEmitter', () => {
       const priorityListener = vi.fn()
 
       emitter.onWithOptions('test', testListener, { priority: 5 as any })
-      emitter.onWithOptions('priority', priorityListener, { priority: 3 as any })
+      emitter.onWithOptions('priority', priorityListener, {
+        priority: 3 as any,
+      })
 
       await emitter.emitWithPriority('test', 'before')
       await emitter.emitWithPriority('priority', 42)
@@ -405,10 +413,10 @@ describe('FilteredPriorityEmitter', () => {
     })
 
     it('should count all listeners including priority and regular', async () => {
-      emitter.on('test', () => {})
-      emitter.on('test', () => {})
-      emitter.onWithOptions('test', () => {}, { priority: 5 as any })
-      emitter.onWithOptions('test', () => {}, { priority: 3 as any })
+      emitter.on('test', () => { })
+      emitter.on('test', () => { })
+      emitter.onWithOptions('test', () => { }, { priority: 5 as any })
+      emitter.onWithOptions('test', () => { }, { priority: 3 as any })
 
       const count = emitter.listenerCount('test')
       expect(count).toBe(4) // 2 regular + 2 priority

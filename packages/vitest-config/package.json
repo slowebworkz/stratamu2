@@ -13,5 +13,10 @@
   "peerDependencies": {
     "vitest": "^3.0.0",
     "vite-tsconfig-paths": "^5.0.0"
+  },
+  "scripts": {
+    "lint": "echo 'noop'",
+    "format": "echo 'noop'",
+    "lint:fix": "pnpm run lint || (pnpm run format && pnpm run lint)"
   }
 }

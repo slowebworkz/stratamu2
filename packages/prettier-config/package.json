@@ -1,8 +1,11 @@
 {
-  "name": "@stratamu2/prettier-config",
+  "name": "@repo/prettier-config",
   "version": "1.0.0",
   "description": "Shared Prettier config for stratamu2 monorepo.",
-  "main": "prettier.config.js",
+  "main": "index.js",
+  "exports": {
+    ".": "./index.js"
+  },
   "type": "module",
   "keywords": [
     "prettier",
@@ -10,5 +13,14 @@
     "monorepo"
   ],
   "author": "slowebworkz",
-  "license": "MIT"
+  "license": "MIT",
+  "scripts": {
+    "lint": "echo 'noop'",
+    "format": "echo 'noop'",
+    "lint:fix": "pnpm run lint || (pnpm run format && pnpm run lint)"
+  },
+  "devDependencies": {
+    "prettier": "^3.6.2",
+    "prettier-plugin-organize-imports": "^4.2.0"
+  }
 }

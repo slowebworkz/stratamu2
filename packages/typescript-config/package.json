@@ -9,5 +9,10 @@
     "./vitest": "./vitest.json",
     "./types": "./types-only.json"
   },
-  "license": "MIT"
+  "license": "MIT",
+  "scripts": {
+    "lint": "echo 'noop'",
+    "format": "echo 'noop'",
+    "lint:fix": "pnpm run lint || (pnpm run format && pnpm run lint)"
+  }
 }

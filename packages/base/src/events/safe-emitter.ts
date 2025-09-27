@@ -4,6 +4,7 @@ import pino from 'pino'
 import type { Exact } from 'type-fest'
 
 import type { Args, BaseEventMap } from '@repo/types'
+import { isObjectFirstArgs, hasThrowConfig } from './logged-emitter.js'
 import type { OmnipresentEventData, UnsubscribeFunction } from 'emittery'
 import type {
   Bindings,
@@ -54,6 +55,10 @@ type SafeEmitterEvents<T extends BaseEventMap> = T & SafeEmitterPrivateEvents
  * @template EventMap - The event map for this emitter
  */
 export abstract class SafeEmitter<
+  /**
+   * Stub for metrics integration. Returns empty array by default.
+   * Override in subclasses or mix with MetricsEmitter for real metrics.
+   */
   EventMap extends BaseEventMap<unknown[]> = BaseEventMap<unknown[]>,
 > extends Emittery<SafeEmitterEvents<EventMap>> {
   // =============================================================================
@@ -153,6 +158,14 @@ export abstract class SafeEmitter<
 
     // Set up private event listeners
     this._setupPrivateListeners()
+  }
+
+  /**
+   * Stub for metrics integration. Returns empty array by default.
+   * Override in subclasses or mix with MetricsEmitter for real metrics.
+   */
+  getEventMetrics(): any[] {
+    return [];
   }
 
   // =============================================================================
@@ -341,7 +354,7 @@ export abstract class SafeEmitter<
     eventName: keyof EventMap,
     error: unknown,
     context: {
-      type: 'listener' | 'once'
+      type: 'on' | 'once'
       listener?: (...args: any[]) => any
       hasFilter?: boolean
     },
@@ -445,33 +458,6 @@ export abstract class SafeEmitter<
     }
   }
 
-  /**
-   * Error handler for listener failures.
-   *
-   * @param eventName The event name
-   * @param error The error thrown by the listener
-   * @param context Context about the listener that failed
-   */
-  protected onListenerError<EventName extends keyof EventMap>(
-    eventName: EventName,
-    error: unknown,
-    context: {
-      type: 'on' | 'once'
-      listener?: (...args: any[]) => void | Promise<void>
-      hasFilter?: boolean
-    },
-  ): void {
-    this.log.error(
-      {
-        event: String(eventName),
-        listenerType: context.type,
-        listenerName: context.listener?.name || '<anonymous>',
-        hasFilter: context.hasFilter,
-        error,
-      },
-      `SafeEmitter caught ${context.type} listener error`,
-    )
-  }
 
   /**
    * Error handler for emit failures. Can be overridden in subclasses.

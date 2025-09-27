@@ -1,4 +1,5 @@
-const LIFECYCLE_STATE = [
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+const _LIFECYCLE_STATE = [
   'created',
   'initialized',
   'running',
@@ -7,4 +8,4 @@ const LIFECYCLE_STATE = [
   'destroyed',
 ] as const
 
-export type LifecycleState = (typeof LIFECYCLE_STATE)[number]
+export type LifecycleState = (typeof _LIFECYCLE_STATE)[number]
