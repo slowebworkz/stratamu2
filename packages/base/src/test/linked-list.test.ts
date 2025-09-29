@@ -1,5 +1,5 @@
-import { LinkedList, ListNode } from '@/data'
 import { beforeEach, describe, expect, test, vi } from 'vitest'
+import { LinkedList, ListNode } from '../data/index.js'
 
 describe('ListNode', () => {
   test('should create a node with value', () => {

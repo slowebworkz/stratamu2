@@ -1,7 +1,4 @@
 {
-  "extends": "../tsconfig.json",
-  "compilerOptions": {
-    "types": ["vitest"]
-  },
+  "extends": "../typescript-config/vitest.json",
   "include": ["src/**/*.test.ts", "src/**/*.spec.ts"]
 }

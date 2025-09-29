@@ -1,4 +1,4 @@
-import { LinkedList } from '@/data'
+import { LinkedList } from '../data/index.js'
 import { LoggedEmitter } from './logged-emitter.js'
 
 import type { Args, BaseEventMap } from '@repo/types'

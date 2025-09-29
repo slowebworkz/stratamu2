@@ -17,6 +17,7 @@
   "scripts": {
     "lint": "echo 'noop'",
     "format": "echo 'noop'",
-    "lint:fix": "pnpm run lint || (pnpm run format && pnpm run lint)"
+    "lint:fix": "pnpm run lint || (pnpm run format && pnpm run lint)",
+    "test": "echo 'noop'"
   }
 }

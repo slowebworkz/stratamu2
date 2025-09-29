@@ -1,6 +1,6 @@
 import { FilteredPriorityEmitter } from './filtered-priority-emitter.js'
 // Static import for Node.js perf_hooks
-import { perfNow } from '@/performance'
+import { perfNow } from '../performance/index.js'
 import { EventMetrics } from './event-metrics.js'
 
 import type { BaseEventMap } from '@repo/types'

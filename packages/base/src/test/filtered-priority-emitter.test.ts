@@ -3,11 +3,11 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 // Concrete test implementation
 class TestFilteredPriorityEmitter extends (await import('../events/filtered-priority-emitter.js'))
   .FilteredPriorityEmitter<{
-    test: [string]
-    priority: [number]
-    noData: []
-    error: [Error]
-  }> { }
+  test: [string]
+  priority: [number]
+  noData: []
+  error: [Error]
+}> {}
 
 describe('FilteredPriorityEmitter', () => {
   let emitter: TestFilteredPriorityEmitter
@@ -413,10 +413,10 @@ describe('FilteredPriorityEmitter', () => {
     })
 
     it('should count all listeners including priority and regular', async () => {
-      emitter.on('test', () => { })
-      emitter.on('test', () => { })
-      emitter.onWithOptions('test', () => { }, { priority: 5 as any })
-      emitter.onWithOptions('test', () => { }, { priority: 3 as any })
+      emitter.on('test', () => {})
+      emitter.on('test', () => {})
+      emitter.onWithOptions('test', () => {}, { priority: 5 as any })
+      emitter.onWithOptions('test', () => {}, { priority: 3 as any })
 
       const count = emitter.listenerCount('test')
       expect(count).toBe(4) // 2 regular + 2 priority

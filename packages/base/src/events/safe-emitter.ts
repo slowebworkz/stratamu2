@@ -4,8 +4,8 @@ import pino from 'pino'
 import type { Exact } from 'type-fest'
 
 import type { Args, BaseEventMap } from '@repo/types'
-import { isObjectFirstArgs, hasThrowConfig } from './logged-emitter.js'
 import type { OmnipresentEventData, UnsubscribeFunction } from 'emittery'
+import { hasThrowConfig, isObjectFirstArgs } from './logged-emitter.js'
 import type {
   Bindings,
   ChildLoggerOptions,
@@ -165,7 +165,7 @@ export abstract class SafeEmitter<
    * Override in subclasses or mix with MetricsEmitter for real metrics.
    */
   getEventMetrics(): any[] {
-    return [];
+    return []
   }
 
   // =============================================================================
@@ -380,15 +380,15 @@ export abstract class SafeEmitter<
    * @param options Optional signal for abortable listeners
    * @returns Unsubscribe function
    */
-  on<EventName extends keyof (EventMap & MetricsEmitterEvents) | keyof OmnipresentEventData>(
-    eventName: EventName | readonly EventName[],
+  on<Name extends keyof SafeEmitterEvents<EventMap> | keyof OmnipresentEventData>(
+    eventName: Name | readonly Name[],
     listener: (
-      eventData: (EventMap & MetricsEmitterEvents & OmnipresentEventData)[EventName],
+      eventData: (SafeEmitterEvents<EventMap> & OmnipresentEventData)[Name],
     ) => void | Promise<void>,
     options?: { signal?: AbortSignal },
   ): UnsubscribeFunction {
     const safeListener = async (
-      eventData: (EventMap & MetricsEmitterEvents & OmnipresentEventData)[EventName],
+      eventData: (SafeEmitterEvents<EventMap> & OmnipresentEventData)[Name],
     ) => {
       try {
         await listener(eventData)
@@ -412,12 +412,10 @@ export abstract class SafeEmitter<
    * @param filter Optional filter predicate
    * @returns Promise-like object with .off() method for cancellation
    */
-  once<EventName extends keyof (EventMap & MetricsEmitterEvents) | keyof OmnipresentEventData>(
-    eventName: EventName,
-    filter?: (
-      eventData: (EventMap & MetricsEmitterEvents & OmnipresentEventData)[EventName],
-    ) => boolean,
-  ): EmitteryOncePromise<(EventMap & MetricsEmitterEvents & OmnipresentEventData)[EventName]> {
+  once<Name extends keyof SafeEmitterEvents<EventMap> | keyof OmnipresentEventData>(
+    eventName: Name,
+    filter?: (eventData: (SafeEmitterEvents<EventMap> & OmnipresentEventData)[Name]) => boolean,
+  ): EmitteryOncePromise<(SafeEmitterEvents<EventMap> & OmnipresentEventData)[Name]> {
     const originalPromise = super.once(eventName, filter)
 
     // Create a wrapped promise that preserves .off() method and adds error handling
@@ -428,7 +426,7 @@ export abstract class SafeEmitter<
       })
       // Re-throw to maintain promise chain behavior
       throw error
-    }) as EmitteryOncePromise<(EventMap & MetricsEmitterEvents & OmnipresentEventData)[EventName]>
+    }) as EmitteryOncePromise<(SafeEmitterEvents<EventMap> & OmnipresentEventData)[Name]>
 
     // Preserve the .off() method for cancellation
     wrappedPromise.off = originalPromise.off.bind(originalPromise)
@@ -457,7 +455,6 @@ export abstract class SafeEmitter<
       this.onEmitError(eventName, err)
     }
   }
-
 
   /**
    * Error handler for emit failures. Can be overridden in subclasses.

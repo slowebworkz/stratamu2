@@ -1,3 +1,26 @@
+/**
+ * Runtime helper to check if an event is dataless (args tuple is empty).
+ * Returns true if the event's argument tuple is an empty array at runtime.
+ * Note: This does not provide a type predicate due to TypeScript constraints.
+ */
+export function isDatalessEvent<EventMap extends AnyEventMap, EventName extends keyof EventMap>(
+  eventName: EventName,
+  eventMap: EventMap,
+): boolean {
+  const args = eventMap[eventName] as readonly unknown[] | undefined
+  return !!args && args.length === 0
+}
+/**
+ * Runtime helper to check if an event has data payload.
+ * Returns true if the event's argument tuple is non-empty.
+ */
+export function hasEventData<EventMap extends AnyEventMap, EventName extends keyof EventMap>(
+  eventMap: EventMap,
+  eventName: EventName,
+): boolean {
+  const args = eventMap[eventName] as readonly unknown[] | undefined
+  return !!args && args.length > 0
+}
 import type { Args, BaseEventMap } from '@repo/types'
 import type { OmnipresentEventData } from 'emittery'
 import type {
@@ -60,12 +83,14 @@ export const LOGGER_LEVELS = ['trace', 'debug', 'info', 'warn', 'error', 'fatal'
  * Higher numbers execute first.
  */
 export const EVENT_PRIORITIES = {
-  CRITICAL: 1000 as Priority,
-  HIGH: 100 as Priority,
-  NORMAL: 0 as Priority,
-  LOW: -100 as Priority,
-  BACKGROUND: -1000 as Priority,
-} as const
+  CRITICAL: 1000,
+  HIGH: 100,
+  NORMAL: 0,
+  LOW: -100,
+  BACKGROUND: -1000,
+} as const satisfies Record<string, number>
+
+export type EventPriority = (typeof EVENT_PRIORITIES)[keyof typeof EVENT_PRIORITIES] & Priority
 
 /**
  * Common event patterns for standardized event naming.
@@ -77,6 +102,12 @@ export const EVENT_PATTERNS = {
   ERROR_EVENT: /^error\./,
   METRIC_EVENT: /^metric\./,
 } as const
+
+/**
+ * Typed union of EVENT_PATTERNS keys for consumer use.
+ * Example: EventPatternKey = 'LIFECYCLE' | 'USER_ACTION' | 'SYSTEM_EVENT' | 'ERROR_EVENT' | 'METRIC_EVENT'
+ */
+export type EventPatternKey = keyof typeof EVENT_PATTERNS
 
 /**
  * Default timeout values for various operations.
@@ -196,11 +227,23 @@ export type PositiveNumber = Tagged<number, 'PositiveNumber'>
 
 /**
  * DatalessEventNames<EventMap> extracts event names that have no payload arguments.
- * Uses mapped types to filter events where Args<EventMap[K]> resolves to an empty tuple.
- * Uses strict readonly [] check to prevent edge cases with Args resolution.
+ * Uses Extract<Args<EventMap[K]>, readonly []> for robust detection, since Args<T> can sometimes resolve to never or other edge cases.
+ * Note: If Args<T> can be never, this type will exclude those keys. See type-level docs for details.
+ */
+/**
+ * DatalessEventNames<EventMap> extracts event names with no payload arguments.
+ * Events where Args<T> resolves to never are excluded.
  */
 export type DatalessEventNames<EventMap> = {
-  [K in keyof EventMap]: Args<EventMap[K]> extends readonly [] ? K : never
+  [K in keyof EventMap]: Extract<Args<EventMap[K]>, readonly []> extends never ? never : K
+}[keyof EventMap]
+
+/**
+ * EventNamesExcludedByNever<EventMap> exposes event keys excluded from DatalessEventNames
+ * because Args<EventMap[K]> resolves to never.
+ */
+export type EventNamesExcludedByNever<EventMap> = {
+  [K in keyof EventMap]: Args<EventMap[K]> extends never ? K : never
 }[keyof EventMap]
 
 /**
@@ -352,7 +395,7 @@ export type EventValidationResult<T extends readonly unknown[] = readonly unknow
  */
 export type EventMiddleware<EventMap, EventName extends keyof EventMap = keyof EventMap> = (
   eventName: EventName,
-  next: () => Promise<void>,
+  next: (...args: Args<EventMap[EventName]>) => Promise<void>,
   ...args: Args<EventMap[EventName]>
 ) => Promise<void>
 
@@ -410,15 +453,15 @@ export type EventMetricsAggregation = ImmutableSimplified<EventMetricsCore>
 /**
  * Base constraint for event maps - ensures all events have argument arrays.
  */
-export type AnyEventMap = Record<string, unknown[]>
+export type AnyEventMap = Record<string, readonly unknown[]>
 
 /**
  * Common event patterns that most emitters support.
  */
 export type CommonEventMap = {
-  error: [Error]
-  ready: []
-  destroy: []
+  error: readonly [Error]
+  ready: readonly []
+  destroy: readonly []
 }
 
 /**
@@ -457,10 +500,11 @@ export type HasEventData<EventMap, EventName extends keyof EventMap> =
 /**
  * Extract event names that have specific argument patterns.
  * More flexible than DatalessEventNames for complex filtering.
- * Uses strict readonly checks for better Args type resolution.
+ * Uses Extract<Args<EventMap[K]>, ArgsPattern> for robust detection, since Args<T> can sometimes resolve to never or other edge cases.
+ * Note: If Args<T> can be never, this type will exclude those keys. See type-level docs for details.
  */
 export type EventsWithArgs<EventMap, ArgsPattern extends readonly unknown[]> = {
-  [K in keyof EventMap]: Args<EventMap[K]> extends ArgsPattern ? K : never
+  [K in keyof EventMap]: Extract<Args<EventMap[K]>, ArgsPattern> extends never ? never : K
 }[keyof EventMap]
 
 /**

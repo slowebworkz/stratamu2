@@ -12,11 +12,11 @@
     }
   },
   "scripts": {
-    "clean": "rm -rf dist",
     "build": "tsc --project tsconfig.json",
-    "test": "vitest run",
+    "clean": "rm -rf dist",
     "lint": "pnpm exec eslint . --ext .ts,.tsx",
-    "lint:fix": "pnpm exec eslint . --ext .ts,.tsx --fix || (pnpm -w run format && pnpm exec eslint . --ext .ts,.tsx --fix)"
+    "lint:fix": "pnpm exec eslint . --ext .ts,.tsx --fix || (pnpm -w run format && pnpm exec eslint . --ext .ts,.tsx --fix)",
+    "test": "vitest run --config ./tsconfig.test.json"
   },
   "devDependencies": {
     "@repo/types": "workspace:*",

@@ -1,3 +1,3 @@
-import prettierConfig from "@repo/prettier-config";
+import prettierConfig from '@repo/prettier-config'
 
-export default prettierConfig;
+export default prettierConfig

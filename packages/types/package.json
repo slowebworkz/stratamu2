@@ -13,7 +13,8 @@
     "build": "pnpm run clean && tsc --project tsconfig.json && pnpm exec dts-bundle-generator -o dist/index.d.ts index.ts",
     "lint": "echo 'noop'",
     "format": "echo 'noop'",
-    "lint:fix": "pnpm run lint || (pnpm run format && pnpm run lint)"
+    "lint:fix": "pnpm run lint || (pnpm run format && pnpm run lint)",
+    "test": "echo 'noop'"
   },
   "devDependencies": {
     "dts-bundle-generator": "^9.5.1",
