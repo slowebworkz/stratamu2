@@ -8,8 +8,8 @@
       "@/*": ["src/*"],
       "@/data": ["src/data/index.ts"],
       "@/data/*": ["src/data/*"],
-      "@/events": ["src/events/index.ts"],
-      "@/events/*": ["src/events/*"],
+      "@/events": ["src/logged-emitter-3.ts/index.ts"],
+      "@/events/*": ["src/logged-emitter-3.ts/*"],
       "@/performance": ["src/performance/index.ts"],
       "@/performance/*": ["src/performance/*"]
     }

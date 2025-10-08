@@ -1,6 +1,6 @@
 import type { BaseEventMap } from '@repo/types'
 import { INTERNAL_ON_CHILD_ERROR } from './events/private-events.js'
-import { SafeEmitter } from './events/safe-emitter-3.js'
+import { LoggedEmitter } from './events/logged-emitter-3.js'
 
 const ERROR_MSG = 'BaseClass cannot be instantiated directly'
 
@@ -12,7 +12,7 @@ const ERROR_MSG = 'BaseClass cannot be instantiated directly'
  */
 export abstract class BaseClass<
   EventMap extends BaseEventMap<unknown[]> = BaseEventMap<unknown[]>,
-> extends SafeEmitter<EventMap> {
+> extends LoggedEmitter<EventMap> {
   constructor() {
     super()
 

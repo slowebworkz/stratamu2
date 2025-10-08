@@ -1,3 +1,11 @@
+it('should expose SafeEmitter public methods and properties', () => {
+  const instance = new TestClass()
+  // SafeEmitter public API (from Emittery)
+  expect(typeof instance.on).toBe('function')
+  expect(typeof instance.off).toBe('function')
+  expect(typeof instance.emit).toBe('function')
+  expect(typeof instance.once).toBe('function')
+})
 import type { BaseEventMap } from '@repo/types'
 import { describe, expect, it, vi } from 'vitest'
 import { BaseClass } from '../base-class.js'
@@ -45,5 +53,21 @@ describe('BaseClass', () => {
     await instance.emit('bar', [42])
     expect(fooHandler).toHaveBeenCalledWith('abc')
     expect(barHandler).toHaveBeenCalledWith(42)
+  })
+
+  it('should expose LoggedEmitter logging and config methods', () => {
+    const instance = new TestClass()
+    expect(instance.log).toBeDefined()
+    expect(typeof instance.log.info).toBe('function')
+    expect(typeof instance.level).toBe('string')
+    expect(typeof instance.isLevelEnabled).toBe('function')
+    expect(typeof instance.levelValue).toBe('number')
+    expect(typeof instance.levels).toBe('object')
+    expect(typeof instance.getBindings).toBe('function')
+    expect(typeof instance.setBindings).toBe('function')
+    expect(typeof instance.createChildLogger).toBe('function')
+    expect(typeof instance.flush).toBe('function')
+    expect(typeof instance.onLevelChange).toBe('function')
+    expect(typeof instance.offLevelChange).toBe('function')
   })
 })

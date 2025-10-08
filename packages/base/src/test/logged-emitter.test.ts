@@ -1,21 +1,13 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { LoggedEmitter } from '../events/logged-emitter-new.js'
 
-// Concrete test implementation
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { LoggedEmitter } from '../events/logged-emitter-3.js'
+
+// Use the public API only
 class TestLoggedEmitter extends LoggedEmitter<{
   test: [string]
   error: [Error]
   noData: []
-}> {
-  offLevelChange(listener: any) {
-    // @ts-ignore
-    this.logger.removeListener?.('level-change', listener)
-  }
-
-  getLogger() {
-    return this.logger
-  }
-}
+}> { }
 
 describe('LoggedEmitter', () => {
   let emitter: TestLoggedEmitter
@@ -116,7 +108,7 @@ describe('LoggedEmitter', () => {
 
   describe('Event Logging Integration', () => {
     it('should maintain logging capability with event emission', async () => {
-      const logSpy = vi.spyOn(emitter.getLogger(), 'info')
+      const logSpy = vi.spyOn(emitter.log, 'info')
       emitter.log.info('before emit')
       await emitter.emit('test', ['hello'])
       emitter.log.info('after emit')
