@@ -1,20 +1,19 @@
 import type { BaseEventMap } from '@repo/types'
-import pino from 'pino'
+import isPlainObject from 'is-plain-object'
 import type { LevelMapping, Logger } from 'pino'
+import pino from 'pino'
 import { SafeEmitter } from './safe-emitter-3.js'
-import { LOGGER_LEVELS } from './types.js'
 import type {
   Bindings,
   ChildLoggerOptions,
   LevelChangeEventListener,
   LogLevel,
   LogLevelWithSilent,
-  LoggerOptions,
   PinoLogArgs,
   SafeMergingObject,
   ThrowConfig,
 } from './types.js'
-import isPlainObject from 'is-plain-object'
+import { LOGGER_LEVELS } from './types.js'
 
 /**
  * LoggedEmitter: Extends SafeEmitter to add structured logging for all event operations.
@@ -29,10 +28,11 @@ export class LoggedEmitter<EventMap extends BaseEventMap<unknown[]>> extends Saf
   public readonly log: {
     [Level in LogLevel]: (...args: PinoLogArgs) => void
   }
+  private readonly _childLoggers: Set<LoggedEmitter<EventMap>> = new Set()
 
-  constructor() {
+  constructor(logger?: Logger) {
     super()
-    this._logger = pino({ timestamp: pino.stdTimeFunctions.isoTime })
+    this._logger = logger ?? pino({ timestamp: pino.stdTimeFunctions.isoTime })
     this.log = {} as typeof this.log
     for (const level of LOGGER_LEVELS) {
       this.log[level] = (...args: PinoLogArgs) => {
@@ -49,7 +49,7 @@ export class LoggedEmitter<EventMap extends BaseEventMap<unknown[]>> extends Saf
    * Updates this instance's logger with additional context that will be included in all subsequent log messages.
    */
   createChildLogger<T extends Bindings>(bindings: T, options?: ChildLoggerOptions): this {
-    (this as any)._logger = this._logger.child(bindings, options)
+    /* (this as any)._logger = this._logger.child(bindings, options)
     // Reinitialize log methods with the child logger
     for (const level of LOGGER_LEVELS) {
       this.log[level] = (...args: PinoLogArgs) => {
@@ -59,7 +59,12 @@ export class LoggedEmitter<EventMap extends BaseEventMap<unknown[]>> extends Saf
         }
       }
     }
-    return this
+    return this */
+
+    const childLogger = this._logger.child(bindings, options)
+    const childEmitter = new (this.constructor as any)(childLogger)
+    this._childLoggers.add(childEmitter)
+    return childEmitter
   }
 
   /**
@@ -129,7 +134,17 @@ export class LoggedEmitter<EventMap extends BaseEventMap<unknown[]>> extends Saf
    */
   onLevelChange(listener: LevelChangeEventListener): void {
     if (typeof this._logger?.on === 'function') {
-      this._logger.on('level-change', listener)
+      const wrappedListener = (
+        levelLabel: string,
+        levelValue: number,
+        previousLevelLabel: string,
+        previousLevelValue: number,
+        instance: any,
+      ) => {
+        if (instance !== this._logger) return
+        listener(levelLabel, levelValue, previousLevelLabel, previousLevelValue, instance)
+      }
+      this._logger.on('level-change', wrappedListener)
     }
   }
 
@@ -165,7 +180,7 @@ export class LoggedEmitter<EventMap extends BaseEventMap<unknown[]>> extends Saf
 export function isObjectFirstArgs(
   args: PinoLogArgs,
 ): args is readonly [obj: SafeMergingObject, msg?: string, ...args: readonly unknown[]] {
-  return args.length >= 1 && isPlainObject(args[0]);
+  return args.length >= 1 && isPlainObject(args[0])
 }
 
 /**

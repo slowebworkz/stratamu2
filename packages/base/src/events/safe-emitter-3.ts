@@ -42,7 +42,7 @@ const DEV_MODE = (process?.env?.NODE_ENV ?? 'development') !== 'production'
  *
  * @template EventMap extends BaseEventMap<unknown[]>
  */
-export class SafeEmitter<EventMap extends BaseEventMap<unknown[]>> {
+export abstract class SafeEmitter<EventMap extends BaseEventMap<unknown[]>> {
   /**
    * Global bus for internal diagnostics and error events.
    * @private

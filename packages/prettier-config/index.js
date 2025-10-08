@@ -11,5 +11,15 @@ export default {
   proseWrap: 'always',
   quoteProps: 'as-needed',
   jsxSingleQuote: false,
-  plugins: ['prettier-plugin-organize-imports'],
+  plugins: ['prettier-plugin-packagejson', 'prettier-plugin-organize-imports'],
+  overrides: [
+    {
+      files: ['*.json', '*.yml', '*.yaml'],
+      options: { tabWidth: 2 },
+    },
+    {
+      files: '*.md',
+      options: { proseWrap: 'always' },
+    },
+  ],
 }
