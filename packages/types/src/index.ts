@@ -1,3 +1,4 @@
+export * from './base/index.ts'
 export * from './events/index.ts'
 export * from './game/index.ts'
 export * from './lifecycle/index.ts'

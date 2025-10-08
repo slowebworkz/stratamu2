@@ -10,5 +10,6 @@ dist/**/*.yaml
 node_modules/**/*.yaml
 pnpm-lock.yaml
 
-# Example: ignore auto-generated config
-**/auto-generated-config.yaml
+
+# Ignore Husky hook scripts
+.husky/

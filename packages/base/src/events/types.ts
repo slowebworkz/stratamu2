@@ -1,3 +1,21 @@
+import type { Args, BaseEventMap } from '@repo/types'
+import type { OmnipresentEventData } from 'emittery'
+import type {
+  Bindings,
+  ChildLoggerOptions,
+  Level,
+  LevelChangeEventListener,
+  LevelOrString,
+  LevelWithSilent,
+  LogDescriptor,
+  LogEvent,
+  LogFn,
+  LoggerOptions,
+  SerializerFn,
+} from 'pino'
+import type { IntRange, LiteralUnion, Promisable, ReadonlyDeep, Simplify, Tagged } from 'type-fest'
+import type { InternalEventMap } from './private-events.js'
+
 /**
  * Runtime helper to check if an event is dataless (args tuple is empty).
  * Returns true if the event's argument tuple is an empty array at runtime.
@@ -21,23 +39,6 @@ export function hasEventData<EventMap extends AnyEventMap, EventName extends key
   const args = eventMap[eventName] as readonly unknown[] | undefined
   return !!args && args.length > 0
 }
-import type { Args, BaseEventMap } from '@repo/types'
-import type { OmnipresentEventData } from 'emittery'
-import type {
-  Bindings,
-  ChildLoggerOptions,
-  Level,
-  LevelChangeEventListener,
-  LevelOrString,
-  LevelWithSilent,
-  LogDescriptor,
-  LogEvent,
-  LogFn,
-  LoggerOptions,
-  SerializerFn,
-} from 'pino'
-import type { IntRange, LiteralUnion, Promisable, ReadonlyDeep, Simplify, Tagged } from 'type-fest'
-import type { InternalEventMap } from './private-events.js'
 
 // =============================================================================
 // SafeEmitter Types
@@ -216,9 +217,7 @@ export type EfficiencyThreshold = IntRange<1, 10>
 /**
  * Built-in events for MetricsEmitter.
  */
-export type MetricsEmitterEvents = {
-  resetMetrics: [eventName?: string]
-}
+// ...deleted: moved to types2.ts...
 
 /**
  * PositiveNumber branded type for MetricsEmitter internal use.

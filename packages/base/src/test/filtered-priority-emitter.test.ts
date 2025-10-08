@@ -1,8 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 // Concrete test implementation
-class TestFilteredPriorityEmitter extends (await import('../events/filtered-priority-emitter.js'))
-  .FilteredPriorityEmitter<{
+class TestFilteredPriorityEmitter extends (
+  await import('../events/filtered-priority-emitter-new.js')
+).FilteredPriorityEmitter<{
   test: [string]
   priority: [number]
   noData: []

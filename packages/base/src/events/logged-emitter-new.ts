@@ -1,7 +1,7 @@
-import Emittery from 'emittery'
 import type { LevelMapping, Logger } from 'pino'
 import pino from 'pino'
 import type { Exact } from 'type-fest'
+import { SafeEmitter } from './safe-emitter-new.js'
 
 import type { BaseEventMap } from '@repo/types'
 import isPlainObject from 'is-plain-object'
@@ -11,42 +11,30 @@ import type {
   LevelChangeEventListener,
   LogLevel,
   LogLevelWithSilent,
-  LoggerOptions,
   PinoLogArgs,
+  SafeEmitterEventMap,
   SafeMergingObject,
   ThrowConfig,
 } from './types.js'
 import { LOGGER_LEVELS } from './types.js'
 
-// =============================================================================
-// Class Definition
-// =============================================================================
-
 /**
- * Abstract LoggedEmitter extends Emittery to add structured logging via pino.
- *
- * ## Features:
- * - Per-instance pino logger with configurable options
- * - Log proxy for all pino levels (trace, debug, info, warn, error, fatal)
- * - Throw-capable logging for error and fatal levels via shouldThrow flag
- * - Type-safe bindings and child logger creation
- * - Level change event support
- *
- * @template EventMap - The event map for this emitter.
+ * LoggedEmitterNew extends SafeEmitter to add logging capabilities.
+ * Replace usages of legacy LoggedEmitter with this class for improved type safety and event logging.
  */
 export abstract class LoggedEmitter<
-  EventMap extends BaseEventMap<any> = BaseEventMap,
-> extends Emittery<EventMap> {
+  EventMap extends BaseEventMap<unknown[]> = BaseEventMap<unknown[]>,
+> extends SafeEmitter<SafeEmitterEventMap<EventMap>> {
   /**
    * The pino logger instance used for all logging.
    */
-  protected logger: Logger
+  protected logger!: Logger
 
   /**
    * Proxy object for all log levels (trace, debug, info, warn, error, fatal).
    * Uses precise pino LogFn parameter types for better type safety.
    */
-  public readonly log: {
+  public readonly log!: {
     [Level in LogLevel]: (...args: PinoLogArgs) => void
   }
 
@@ -56,25 +44,14 @@ export abstract class LoggedEmitter<
    *
    * @param loggerOptions - Optional pino logger configuration
    */
-  constructor(loggerOptions?: Exact<LoggerOptions, LoggerOptions>) {
+  constructor() {
     super()
-
     this.logger = pino({
       timestamp: pino.stdTimeFunctions.isoTime,
-      ...loggerOptions,
+      // Add other defaults here if needed
     })
-
-    // Initialize log methods using LOGGER_LEVELS
     this.log = {} as typeof this.log
-    for (const level of LOGGER_LEVELS) {
-      this.log[level] = (...args: PinoLogArgs) => {
-        // Cast args to Parameters<Logger[typeof level]> for pino compatibility
-        this.logger[level](...(args as Parameters<Logger[typeof level]>))
-        if (args.length >= 1) {
-          this._shouldThrow(level, ...args)
-        }
-      }
-    }
+    this._setupLogProxy()
   }
 
   /**
@@ -93,15 +70,7 @@ export abstract class LoggedEmitter<
     this.logger = this.logger.child(bindings, options)
 
     // Reinitialize log methods with the child logger
-    for (const level of LOGGER_LEVELS) {
-      this.log[level] = (...args: PinoLogArgs) => {
-        // Cast args to Parameters<Logger[typeof level]> for pino compatibility
-        this.logger[level](...(args as Parameters<Logger[typeof level]>))
-        if (args.length >= 1) {
-          this._shouldThrow(level, ...args)
-        }
-      }
-    }
+    this._setupLogProxy()
 
     return this
   }
@@ -181,10 +150,18 @@ export abstract class LoggedEmitter<
   }
 
   /**
-   * Remove level change event listener.
+   * Reinitialize log methods to use the current logger instance.
+   * Call this after updating the logger (e.g., in createChildLogger).
    */
-  offLevelChange(listener: LevelChangeEventListener): void {
-    this.logger.removeListener('level-change', listener)
+  private _setupLogProxy() {
+    for (const level of LOGGER_LEVELS) {
+      this.log[level] = (...args: PinoLogArgs) => {
+        this.logger[level](...(args as Parameters<Logger[typeof level]>))
+        if (args.length >= 1) {
+          this._shouldThrow(level, ...args)
+        }
+      }
+    }
   }
 
   /**

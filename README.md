@@ -1,9 +1,9 @@
 # Stratamu Game Engine
 
-Stratamu is a modular, extensible **game engine framework** for building
-**MUD/MUSH/MOO-style multiplayer text games**.  
-It provides a robust foundation for **networking, storage, plugins, and core
-gameplay logic**, all organized in a modern **TypeScript monorepo structure**.
+Stratamu is a modular, extensible **game engine framework** for building **MUD/MUSH/MOO-style
+multiplayer text games**.  
+It provides a robust foundation for **networking, storage, plugins, and core gameplay logic**, all
+organized in a modern **TypeScript monorepo structure**.
 
 ---
 

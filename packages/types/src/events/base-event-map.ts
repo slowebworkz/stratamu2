@@ -1,9 +1,8 @@
 // Canonical event map type for event emitters in the base package.
 // Extend or override in specific modules as needed.
 
-export type BaseEventMap<T = unknown> = {
-  [key: string]: T
-}
+// BaseEventMap allows string or symbol keys for event names
+export type BaseEventMap<T = any> = Record<string | symbol, T>
 
 /** testing type */
 
