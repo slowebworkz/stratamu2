@@ -99,8 +99,9 @@ describe('LoggedEmitter', () => {
   describe('Child Logger Creation', () => {
     it('should create child logger with additional bindings', () => {
       const childEmitter = emitter.createChildLogger({}, { level: 'debug' })
-      expect(childEmitter).toBe(emitter)
-      const bindings = emitter.getBindings()
+      // createChildLogger now returns a new emitter instance with the child logger
+      expect(childEmitter).not.toBe(emitter)
+      const bindings = childEmitter.getBindings()
       expect(typeof bindings).toBe('object')
     })
   })

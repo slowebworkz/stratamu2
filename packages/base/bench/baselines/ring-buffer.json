@@ -1,0 +1,26 @@
+{
+  "env": {
+    "node": "v20.0.0",
+    "platform": "darwin"
+  },
+  "cases": {
+    "push loop": {
+      "mean": 123.45,
+      "median": 120.0,
+      "p95": 150.0,
+      "stddev": 5.0
+    },
+    "pushMany array": {
+      "mean": 90.0,
+      "median": 88.0,
+      "p95": 110.0,
+      "stddev": 4.0
+    },
+    "array shift simulation": {
+      "mean": 250.0,
+      "median": 245.0,
+      "p95": 300.0,
+      "stddev": 10.0
+    }
+  }
+}

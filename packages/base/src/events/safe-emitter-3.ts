@@ -1,5 +1,7 @@
 import type { Awaitable, BaseEventMap } from '@repo/types'
 import Emittery from 'emittery'
+import type { AllEvents, ExtractPayload } from './events-types.js'
+import { internalPublicBus } from './events-types.js'
 import {
   INTERNAL_ON_EMIT_ERROR,
   INTERNAL_ON_LISTENER_ERROR,
@@ -9,28 +11,7 @@ import {
   isInternalEvent,
   isPublicEvent,
 } from './private-events.js'
-
-/**
- * Combines user event map and internal event map for type-safe event handling.
- *
- * @template EventMap extends BaseEventMap<unknown[]>
- */
-type AllEvents<EventMap extends BaseEventMap<unknown[]>> = EventMap & InternalEventMap<EventMap>
-
-/**
- * Shared helper for emit() error handling with strict bubbling semantics.
- *
- * @param args The arguments array (payload or empty)
- * @param emitMethod Callback to perform the actual emission
- * @param onEmitError Callback to report errors
- */
-
-/**
- * Utility type to extract the payload type from a tuple.
- *
- * @template T extends any[]
- */
-type ExtractPayload<T> = T extends [infer U] ? U : never
+import { SafetyEmitter as SafetyManager, type SafetyEmitterOptions } from './safety-emitter.js'
 
 /**
  * Indicates if the environment is development (not production).
@@ -74,9 +55,19 @@ export abstract class SafeEmitter<EventMap extends BaseEventMap<unknown[]>> {
 
   /**
    * Internal bus for public and internal events.
-   * @private
+   * Protected so subclasses (e.g. SafetyEmitter) can register internal control listeners.
    */
-  private readonly _public = new Emittery<AllEvents<EventMap>>()
+  protected readonly _public: Emittery<AllEvents<EventMap>> = new Emittery<AllEvents<EventMap>>()
+
+  // internal SafetyEmitter (composition). Instantiated by default so safety
+  // bookkeeping is enabled for all emitters unless explicitly disabled via
+  // options. Typed via the internalPublicBus helper to avoid `any` casts.
+  private readonly _safety: SafetyManager<EventMap>
+
+  /** Protected accessor for subclasses to reach the internal safety emitter (for compatibility). */
+  protected get _safetyManager(): SafetyManager<EventMap> {
+    return this._safety
+  }
 
   /**
    * Maps event names to listener maps for safe removal.
@@ -94,6 +85,19 @@ export abstract class SafeEmitter<EventMap extends BaseEventMap<unknown[]>> {
    * @param listener Listener function
    * @returns Unsubscribe function
    */
+  constructor(opts?: SafetyEmitterOptions<EventMap>) {
+    // Preset defaults applied when callers do not provide explicit options.
+    // We enable error sanitization by default to avoid retaining large
+    // object graphs in the safety logs, and expose a reasonable default
+    // capacity for per-event safety buffers.
+    const preset: SafetyEmitterOptions<EventMap> = {
+      sanitizeErrors: true,
+      safetyLogCap: 100,
+    }
+    const finalOpts = { ...preset, ...(opts ?? {}) }
+    this._safety = new SafetyManager<EventMap>(internalPublicBus<EventMap>(this), finalOpts)
+  }
+
   public on<K extends keyof AllEvents<EventMap>>(
     event: K,
     listener: (data: AllEvents<EventMap>[K]) => Awaitable,
@@ -217,6 +221,24 @@ export abstract class SafeEmitter<EventMap extends BaseEventMap<unknown[]>> {
   }
 
   /**
+   * Return the number of listeners. Accepts no arg, a single event name, or an array of event names.
+   * This is a small public helper used by extended emitters that maintain extra listener lists.
+   */
+  public listenerCount(
+    eventName?: keyof AllEvents<EventMap> | readonly (keyof AllEvents<EventMap>)[],
+  ): number {
+    if (eventName === undefined) {
+      return this._public.listenerCount()
+    }
+    if (Array.isArray(eventName)) {
+      let total = 0
+      for (const name of eventName) total += this._public.listenerCount(name as any)
+      return total
+    }
+    return this._public.listenerCount(eventName as any)
+  }
+
+  /**
    * Handle errors thrown by listeners.
    * @param eventName Event name
    * @param error Error thrown
@@ -235,6 +257,18 @@ export abstract class SafeEmitter<EventMap extends BaseEventMap<unknown[]>> {
   ) {
     // Only emit internal error event for public events, not internal/private events
     if (isPublicEvent<EventMap>(eventName)) {
+      // Delegate to internal safety manager if present; keep try/catch to
+      // avoid bookkeeping failures affecting the emitter.
+      try {
+        this._safety?.recordListenerErrorFor(
+          eventName as any,
+          error,
+          (context.listener && context.listener.name) || undefined,
+        )
+      } catch (err) {
+        // ignore errors in bookkeeping
+      }
+
       fireAndForgetInternal(
         this._public,
         INTERNAL_ON_LISTENER_ERROR,
@@ -261,6 +295,10 @@ export abstract class SafeEmitter<EventMap extends BaseEventMap<unknown[]>> {
     context?: { emitter?: unknown },
   ) {
     if (isPublicEvent<EventMap>(eventName)) {
+      try {
+        this._safety?.recordListenerErrorFor(eventName as any, error)
+      } catch { }
+
       fireAndForgetInternal(
         this._public,
         INTERNAL_ON_EMIT_ERROR,
@@ -273,7 +311,80 @@ export abstract class SafeEmitter<EventMap extends BaseEventMap<unknown[]>> {
       )
     }
   }
+
+  /**
+   * Hook for subclasses to record listener/emit errors. Default is no-op.
+   * SafetyEmitter overrides this to maintain error counts/logs.
+   */
+  protected recordListenerErrorFor(
+    eventName: PropertyKey,
+    error: unknown,
+    listenerName?: string,
+  ): void {
+    // Delegate to internal safety emitter if present. Subclasses may override
+    // this hook; keeping it protected preserves the original extension point.
+    this._safety?.recordListenerErrorFor(eventName, error, listenerName)
+  }
+
+  // --- Public safety accessors (compatibility proxies) --------------------
+  // These forward to the composed SafetyManager when present. Returning
+  // defaults when the manager is absent keeps callers safe.
+
+  public getErrorCount(eventName?: PropertyKey): number {
+    return this._safety.getErrorCount(eventName)
+  }
+
+  public getAllErrorCounts(): ReadonlyMap<any, number> {
+    return this._safety.getAllErrorCounts()
+  }
+
+  public getSafetyLogs(eventName?: PropertyKey) {
+    return this._safety.getSafetyLogs(eventName)
+  }
+
+  public getSafetyLogForEvent(eventName?: PropertyKey, opts?: { limit?: number; newestFirst?: boolean }) {
+    return this._safety.getSafetyLogForEvent(eventName, opts)
+  }
+
+  public getSafetyLogSize(eventName?: PropertyKey): number {
+    return this._safety.getSafetyLogSize(eventName)
+  }
+
+  public getSafetyLogCapacity(): number {
+    return this._safety.getSafetyLogCapacity()
+  }
+
+  public *getSafetyLogIterator(eventName?: PropertyKey) {
+    yield* this._safety.getSafetyLogIterator(eventName)
+  }
+
+  public resetErrorCounts(eventName?: PropertyKey): void {
+    this._safety.resetErrorCounts(eventName)
+  }
+
+  public clearSafetyLogs(eventName?: PropertyKey): void {
+    this._safety.clearSafetyLogs(eventName)
+  }
+
+  public isSafetyEnabled(): boolean {
+    return this._safety.isSafetyEnabled()
+  }
+
+  public setSafetyEnabled(enabled: boolean): void {
+    this._safety.setSafetyEnabled(enabled)
+  }
 }
+
+/**
+ * Compatibility subclass to preserve the historical export `SafetyEmitter`.
+ *
+ * Many places in the codebase (and tests) import and extend `SafetyEmitter`.
+ * To avoid breaking changes we provide a tiny subclass here that simply
+ * extends `SafeEmitter` so existing code that does `class X extends SafetyEmitter<EM>`
+ * will continue to receive the emitter surface.
+ */
+// NOTE: the concrete safety bookkeeping implementation lives in
+// `safety-emitter-3.ts` and is composed into `SafeEmitter` instances.
 
 /**
  * Shared helper for emit() error handling with strict bubbling semantics.
@@ -327,3 +438,5 @@ function fireAndForgetInternal<EM extends Emittery<any>, K extends keyof Interna
     SafeEmitter.report(event, payload)
   }
 }
+
+

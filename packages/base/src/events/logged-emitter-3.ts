@@ -49,18 +49,6 @@ export class LoggedEmitter<EventMap extends BaseEventMap<unknown[]>> extends Saf
    * Updates this instance's logger with additional context that will be included in all subsequent log messages.
    */
   createChildLogger<T extends Bindings>(bindings: T, options?: ChildLoggerOptions): this {
-    /* (this as any)._logger = this._logger.child(bindings, options)
-    // Reinitialize log methods with the child logger
-    for (const level of LOGGER_LEVELS) {
-      this.log[level] = (...args: PinoLogArgs) => {
-        this._logger[level](...(args as Parameters<Logger[typeof level]>))
-        if (args.length >= 1) {
-          this._shouldThrow(level, ...args)
-        }
-      }
-    }
-    return this */
-
     const childLogger = this._logger.child(bindings, options)
     const childEmitter = new (this.constructor as any)(childLogger)
     this._childLoggers.add(childEmitter)

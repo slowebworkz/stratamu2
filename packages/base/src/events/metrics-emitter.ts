@@ -12,9 +12,9 @@ import type {
   ErrorCount,
   EventName,
   ListenerName,
-  MetricsEmitterEvents,
   TimeInMs,
 } from './types.js'
+import type { MetricsEmitterEvents } from './types2.js'
 
 /**
  * Event emitter with comprehensive per-event performance metrics and error tracking.
@@ -26,7 +26,7 @@ import type {
  */
 export abstract class MetricsEmitter<
   EventMap extends BaseEventMap<any[]> = BaseEventMap<unknown[]>,
-> extends FilteredPriorityEmitter<EventMap & MetricsEmitterEvents> {
+> extends FilteredPriorityEmitter<EventMap & MetricsEmitterEvents<EventMap>> {
   // =============================================================================
   // Private Properties
   // =============================================================================
@@ -34,7 +34,15 @@ export abstract class MetricsEmitter<
   /**
    * Protected listener for the built-in resetMetrics event.
    */
-  private _resetListener = ([eventName]: [string?]) => {
+  private _resetListener = (payload: unknown) => {
+    // Support legacy tuple payloads ([eventName]) and the new MetricsEmitterEvents object shape
+    let eventName: string | undefined
+    if (Array.isArray(payload)) {
+      eventName = payload[0] as string | undefined
+    } else if (payload && typeof payload === 'object') {
+      // payload may be { eventName: K, args: [...], ... }
+      eventName = (payload as any).eventName ?? undefined
+    }
     this._resetMetrics(eventName)
   }
 
@@ -251,15 +259,19 @@ export abstract class MetricsEmitter<
    * @param options Optional signal for abortable listeners
    * @returns Unsubscribe function
    */
-  on<EventName extends keyof (EventMap & MetricsEmitterEvents) | keyof OmnipresentEventData>(
+  on<
+    EventName extends
+      | keyof (EventMap & MetricsEmitterEvents<EventMap>)
+      | keyof OmnipresentEventData,
+  >(
     eventName: EventName | readonly EventName[],
     listener: (
-      eventData: (EventMap & MetricsEmitterEvents & OmnipresentEventData)[EventName],
+      eventData: (EventMap & MetricsEmitterEvents<EventMap> & OmnipresentEventData)[EventName],
     ) => void | Promise<void>,
     options?: { signal?: AbortSignal },
   ): UnsubscribeFunction {
     const wrapped = async (
-      eventData: (EventMap & MetricsEmitterEvents & OmnipresentEventData)[EventName],
+      eventData: (EventMap & MetricsEmitterEvents<EventMap> & OmnipresentEventData)[EventName],
     ) => {
       const start = perfNow()
       try {
@@ -295,10 +307,14 @@ export abstract class MetricsEmitter<
    * @param eventName The event name to remove listeners from
    * @param listener The specific listener to remove
    */
-  off<EventName extends keyof (EventMap & MetricsEmitterEvents) | keyof OmnipresentEventData>(
+  off<
+    EventName extends
+      | keyof (EventMap & MetricsEmitterEvents<EventMap>)
+      | keyof OmnipresentEventData,
+  >(
     eventName: EventName | readonly EventName[],
     listener: (
-      eventData: (EventMap & MetricsEmitterEvents & OmnipresentEventData)[EventName],
+      eventData: (EventMap & MetricsEmitterEvents<EventMap> & OmnipresentEventData)[EventName],
     ) => void | Promise<void>,
   ): void {
     if (eventName === 'resetMetrics' && listener === this._resetListener) {
