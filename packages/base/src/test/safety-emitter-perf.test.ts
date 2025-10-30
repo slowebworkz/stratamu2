@@ -1,5 +1,5 @@
-import { describe, it, expect } from 'vitest'
 import Emittery from 'emittery'
+import { describe, expect, it } from 'vitest'
 import { SafetyEmitter } from '../events/safety-emitter.js'
 
 describe('SafetyEmitter performance smoke', () => {

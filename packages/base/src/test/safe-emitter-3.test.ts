@@ -6,7 +6,7 @@ type EM = {
   other: [string]
 }
 
-class E extends SafeEmitter<EM> { }
+class E extends SafeEmitter<EM> {}
 
 describe('SafeEmitter safety bookkeeping (public accessors)', () => {
   // Typed helper to call emitSafe without casting in tests

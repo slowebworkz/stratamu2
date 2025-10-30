@@ -1,19 +1,10 @@
 {
-  "extends": "../typescript-config/base.json",
+  "extends": "./tsconfig.paths.json",
   "compilerOptions": {
     "types": ["vitest"],
     "baseUrl": ".",
-    "outDir": "./dist",
-    "paths": {
-      "@/*": ["src/*"],
-      "@/data": ["src/data/index.ts"],
-      "@/data/*": ["src/data/*"],
-      "@/events": ["src/logged-emitter-3.ts/index.ts"],
-      "@/events/*": ["src/logged-emitter-3.ts/*"],
-      "@/performance": ["src/performance/index.ts"],
-      "@/performance/*": ["src/performance/*"]
-    }
+    "outDir": "./dist"
   },
-  "include": ["index.ts", "src/**/*.ts"],
-  "exclude": ["node_modules", "dist", "vitest.config.ts"]
+  "include": ["index.ts", "./**/*.ts"],
+  "exclude": ["node_modules", "dist", "bench", "vitest.config.ts"]
 }

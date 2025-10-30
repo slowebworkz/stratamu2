@@ -1,17 +1,38 @@
 import type { Awaitable, BaseEventMap } from '@repo/types'
 import Emittery from 'emittery'
-import type { AllEvents, ExtractPayload } from './events-types.js'
-import { internalPublicBus } from './events-types.js'
+import type {
+  AllEvents,
+  CancelablePromise,
+  EventKey,
+  ExtractPayload,
+  WrappedCancelable,
+} from './index.js'
 import {
   INTERNAL_ON_EMIT_ERROR,
   INTERNAL_ON_LISTENER_ERROR,
   INTERNAL_ON_LISTENER_REMOVED,
   INTERNAL_ON_REMOVE_WARN,
   InternalEventMap,
+  internalPublicBus,
   isInternalEvent,
   isPublicEvent,
-} from './private-events.js'
-import { SafetyEmitter as SafetyManager, type SafetyEmitterOptions } from './safety-emitter.js'
+  SafetyEmitter as SafetyManager,
+  type SafetyEmitterOptions,
+} from './index.js'
+
+/**
+ * Default metrics shape returned by `getEventMetrics()`.
+ * Kept non-generic and string-keyed for simplicity.
+ */
+export type EventMetrics<EventMap extends BaseEventMap<unknown[]> = BaseEventMap<unknown[]>> = {
+  listenerCounts: Record<EventKey<EventMap> | 'total', number>
+  safety: {
+    errorCounts: Record<EventKey<EventMap>, number>
+    logSizes: Record<EventKey<EventMap> | '__total', number>
+    capacity: number
+    enabled: boolean
+  }
+}
 
 /**
  * Indicates if the environment is development (not production).
@@ -98,24 +119,135 @@ export abstract class SafeEmitter<EventMap extends BaseEventMap<unknown[]>> {
     this._safety = new SafetyManager<EventMap>(internalPublicBus<EventMap>(this), finalOpts)
   }
 
-  public on<K extends keyof AllEvents<EventMap>>(
-    event: K,
-    listener: (data: AllEvents<EventMap>[K]) => Awaitable,
-  ) {
-    let map = this._listenerMaps.get(event)
-    if (!map) {
-      map = new WeakMap()
-      this._listenerMaps.set(event, map)
+  /**
+   * Backwards-compatible protected hook: record a listener error. Delegates
+   * to the composed `SafetyEmitter` manager so tests/consumers that call the
+   * old protected method name continue to work.
+   */
+  protected recordListenerError(eventName: string, error: unknown, listenerName: string): void {
+    this._safety.recordListenerErrorFor(eventName, error, listenerName)
+  }
+
+  /** Read-only snapshot of error counts (compatibility getter). */
+  protected get _errorCounts(): Record<string, number> {
+    const m = this._safety.getAllErrorCounts()
+    const out: Record<string, number> = {}
+    for (const [k, v] of m) out[String(k)] = v
+    return out
+  }
+
+  /** Read-only snapshot of safety logs (compatibility getter). */
+  protected get _safetyLogs(): Record<
+    string,
+    Array<{ timestamp: number; error: unknown; listener: string }>
+  > {
+    const out: Record<string, Array<{ timestamp: number; error: unknown; listener: string }>> = {}
+    const counts = this._safety.getAllErrorCounts()
+    for (const k of counts.keys()) {
+      // getSafetyLogForEvent returns a readonly array; copy to a mutable array
+      out[String(k)] = Array.from(this._safety.getSafetyLogForEvent(String(k)))
     }
+    return out
+  }
+
+  /** Convenience proxy to the composed manager's enabled flag. */
+  protected get _safetyEnabled(): boolean {
+    return this._safety.isSafetyEnabled()
+  }
+
+  protected set _safetyEnabled(enabled: boolean) {
+    this._safety.setSafetyEnabled(enabled)
+  }
+
+  /** Shape returned from `getEventMetrics()` describing listener and safety state. */
+
+  /**
+   * Default metrics implementation. Returns quick, non-allocating aggregates:
+   * - listenerCounts.total: total listener count
+   * - listenerCounts[<event>]: per-event counts for events that have been
+   *   registered via this emitter's public listener map
+   * - safety.errorCounts: per-event error counts from the composed safety manager
+   * - safety.logSizes: per-event ring-buffer sizes (plus total under key "__total")
+   * - safety.capacity: configured per-event capacity
+   * - safety.enabled: whether safety bookkeeping is enabled
+   *
+   * Subclasses may override this to provide richer metrics.
+   */
+  public getEventMetrics(): EventMetrics<EventMap> {
+    const listenerCounts: Record<EventKey<EventMap> | 'total', number> = {} as Record<
+      EventKey<EventMap> | 'total',
+      number
+    >
+    // total listeners across all events
+    try {
+      listenerCounts.total = this._public.listenerCount()
+    } catch {
+      listenerCounts.total = 0
+    }
+
+    // per-event counts for events we have tracked in _listenerMaps
+    for (const k of this._listenerMaps.keys()) {
+      try {
+        const name = String(k as any)
+        listenerCounts[name as EventKey<EventMap>] = this._public.listenerCount(k as any)
+      } catch {
+        // ignore per-event failures
+      }
+    }
+
+    const errorCountsMap = this._safety.getAllErrorCounts()
+    const errorCounts: Record<EventKey<EventMap>, number> = {} as Record<EventKey<EventMap>, number>
+    for (const [k, v] of errorCountsMap) errorCounts[String(k) as EventKey<EventMap>] = v
+
+    const logSizes: Record<EventKey<EventMap> | '__total', number> = {} as Record<
+      EventKey<EventMap> | '__total',
+      number
+    >
+    // per-event sizes (keys present in errorCountsMap), plus total
+    for (const k of errorCountsMap.keys()) {
+      logSizes[String(k) as EventKey<EventMap>] = this._safety.getSafetyLogSize(String(k))
+    }
+    logSizes.__total = this._safety.getSafetyLogSize()
+
+    return {
+      listenerCounts,
+      safety: {
+        errorCounts,
+        logSizes,
+        capacity: this._safety.getSafetyLogCapacity(),
+        enabled: this._safety.isSafetyEnabled(),
+      },
+    }
+  }
+
+  public on<K extends keyof AllEvents<EventMap>>(
+    event: K | readonly K[],
+    listener: (data: AllEvents<EventMap>[K]) => Awaitable,
+    options?: { signal?: AbortSignal },
+  ) {
+    // Support subscribing to multiple events (array form) while keeping
+    // our listener-mapping bookkeeping per-event so `off(original)` works.
+    const events = Array.isArray(event) ? event : [event]
+
     const safeListener = async (data: AllEvents<EventMap>[K]) => {
       try {
         await listener(data)
       } catch (error) {
-        this.onListenerError(event, error, { type: 'on', listener, emitter: this })
+        const actual = normalizeEventName(events as readonly any[])
+        this.onListenerError(actual as any, error, { type: 'on', listener, emitter: this })
       }
     }
-    map.set(listener, safeListener)
-    return this._public.on(event, safeListener)
+
+    for (const e of events) {
+      let map = this._listenerMaps.get(e)
+      if (!map) {
+        map = new WeakMap()
+        this._listenerMaps.set(e, map)
+      }
+      map.set(listener, safeListener)
+    }
+
+    return this._public.on(event as any, safeListener, options)
   }
 
   /**
@@ -125,17 +257,17 @@ export abstract class SafeEmitter<EventMap extends BaseEventMap<unknown[]>> {
    * @param listener Listener function
    * @returns Promise resolving to event payload
    */
-  public async once<K extends keyof AllEvents<EventMap>>(
+  public once<K extends keyof AllEvents<EventMap>>(
     event: K,
     listener: (data: AllEvents<EventMap>[K]) => Awaitable,
-  ): Promise<AllEvents<EventMap>[K]> {
-    const data = await this._public.once(event)
-    try {
-      await listener(data)
-    } catch (error) {
+    options?: { signal?: AbortSignal },
+  ): CancelablePromise<AllEvents<EventMap>[K]> {
+    const originalPromise = this._public.once(event) as CancelablePromise<AllEvents<EventMap>[K]>
+
+    const notify = (error: unknown) =>
       this.onListenerError(event, error, { type: 'once', listener, emitter: this })
-    }
-    return data
+
+    return createCancelableOnce(originalPromise, listener as any, options, notify)
   }
 
   /**
@@ -265,8 +397,9 @@ export abstract class SafeEmitter<EventMap extends BaseEventMap<unknown[]>> {
           error,
           (context.listener && context.listener.name) || undefined,
         )
-      } catch (err) {
+      } catch {
         // ignore errors in bookkeeping
+        void 0
       }
 
       fireAndForgetInternal(
@@ -297,7 +430,9 @@ export abstract class SafeEmitter<EventMap extends BaseEventMap<unknown[]>> {
     if (isPublicEvent<EventMap>(eventName)) {
       try {
         this._safety?.recordListenerErrorFor(eventName as any, error)
-      } catch { }
+      } catch {
+        void 0
+      }
 
       fireAndForgetInternal(
         this._public,
@@ -342,7 +477,10 @@ export abstract class SafeEmitter<EventMap extends BaseEventMap<unknown[]>> {
     return this._safety.getSafetyLogs(eventName)
   }
 
-  public getSafetyLogForEvent(eventName?: PropertyKey, opts?: { limit?: number; newestFirst?: boolean }) {
+  public getSafetyLogForEvent(
+    eventName?: PropertyKey,
+    opts?: { limit?: number; newestFirst?: boolean },
+  ) {
     return this._safety.getSafetyLogForEvent(eventName, opts)
   }
 
@@ -373,6 +511,11 @@ export abstract class SafeEmitter<EventMap extends BaseEventMap<unknown[]>> {
   public setSafetyEnabled(enabled: boolean): void {
     this._safety.setSafetyEnabled(enabled)
   }
+}
+
+/** Normalize the event name to a concrete single value (take first if array). */
+function normalizeEventName(eventName: readonly any[]): any {
+  return Array.isArray(eventName) ? eventName[0] : eventName
 }
 
 /**
@@ -411,6 +554,7 @@ async function emitWithErrorHandling<T>(
     throw error // always rethrow here
   } finally {
     // possible future hooks, e.g. metrics or cleanup
+    void 0
   }
 }
 
@@ -439,4 +583,109 @@ function fireAndForgetInternal<EM extends Emittery<any>, K extends keyof Interna
   }
 }
 
+/**
+ * Create a cancelable once-wrapped promise that invokes the provided listener
+ * and forwards `.off()` from the original promise when available.
+ */
+/**
+ * Attach abort wiring to the original promise: if the provided signal aborts,
+ * call `originalPromise.off()` (if present). Returns a cleanup function that
+ * removes the attached listener.
+ */
+function wireAbortToPromise<T>(
+  originalPromise: WrappedCancelable<T>,
+  signal?: AbortSignal,
+): (() => void) | undefined {
+  if (!signal) return undefined
+  if (signal.aborted) {
+    try {
+      originalPromise.off?.()
+    } catch {
+      void 0
+    }
+    return undefined
+  }
+  const onAbort = () => {
+    try {
+      originalPromise.off?.()
+    } catch {
+      void 0
+    }
+  }
 
+  try {
+    signal.addEventListener('abort', onAbort)
+  } catch {
+    void 0
+  }
+  return () => {
+    try {
+      signal.removeEventListener('abort', onAbort)
+    } catch {
+      void 0
+    }
+  }
+}
+
+/**
+ * Await the original promise, invoke the listener and notify on listener errors.
+ * Returns a promise that resolves to the original payload.
+ */
+function createListenerWrappedPromise<T>(
+  originalPromise: WrappedCancelable<T>,
+  listener: (data: T) => Awaitable,
+  notifyListenerError: (error: unknown) => void,
+): Promise<T> {
+  return (async () => {
+    const data = await originalPromise
+    try {
+      await listener(data)
+    } catch (err) {
+      notifyListenerError(err)
+    }
+    return data
+  })()
+}
+
+/** Bind `.off` from the original promise onto the wrapped promise when available. */
+function attachOffForwarding<T>(
+  originalPromise: WrappedCancelable<T>,
+  wrapped: WrappedCancelable<T>,
+) {
+  if (typeof originalPromise.off === 'function') {
+    try {
+      wrapped.off = originalPromise.off.bind(originalPromise)
+    } catch {
+      void 0
+    }
+  }
+}
+
+/** Compose the small helpers into a single cancelable once promise. */
+function createCancelableOnce<T>(
+  originalPromise: WrappedCancelable<T>,
+  listener: (data: T) => Awaitable, // listener invoked with payload
+  options: { signal?: AbortSignal } | undefined,
+  notifyListenerError: (error: unknown) => void,
+): WrappedCancelable<T> {
+  const cleanup = wireAbortToPromise(originalPromise, options?.signal)
+
+  const wrapped = createListenerWrappedPromise(
+    originalPromise,
+    listener,
+    notifyListenerError,
+  ) as WrappedCancelable<T>
+
+  attachOffForwarding(originalPromise, wrapped)
+
+  // Ensure the abort listener is removed when the wrapped promise settles.
+  wrapped.finally(() => {
+    try {
+      cleanup?.()
+    } catch {
+      void 0
+    }
+  })
+
+  return wrapped
+}

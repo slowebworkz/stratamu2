@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { getGlobalThis } from '../node/global-this.js'
+import { getGlobalThis } from '../node/index.js'
 
 describe('getGlobalThis', () => {
   it('returns an object with globalThis properties', () => {

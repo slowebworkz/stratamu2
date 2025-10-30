@@ -1,13 +1,15 @@
-import { LinkedList } from '../data/index.js'
+import { LinkedList } from '@/data'
 import { LoggedEmitter } from './logged-emitter-new.js'
 
-import type { Args, BaseEventMap } from '@repo/types'
+import type { UnsubscribeFunction, OmnipresentEventData } from 'emittery'
+import type {
+  Args, BaseEventMap,
+} from '@repo/types'
 import type {
   ListenerCallback,
   Priority,
   PriorityListener,
   PriorityListenerOptions,
-  UnsubscribeFunction,
 } from './types.js'
 
 /**
@@ -256,7 +258,7 @@ export abstract class FilteredPriorityEmitter<
    * const multiCount = emitter.listenerCount(['data', 'error'])
    * ```
    */
-  listenerCount<Name extends keyof EventMap>(eventName?: Name | readonly Name[]): number {
+  listenerCount<Name extends keyof OmnipresentEventData | keyof EventMap>(eventName?: Name | readonly Name[] | undefined): number {
     if (eventName === undefined) {
       // Count all listeners for all events
       let priorityCount = 0
@@ -269,13 +271,13 @@ export abstract class FilteredPriorityEmitter<
       let priorityCount = 0
       for (const name of eventName) {
         const singleName = name as Name
-        priorityCount += this._priorityListeners[singleName]?.size ?? 0
+        priorityCount += this._priorityListeners[singleName as keyof EventMap]?.size ?? 0
       }
-      return priorityCount + super.listenerCount(eventName as readonly Name[])
+      return priorityCount + super.listenerCount(eventName as any)
     }
-    // At this point, eventName is definitely Name (single event name)
+    // At this point, eventName is definitely a single event name
     const singleEventName = eventName as Name
-    const priorityCount = this._priorityListeners[singleEventName]?.size ?? 0
-    return priorityCount + super.listenerCount(singleEventName)
+    const priorityCount = this._priorityListeners[singleEventName as keyof EventMap]?.size ?? 0
+    return priorityCount + super.listenerCount(singleEventName as any)
   }
 }

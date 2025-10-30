@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { emitDiagnosticWarning } from '../node/diagnostics.js'
+import { emitDiagnosticWarning } from '../node/index.js'
 
 describe('emitDiagnosticWarning', () => {
   const realProcess = (globalThis as any).process

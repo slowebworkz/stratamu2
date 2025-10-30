@@ -1,13 +1,17 @@
-import { LinkedList } from '../data/index.js'
+import { LinkedList } from '@/data'
 import { LoggedEmitter } from './logged-emitter.js'
 
-import type { Args, BaseEventMap } from '@repo/types'
+import type {
+  UnsubscribeFunction
+} from 'emittery'
+import type {
+  Args, BaseEventMap,
+} from '@repo/types'
 import type {
   ListenerCallback,
   Priority,
   PriorityListener,
   PriorityListenerOptions,
-  UnsubscribeFunction,
 } from './types.js'
 
 /**

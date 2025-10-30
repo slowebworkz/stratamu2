@@ -5,7 +5,7 @@ type EM = {
   test: [number]
 }
 
-class E extends FilteredPriorityEmitter<EM> { }
+class E extends FilteredPriorityEmitter<EM> {}
 
 describe('FilteredPriorityEmitter integration with SafeEmitter bookkeeping', () => {
   it('records priority-listener errors into SafeEmitter error counts and logs', async () => {

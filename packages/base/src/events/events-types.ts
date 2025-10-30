@@ -61,3 +61,12 @@ export function internalPublicBus<EventMap extends BaseEventMap<unknown[]>>(
     }
   >
 }
+
+/** Utility type: string-keyed event name for an EventMap */
+export type EventKey<EventMap extends BaseEventMap<unknown[]>> = Extract<keyof EventMap, string>
+
+/** Promise that may expose an optional `.off()` cancellation method. */
+export type CancelablePromise<T> = Promise<T> & { off?: () => void }
+
+/** Internal alias used for wrapped promises that may receive an `.off` binding. */
+export type WrappedCancelable<T> = Promise<T> & { off?: () => void }

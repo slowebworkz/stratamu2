@@ -1,6 +1,6 @@
 import { FilteredPriorityEmitter } from './filtered-priority-emitter.js'
 // Static import for Node.js perf_hooks
-import { perfNow } from '../performance/index.js'
+import { perfNow } from '@/performance'
 import { EventMetrics } from './event-metrics.js'
 
 import type { BaseEventMap } from '@repo/types'
@@ -261,8 +261,8 @@ export abstract class MetricsEmitter<
    */
   on<
     EventName extends
-      | keyof (EventMap & MetricsEmitterEvents<EventMap>)
-      | keyof OmnipresentEventData,
+    | keyof (EventMap & MetricsEmitterEvents<EventMap>)
+    | keyof OmnipresentEventData,
   >(
     eventName: EventName | readonly EventName[],
     listener: (
@@ -309,8 +309,8 @@ export abstract class MetricsEmitter<
    */
   off<
     EventName extends
-      | keyof (EventMap & MetricsEmitterEvents<EventMap>)
-      | keyof OmnipresentEventData,
+    | keyof (EventMap & MetricsEmitterEvents<EventMap>)
+    | keyof OmnipresentEventData,
   >(
     eventName: EventName | readonly EventName[],
     listener: (

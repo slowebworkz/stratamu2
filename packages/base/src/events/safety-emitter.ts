@@ -1,10 +1,10 @@
 // NOTE: file renamed from safety-emitter-3.ts — same contents, updated path.
+import { RingBuffer } from '@/data'
 import type { BaseEventMap } from '@repo/types'
 import Emittery from 'emittery'
 import type { JsonValue } from 'type-fest'
-import { RingBuffer } from '../data/ring-buffer.js'
 import { emitDiagnosticWarning } from '../node/diagnostics.js'
-import { internalPublicBus } from './events-types.js'
+import { EventKey, internalPublicBus } from './events-types.js'
 
 /**
  * Options used to configure the standalone safety manager.
@@ -19,11 +19,11 @@ export type SafetyEmitterOptions<
   /** Whether safety bookkeeping is enabled for this instance */
   enabled?: boolean
   /** Optional per-event capacity overrides keyed by event name */
-  perEventCap?: Partial<Record<Extract<keyof EventMap, string>, number>>
+  perEventCap?: Partial<Record<EventKey<EventMap>, number>>
 }
 
 /** Utility type: string-keyed event name for an EventMap */
-export type EventKey<EventMap extends BaseEventMap<unknown[]>> = Extract<keyof EventMap, string>
+// EventKey is exported from './events-types.js'
 
 /**
  * Sanitized error shapes. Either a trimmed Error-like shape, a stringified
@@ -48,13 +48,13 @@ const DEFAULT_SAFETY_LOG_CAP = 100 as const
  * Usage (composition):
  *
  * ```ts
- * import { SafeEmitter } from './safe-emitter-3.js'
+ * import { SafeEmitter } from './safe-emitter.js'
  * // SafeEmitter composes the SafetyEmitter internally and exposes safety accessors
  * const e = new SafeEmitter()
  * e.setSafetyEnabled(true)
  *
  * // Advanced: construct the standalone manager for test harnesses or custom buses
- * import { SafetyEmitter } from './safety-emitter-3.js'
+ * import { SafetyEmitter } from './safety-emitter.js'
  * import { internalPublicBus } from './events-types.js'
  * const manager = new SafetyEmitter(internalPublicBus(myEmitter), { safetyLogCap: 50 })
  * ```
@@ -243,11 +243,6 @@ function incrementCount<K extends string>(map: Map<K, number>, key: K, delta = 1
   const next = (map.get(key) ?? 0) + delta
   map.set(key, next)
   return next
-}
-
-/** Shallow clone a map for safe outward returns. */
-function cloneMapShallow<K, V>(m: Map<K, V>): Map<K, V> {
-  return new Map(m)
 }
 
 /** Sum numeric values in a map. */

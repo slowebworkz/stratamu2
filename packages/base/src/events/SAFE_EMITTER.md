@@ -167,7 +167,7 @@ Document created by automated repository assistant on 2025-10-08.
 ## Migration note (2025-10-09)
 
 - The historical `SafetyEmitter` compatibility subclass that previously lived in `safe-emitter-3.ts`
-  has been removed. The standalone bookkeeping engine now lives in `safety-emitter-3.ts` and
+  has been removed. The standalone bookkeeping engine now lives in `safety-emitter.ts` and
   `SafeEmitter` composes it internally.
 
 - If your code previously did `class X extends SafetyEmitter<EM>`:

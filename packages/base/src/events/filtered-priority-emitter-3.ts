@@ -1,13 +1,15 @@
-import { LinkedList } from '../data/index.js'
+import { LinkedList } from '@/data'
 import { LoggedEmitter } from './logged-emitter-3.js'
 
-import type { Args, BaseEventMap } from '@repo/types'
+import type {
+  Args, BaseEventMap,
+} from '@repo/types'
+import type { UnsubscribeFunction } from 'emittery'
 import type {
   ListenerCallback,
   Priority,
   PriorityListener,
   PriorityListenerOptions,
-  UnsubscribeFunction,
 } from './types.js'
 
 /**
@@ -88,13 +90,14 @@ export abstract class FilteredPriorityEmitter<
           errors.push(err)
           // record into SafeEmitter bookkeeping if available
           try {
-            ;(this as any).recordListenerErrorFor?.(
+            ; (this as any).recordListenerErrorFor?.(
               event as any,
               err,
               listener.callback?.name ?? 'anonymous',
             )
-          } catch (e) {
-            /* best-effort */
+          } catch {
+            // best-effort: ignore errors from optional bookkeeping
+            void 0
           }
         }
       }

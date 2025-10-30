@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { RingBuffer } from '../data/ring-buffer.js'
+import { RingBuffer } from '../data/index.js'
 
 describe('RingBuffer', () => {
   it('pushes and returns items in order', () => {
