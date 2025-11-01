@@ -1,4 +1,5 @@
 import type { Awaitable, BaseEventMap } from '@repo/types'
+import type { ReadonlyDeep } from 'type-fest'
 import Emittery from 'emittery'
 import type {
   AllEvents,
@@ -21,18 +22,31 @@ import {
 } from './index.js'
 
 /**
+ * Base types for event metrics for improved readability.
+ */
+type EventKeyType = string | number | symbol
+type ListenerCounts<K extends EventKeyType> = Record<K | 'total', number>
+type ErrorCounts<K extends EventKeyType> = Record<K, number>
+type LogSizes<K extends EventKeyType> = Record<K | '__total', number>
+
+/**
  * Default metrics shape returned by `getEventMetrics()`.
  * Kept non-generic and string-keyed for simplicity.
  */
 export type EventMetrics<EventMap extends BaseEventMap<unknown[]> = BaseEventMap<unknown[]>> = {
-  listenerCounts: Record<EventKey<EventMap> | 'total', number>
+  listenerCounts: ListenerCounts<EventKey<EventMap>>
   safety: {
-    errorCounts: Record<EventKey<EventMap>, number>
-    logSizes: Record<EventKey<EventMap> | '__total', number>
+    errorCounts: ErrorCounts<EventKey<EventMap>>
+    logSizes: LogSizes<EventKey<EventMap>>
     capacity: number
     enabled: boolean
   }
 }
+
+/**
+ * Deeply immutable event metrics type.
+ */
+export type ReadonlyEventMetrics<EventMap extends BaseEventMap<unknown[]> = BaseEventMap<unknown[]>> = ReadonlyDeep<EventMetrics<EventMap>>
 
 /**
  * Indicates if the environment is development (not production).
@@ -173,7 +187,7 @@ export abstract class SafeEmitter<EventMap extends BaseEventMap<unknown[]>> {
    *
    * Subclasses may override this to provide richer metrics.
    */
-  public getEventMetrics(): EventMetrics<EventMap> {
+  public getEventMetrics(): ReadonlyEventMetrics<EventMap> {
     const listenerCounts: Record<EventKey<EventMap> | 'total', number> = {} as Record<
       EventKey<EventMap> | 'total',
       number
@@ -210,10 +224,10 @@ export abstract class SafeEmitter<EventMap extends BaseEventMap<unknown[]>> {
     logSizes.__total = this._safety.getSafetyLogSize()
 
     return {
-      listenerCounts,
+      listenerCounts: listenerCounts as ReadonlyDeep<ListenerCounts<EventKey<EventMap>>>,
       safety: {
-        errorCounts,
-        logSizes,
+        errorCounts: errorCounts as ReadonlyDeep<ErrorCounts<EventKey<EventMap>>>,
+        logSizes: logSizes as ReadonlyDeep<LogSizes<EventKey<EventMap>>>,
         capacity: this._safety.getSafetyLogCapacity(),
         enabled: this._safety.isSafetyEnabled(),
       },
@@ -645,20 +659,6 @@ function createListenerWrappedPromise<T>(
     }
     return data
   })()
-}
-
-/** Bind `.off` from the original promise onto the wrapped promise when available. */
-function attachOffForwarding<T>(
-  originalPromise: WrappedCancelable<T>,
-  wrapped: WrappedCancelable<T>,
-) {
-  if (typeof originalPromise.off === 'function') {
-    try {
-      wrapped.off = originalPromise.off.bind(originalPromise)
-    } catch {
-      void 0
-    }
-  }
 }
 
 /** Compose the small helpers into a single cancelable once promise. */
