@@ -1,6 +1,6 @@
-
-import type { BaseEventMap, EventName, EventListenerFn } from '@repo/types'
+import type { BaseEventMap, EventListenerFn, EventName } from '@repo/types'
 import type { OmnipresentEventData, UnsubscribeFunction } from 'emittery'
+import type { Level, Logger } from 'pino'
 import type { Merge, Promisable } from 'type-fest'
 
 
@@ -58,6 +58,17 @@ export type SafeEmitterListener<
   Name extends keyof SafeEmitterEventMap<EventMap, true> = keyof SafeEmitterEventMap<EventMap, true>,
 > = (eventData: SafeEmitterEventMap<EventMap, true>[Name]) => Promisable<void>
 
+// =============================================================================
+// Promise-like type for once() with cancellation
+// =============================================================================
+
+/**
+ * Promise-like object returned by SafeEmitter.once().
+ * Behaves like a Promise<T> but also has an .off() method to cancel the listener.
+ * This matches the behavior of Emittery's once() return value.
+ */
+export type EmitteryOncePromise<T> = Promise<T> & { off: () => void }
+
 
 // LoggedEmitter Types
 
@@ -107,6 +118,28 @@ export type MetricsEmitterListener<
 
 
 
+// =============================================================================
+// Logging/Emitter Types
+// =============================================================================
+
+/**
+ * Argument signature for pino logger methods, matching the exact call signature for each log level.
+ * This uses Parameters<Logger[Level]> from Pino for type safety and future compatibility.
+ */
+export type PinoLogArgs = Parameters<Logger[Level]>
+
+/**
+ * Used for error escalation logic in emitters
+ */
+export type SafeMergingObject = { [key: string]: unknown; shouldThrow?: boolean }
+export type ThrowConfig = { shouldThrow: true }
+
+/**
+ * Logger child context and options for creating child loggers
+ */
+export type Bindings = Record<string, unknown>
+export type ChildLoggerOptions = Record<string, unknown>
+
 
 
 // =============================================================================
@@ -114,7 +147,7 @@ export type MetricsEmitterListener<
 // =============================================================================
 
 import type { Args } from '@repo/types'
-import type { ReadonlyDeep, Simplify, Tagged, LiteralUnion, IntRange } from 'type-fest'
+import type { IntRange, LiteralUnion, ReadonlyDeep, Simplify, Tagged } from 'type-fest'
 
 // Error log entry type for listener errors (deeply immutable)
 export type ListenerErrorLogEntry = ReadonlyDeep<{

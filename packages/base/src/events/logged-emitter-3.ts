@@ -1,19 +1,17 @@
-import type { BaseEventMap } from '@repo/types'
+import type { BaseEventMap, LogLevel, LogLevelWithSilent } from '@repo/types'
+import { LOGGER_LEVELS } from '@repo/types'
+
 import isPlainObject from 'is-plain-object'
-import type { LevelMapping, Logger } from 'pino'
+import type { LevelChangeEventListener, LevelMapping, Logger } from 'pino'
 import pino from 'pino'
 import { SafeEmitter } from './safe-emitter-3.js'
 import type {
   Bindings,
   ChildLoggerOptions,
-  LevelChangeEventListener,
-  LogLevel,
-  LogLevelWithSilent,
   PinoLogArgs,
   SafeMergingObject,
-  ThrowConfig,
+  ThrowConfig
 } from './types.js'
-import { LOGGER_LEVELS } from './types.js'
 
 /**
  * LoggedEmitter: Extends SafeEmitter to add structured logging for all event operations.
@@ -23,7 +21,7 @@ import { LOGGER_LEVELS } from './types.js'
  *
  * @template EventMap extends BaseEventMap<unknown[]>
  */
-export class LoggedEmitter<EventMap extends BaseEventMap<unknown[]>> extends SafeEmitter<EventMap> {
+export abstract class LoggedEmitter<EventMap extends BaseEventMap<unknown[]>> extends SafeEmitter<EventMap> {
   private readonly _logger: Logger
   public readonly log: {
     [Level in LogLevel]: (...args: PinoLogArgs) => void
@@ -154,9 +152,8 @@ export class LoggedEmitter<EventMap extends BaseEventMap<unknown[]>> extends Saf
     if (isObjectFirstArgs(args)) {
       const [mergingObject, errorMessage] = args
       if (hasThrowConfig(mergingObject)) {
-        const ErrorClass = (mergingObject as any).ErrorClass ?? Error
         const message = typeof errorMessage === 'string' ? errorMessage : 'An error occurred'
-        throw new ErrorClass(message)
+        throw new Error(message)
       }
     }
   }
@@ -167,13 +164,10 @@ export class LoggedEmitter<EventMap extends BaseEventMap<unknown[]>> extends Saf
  */
 export function isObjectFirstArgs(
   args: PinoLogArgs,
-): args is readonly [obj: SafeMergingObject, msg?: string, ...args: readonly unknown[]] {
+): args is [obj: SafeMergingObject, msg?: string, ...args: unknown[]] {
   return args.length >= 1 && isPlainObject(args[0])
 }
 
-/**
- * Type-safe check for shouldThrow configuration in merging objects.
- */
 export function hasThrowConfig(obj: SafeMergingObject): obj is SafeMergingObject & ThrowConfig {
   return (obj as any).shouldThrow === true
 }
