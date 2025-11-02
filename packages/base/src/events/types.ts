@@ -3,7 +3,6 @@ import type { OmnipresentEventData, UnsubscribeFunction } from 'emittery'
 import type { Level, Logger } from 'pino'
 import type { Merge, Promisable } from 'type-fest'
 
-
 // Base Types
 
 // Generic listener type for event data
@@ -55,7 +54,10 @@ export type SafeEmitterEventName<
 
 export type SafeEmitterListener<
   EventMap extends BaseEventMap<unknown> = BaseEventMap,
-  Name extends keyof SafeEmitterEventMap<EventMap, true> = keyof SafeEmitterEventMap<EventMap, true>,
+  Name extends keyof SafeEmitterEventMap<EventMap, true> = keyof SafeEmitterEventMap<
+    EventMap,
+    true
+  >,
 > = (eventData: SafeEmitterEventMap<EventMap, true>[Name]) => Promisable<void>
 
 // =============================================================================
@@ -68,7 +70,6 @@ export type SafeEmitterListener<
  * This matches the behavior of Emittery's once() return value.
  */
 export type EmitteryOncePromise<T> = Promise<T> & { off: () => void }
-
 
 // LoggedEmitter Types
 
@@ -87,9 +88,11 @@ export type LoggedEmitterEventName<
 // Listener type for LoggedEmitter events
 export type LoggedEmitterListener<
   EventMap extends BaseEventMap<unknown> = BaseEventMap,
-  Name extends keyof LoggedEmitterEventMap<EventMap, true> = keyof LoggedEmitterEventMap<EventMap, true>,
+  Name extends keyof LoggedEmitterEventMap<EventMap, true> = keyof LoggedEmitterEventMap<
+    EventMap,
+    true
+  >,
 > = (eventData: LoggedEmitterEventMap<EventMap, true>[Name]) => Promisable<void>
-
 
 // MetricsEmitter Types
 
@@ -115,9 +118,6 @@ export type MetricsEmitterListener<
   Name extends MetricsEmitterEventName<EventMap> = MetricsEmitterEventName<EventMap>,
 > = (eventData: MetricsEmitterFullEventMap<EventMap>[Name]) => Promisable<void>
 
-
-
-
 // =============================================================================
 // Logging/Emitter Types
 // =============================================================================
@@ -139,8 +139,6 @@ export type ThrowConfig = { shouldThrow: true }
  */
 export type Bindings = Record<string, unknown>
 export type ChildLoggerOptions = Record<string, unknown>
-
-
 
 // =============================================================================
 // Additional Types from types.ts

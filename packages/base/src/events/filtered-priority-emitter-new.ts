@@ -1,10 +1,8 @@
 import { LinkedList } from '@/data'
 import { LoggedEmitter } from './logged-emitter-new.js'
 
-import type { UnsubscribeFunction, OmnipresentEventData } from 'emittery'
-import type {
-  Args, BaseEventMap,
-} from '@repo/types'
+import type { Args, BaseEventMap } from '@repo/types'
+import type { OmnipresentEventData, UnsubscribeFunction } from 'emittery'
 import type {
   ListenerCallback,
   Priority,
@@ -258,7 +256,9 @@ export abstract class FilteredPriorityEmitter<
    * const multiCount = emitter.listenerCount(['data', 'error'])
    * ```
    */
-  listenerCount<Name extends keyof OmnipresentEventData | keyof EventMap>(eventName?: Name | readonly Name[] | undefined): number {
+  listenerCount<Name extends keyof OmnipresentEventData | keyof EventMap>(
+    eventName?: Name | readonly Name[] | undefined,
+  ): number {
     if (eventName === undefined) {
       // Count all listeners for all events
       let priorityCount = 0

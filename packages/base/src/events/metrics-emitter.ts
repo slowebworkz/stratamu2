@@ -261,8 +261,8 @@ export abstract class MetricsEmitter<
    */
   on<
     EventName extends
-    | keyof (EventMap & MetricsEmitterEvents<EventMap>)
-    | keyof OmnipresentEventData,
+      | keyof (EventMap & MetricsEmitterEvents<EventMap>)
+      | keyof OmnipresentEventData,
   >(
     eventName: EventName | readonly EventName[],
     listener: (
@@ -309,8 +309,8 @@ export abstract class MetricsEmitter<
    */
   off<
     EventName extends
-    | keyof (EventMap & MetricsEmitterEvents<EventMap>)
-    | keyof OmnipresentEventData,
+      | keyof (EventMap & MetricsEmitterEvents<EventMap>)
+      | keyof OmnipresentEventData,
   >(
     eventName: EventName | readonly EventName[],
     listener: (

@@ -4,13 +4,13 @@ import { LOGGER_LEVELS } from '@repo/types'
 import isPlainObject from 'is-plain-object'
 import type { LevelChangeEventListener, LevelMapping, Logger } from 'pino'
 import pino from 'pino'
-import { SafeEmitter } from './safe-emitter-3.js'
+import { SafeEmitter } from './safe-emitter.js'
 import type {
   Bindings,
   ChildLoggerOptions,
   PinoLogArgs,
   SafeMergingObject,
-  ThrowConfig
+  ThrowConfig,
 } from './types.js'
 
 /**
@@ -21,7 +21,9 @@ import type {
  *
  * @template EventMap extends BaseEventMap<unknown[]>
  */
-export abstract class LoggedEmitter<EventMap extends BaseEventMap<unknown[]>> extends SafeEmitter<EventMap> {
+export abstract class LoggedEmitter<
+  EventMap extends BaseEventMap<unknown[]>,
+> extends SafeEmitter<EventMap> {
   private readonly _logger: Logger
   public readonly log: {
     [Level in LogLevel]: (...args: PinoLogArgs) => void
