@@ -60,6 +60,15 @@ export type SafeEmitterListener<
   >,
 > = (eventData: SafeEmitterEventMap<EventMap, true>[Name]) => Promisable<void>
 
+// DRY utility for count-like records
+export type CountsMap<
+  K extends string | number | symbol,
+  Extra extends string | number | symbol = never,
+> = Record<K | Extra, number>
+export type ListenerCounts<K extends string | number | symbol> = CountsMap<K, 'total'>
+export type ErrorCounts<K extends string | number | symbol> = CountsMap<K>
+export type LogSizes<K extends string | number | symbol> = CountsMap<K, '__total'>
+
 // =============================================================================
 // Promise-like type for once() with cancellation
 // =============================================================================

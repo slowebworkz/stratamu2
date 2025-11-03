@@ -21,13 +21,7 @@ import {
   type SafetyEmitterOptions,
 } from './index.js'
 
-/**
- * Base types for event metrics for improved readability.
- */
-type EventKeyType = string | number | symbol
-type ListenerCounts<K extends EventKeyType> = Record<K | 'total', number>
-type ErrorCounts<K extends EventKeyType> = Record<K, number>
-type LogSizes<K extends EventKeyType> = Record<K | '__total', number>
+import type { ErrorCounts, ListenerCounts, LogSizes } from './types.js'
 
 /**
  * Default metrics shape returned by `getEventMetrics()`.
@@ -122,17 +116,12 @@ export abstract class SafeEmitter<EventMap extends BaseEventMap<unknown[]>> {
    * @param listener Listener function
    * @returns Unsubscribe function
    */
-  constructor(opts?: SafetyEmitterOptions<EventMap>) {
-    // Preset defaults applied when callers do not provide explicit options.
-    // We enable error sanitization by default to avoid retaining large
-    // object graphs in the safety logs, and expose a reasonable default
-    // capacity for per-event safety buffers.
-    const preset: SafetyEmitterOptions<EventMap> = {
-      sanitizeErrors: true,
-      safetyLogCap: 100,
-    }
-    const finalOpts = { ...preset, ...(opts ?? {}) }
-    this._safety = new SafetyManager<EventMap>(internalPublicBus<EventMap>(this), finalOpts)
+  constructor() {
+    // Compose the safety manager with hardcoded presets (no user config)
+    this._safety = new SafetyManager<EventMap>(
+      internalPublicBus<EventMap>(this),
+      { sanitizeErrors: true, safetyLogCap: 100 }
+    )
   }
 
   /**
@@ -690,4 +679,20 @@ function createCancelableOnce<T>(
   })
 
   return wrapped
+}
+
+/**
+ * Bind `.off` from the original promise onto the wrapped promise when available.
+ */
+function attachOffForwarding<T>(
+  originalPromise: WrappedCancelable<T>,
+  wrapped: WrappedCancelable<T>,
+): void {
+  if (typeof originalPromise.off === 'function') {
+    try {
+      wrapped.off = originalPromise.off.bind(originalPromise)
+    } catch {
+      void 0
+    }
+  }
 }
