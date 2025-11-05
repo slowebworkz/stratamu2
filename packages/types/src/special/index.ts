@@ -2,3 +2,4 @@
 export * from './args.ts'
 export * from './client.ts'
 export * from './output.ts'
+export * from './partial-record.ts'

@@ -6,7 +6,7 @@ class TestLoggedEmitter extends LoggedEmitter<{
   test: [string]
   error: [Error]
   noData: []
-}> { }
+}> {}
 
 describe('LoggedEmitter', () => {
   let emitter: TestLoggedEmitter
