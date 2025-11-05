@@ -1,5 +1,5 @@
 import { LinkedList } from '@/data'
-import { LoggedEmitter } from './logged-emitter-3.js'
+import { LoggedEmitter } from './logged-emitter.js'
 
 import type { Args, BaseEventMap } from '@repo/types'
 import type { UnsubscribeFunction } from 'emittery'
@@ -88,7 +88,7 @@ export abstract class FilteredPriorityEmitter<
           errors.push(err)
           // record into SafeEmitter bookkeeping if available
           try {
-            ;(this as any).recordListenerErrorFor?.(
+            ; (this as any).recordListenerErrorFor?.(
               event as any,
               err,
               listener.callback?.name ?? 'anonymous',

@@ -1,12 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { LoggedEmitter } from '../events/logged-emitter-3.js'
+import { LoggedEmitter } from '../events/logged-emitter.js'
 
 // Use the public API only
 class TestLoggedEmitter extends LoggedEmitter<{
   test: [string]
   error: [Error]
   noData: []
-}> {}
+}> { }
 
 describe('LoggedEmitter', () => {
   let emitter: TestLoggedEmitter

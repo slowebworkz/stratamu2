@@ -18,7 +18,6 @@ import {
   isInternalEvent,
   isPublicEvent,
   SafetyEmitter as SafetyManager,
-  type SafetyEmitterOptions,
 } from './index.js'
 
 import type { ErrorCounts, ListenerCounts, LogSizes } from './types.js'
@@ -118,10 +117,10 @@ export abstract class SafeEmitter<EventMap extends BaseEventMap<unknown[]>> {
    */
   constructor() {
     // Compose the safety manager with hardcoded presets (no user config)
-    this._safety = new SafetyManager<EventMap>(
-      internalPublicBus<EventMap>(this),
-      { sanitizeErrors: true, safetyLogCap: 100 }
-    )
+    this._safety = new SafetyManager<EventMap>(internalPublicBus<EventMap>(this), {
+      sanitizeErrors: true,
+      safetyLogCap: 100,
+    })
   }
 
   /**

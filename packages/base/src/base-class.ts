@@ -1,5 +1,5 @@
 import type { BaseEventMap } from '@repo/types'
-import { LoggedEmitter } from './events/logged-emitter-3.js'
+import { LoggedEmitter } from './events/logged-emitter.js'
 import { INTERNAL_ON_CHILD_ERROR } from './events/private-events.js'
 
 const ERROR_MSG = 'BaseClass cannot be instantiated directly'
