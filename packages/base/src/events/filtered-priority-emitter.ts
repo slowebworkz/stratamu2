@@ -1,8 +1,8 @@
 import { LinkedList } from '@/data'
-import { LoggedEmitter } from './logged-emitter.js'
-
 import type { Args, BaseEventMap } from '@repo/types'
 import type { UnsubscribeFunction } from 'emittery'
+import type { LiteralUnion, Simplify, SetRequired, ValueOf } from 'type-fest'
+import { LoggedEmitter } from './logged-emitter.js'
 import type {
   ListenerCallback,
   Priority,
@@ -11,271 +11,198 @@ import type {
 } from './types.js'
 
 /**
- * Abstract event emitter with priority and filtering capabilities.
- *
- * ## Features:
- * - **Priority listeners**: Higher priority numbers execute first
- * - **Filtered listeners**: Use filter functions to conditionally execute listeners
- * - **One-time listeners**: Support for `once` semantics with priority/filter options
- * - **Error handling**: Catches errors from priority listeners and emits them as 'error' events
- * - **Structured logging**: Inherits pino logging from LoggedEmitter
- *
- * ## Usage Example:
- * ```typescript
- * // High priority logger
- * emitter.onWithOptions('message', (msg) => console.log(msg), {
- *   priority: 10
- * })
- *
- * // Conditional handler
- * emitter.onWithOptions('message', (msg) => saveToFile(msg), {
- *   filter: (msg) => msg.important === true
- * })
- * ```
+ * FilteredPriorityEmitter: priority + filter listeners + one-time support.
+ * Extends LoggedEmitter for structured logging.
  *
  * @template EventMap - The event map defining event names and their data types
  */
 export abstract class FilteredPriorityEmitter<
-  EventMap extends BaseEventMap<unknown> = BaseEventMap,
+  EventMap extends BaseEventMap<unknown[]> = BaseEventMap<unknown[]>
 > extends LoggedEmitter<EventMap> {
-  /**
-   * Internal storage for priority listeners, organized by event name.
-   * Uses LinkedList for efficient sorted insertion based on priority.
-   */
+  // --- Private Properties ---
   private _priorityListeners: {
     [EventName in keyof EventMap]?: LinkedList<PriorityListener<EventMap, EventName>>
   } = {}
 
-  /**
-   * Sequence counter for maintaining insertion order within same priority level.
-   */
   private _sequenceCounter = 0
 
+  // --- Public API ---
+
   /**
-   * Register a listener with optional priority and filter capabilities.
-   *
+   * Add a listener with options (priority, filter, etc).
    * @param event - The event name to listen for
    * @param callback - The function to call when the event is emitted
-   * @param options - Optional configuration object
-   * @param options.priority - Priority level (default: 0). Higher numbers execute first
-   * @param options.filter - Optional filter function. Return true to execute, false to skip
+   * @param options - Optional configuration object (priority, filter)
    * @returns Unsubscribe function to remove this listener
-   *
-   * @example
-   * ```typescript
-   * // High priority listener
-   * const unsubscribe = emitter.onWithOptions('data', (data) => {
-   *   console.log('Priority handler:', data)
-   * }, { priority: 10 })
-   *
-   * // Conditional listener
-   * emitter.onWithOptions('data', (data) => {
-   *   processImportantData(data)
-   * }, {
-   *   filter: (data) => data.important === true
-   * })
-   *
-   * // Later: remove the listener
-   * unsubscribe()
-   * ```
    */
-  onWithOptions<EventName extends keyof EventMap>(
+  public onWithOptions<EventName extends keyof EventMap>(
     event: EventName,
     callback: ListenerCallback<EventMap, EventName>,
     options?: PriorityListenerOptions<EventMap, EventName>,
   ): UnsubscribeFunction {
-    const list =
-      this._priorityListeners[event] ??
-      (this._priorityListeners[event] = new LinkedList<PriorityListener<EventMap, EventName>>(
-        (a: PriorityListener<EventMap, EventName>, b: PriorityListener<EventMap, EventName>) => {
-          const priorityDiff = b.priority - a.priority
-          // If same priority, use sequence for insertion order (lower sequence = earlier insertion)
-          return priorityDiff !== 0 ? priorityDiff : a.sequence - b.sequence
-        },
-      ))
-    const listener = {
-      callback,
-      priority: (options?.priority ?? 0) as Priority,
-      filter: options?.filter,
-      sequence: this._sequenceCounter++,
-    }
-
+    const list = createOrGetListenerList(this._priorityListeners, event)
+    const listener = createPriorityListener(callback, options, this._sequenceCounter++)
     list.sortedInsert(listener)
-
-    this._priorityListeners[event] = list
-
     return () => {
       list.remove(listener)
     }
   }
 
   /**
-   * Register a one-time listener that automatically unsubscribes after first execution.
-   * Supports priority and filter options like `onWithOptions`.
-   *
+   * Add a one-time listener with options.
    * @param event - The event name to listen for
    * @param callback - The function to call when the event is emitted (only once)
-   * @param options - Optional configuration object
-   * @param options.priority - Priority level (default: 0). Higher numbers execute first
-   * @param options.filter - Optional filter function. Return true to execute, false to skip
+   * @param options - Optional configuration object (priority, filter)
    * @returns Unsubscribe function to remove this listener before it fires
-   *
-   * @example
-   * ```typescript
-   * // Wait for first important message with high priority
-   * emitter.onceWithOptions('message', (msg) => {
-   *   console.log('First important message:', msg)
-   * }, {
-   *   priority: 5,
-   *   filter: (msg) => msg.important === true
-   * })
-   * ```
    */
-  onceWithOptions<EventName extends keyof EventMap>(
+  public onceWithOptions<EventName extends keyof EventMap>(
     event: EventName,
     callback: ListenerCallback<EventMap, EventName>,
     options?: PriorityListenerOptions<EventMap, EventName>,
   ): UnsubscribeFunction {
-    let called = false
-    const unsubscribe = this.onWithOptions(
-      event,
-      async (...args) => {
-        if (!called) {
-          called = true
-          unsubscribe()
-          await callback(...args)
-        }
+    let unsubscribe: UnsubscribeFunction = () => { }
+    const wrapped = createOnceWrapper<ListenerCallback<EventMap, EventName>>(
+      async (...args: Args<EventMap[EventName]>) => {
+        await callback(...args)
       },
-      options,
+      () => unsubscribe(),
     )
+    unsubscribe = this.onWithOptions(event, wrapped, options)
     return unsubscribe
   }
 
   /**
-   * Emit an event with priority listener support.
-   *
-   * ## Execution Order:
-   * 1. Priority listeners (highest priority first)
-   * 2. Filter functions are evaluated for each listener
-   * 3. Standard Emittery listeners (if any)
-   *
-   * ## Error Handling:
-   * - Errors from priority listeners are caught and emitted as 'error' events
-   * - Execution continues even if some listeners throw errors
-   * - Standard Emittery error handling applies to regular listeners
-   *
+   * Emit an event with priority listeners, handling errors and calling super.emit.
    * @param event - The event name to emit
    * @param args - Arguments to pass to listeners
    * @returns Promise that resolves when all listeners complete
-   *
-   * @example
-   * ```typescript
-   * await emitter.emitWithPriority('data', {
-   *   message: 'Hello',
-   *   timestamp: Date.now()
-   * })
-   * ```
    */
-  async emitWithPriority<EventName extends keyof EventMap>(
+  public async emitWithPriority<EventName extends keyof EventMap>(
     event: EventName,
     ...args: Args<EventMap[EventName]>
   ): Promise<void> {
     const list = this._priorityListeners[event]
-    const errors: unknown[] = []
-    if (list && Symbol.iterator in list) {
-      for (const listener of list) {
-        try {
-          let shouldExecute = true
-          if (listener.filter) {
-            shouldExecute = listener.filter(...args)
-          }
-          if (shouldExecute) {
-            await listener.callback(...args)
-          }
-        } catch (err) {
-          errors.push(err)
-        }
+    const errors = await executePriorityListeners(list, event, args, (evt, err, name) => {
+      try {
+        ; (this as any).recordListenerErrorFor?.(evt as any, err, name)
+      } catch {
+        void 0
       }
-    }
+    })
     if (errors.length) {
-      await super.emit('error', errors as any)
+      // Type-safe error emission: only emit if 'error' is a valid event
+      if (typeof super.emit === 'function') {
+        await (super.emit as any)('error', errors)
+      }
     }
-    // Handle the Args type union by applying the arguments directly
-    await (super.emit as any)(event, ...args)
+    if (typeof super.emit === 'function') {
+      if (args.length > 0) {
+        await (super.emit as any)(event, ...args)
+      } else {
+        await (super.emit as any)(event)
+      }
+    }
   }
 
   /**
-   * Remove priority listeners from the emitter.
-   *
-   * **Important**: This only affects priority listeners registered via `onWithOptions`
-   * or `onceWithOptions`. Regular Emittery listeners are not affected.
-   *
+   * Remove all priority listeners for a given event or all events.
    * @param event - Optional event name to target. If omitted, clears ALL priority listeners
-   *
-   * @example
-   * ```typescript
-   * // Clear listeners for a specific event
-   * emitter.clearPriorityListeners('data')
-   *
-   * // Clear all priority listeners
-   * emitter.clearPriorityListeners()
-   * ```
    */
-  clearPriorityListeners<EventName extends keyof EventMap>(event?: EventName): void {
-    if (event) {
-      this._priorityListeners[event]?.clear()
-    } else {
-      for (const key in this._priorityListeners) {
-        this._priorityListeners[key as keyof EventMap]?.clear()
-      }
-    }
+  public clearPriorityListeners<EventName extends keyof EventMap>(event?: LiteralUnion<EventName, string>): void {
+    clearListenersMap(this._priorityListeners, event as any)
   }
 
   /**
-   * Count the total number of listeners for events.
-   *
-   * Returns the combined count of:
-   * - Priority listeners (registered via `onWithOptions`/`onceWithOptions`)
-   * - Regular Emittery listeners (registered via `on`/`once`)
-   *
-   * @param eventName - Event name(s) to count. Can be:
-   *   - `undefined` - Count all listeners for all events
-   *   - `string` - Count listeners for a specific event
-   *   - `string[]` - Count listeners for multiple events
+   * Count all listeners (priority + base) for an event or all events.
+   * @param eventName - Event name(s) to count. Can be undefined, a string, or an array of strings
    * @returns Total number of listeners
-   *
-   * @example
-   * ```typescript
-   * // Count all listeners
-   * const total = emitter.listenerCount()
-   *
-   * // Count listeners for specific event
-   * const dataListeners = emitter.listenerCount('data')
-   *
-   * // Count listeners for multiple events
-   * const multiCount = emitter.listenerCount(['data', 'error'])
-   * ```
    */
-  listenerCount<Name extends keyof EventMap>(eventName?: Name | readonly Name[]): number {
-    if (eventName === undefined) {
-      // Count all listeners for all events
-      let priorityCount = 0
-      for (const list of Object.values(this._priorityListeners)) {
-        priorityCount += list?.size ?? 0
-      }
-      return priorityCount + super.listenerCount()
-    }
-    if (Array.isArray(eventName)) {
-      let priorityCount = 0
-      for (const name of eventName) {
-        const singleName = name as Name
-        priorityCount += this._priorityListeners[singleName]?.size ?? 0
-      }
-      return priorityCount + super.listenerCount(eventName as readonly Name[])
-    }
-    // At this point, eventName is definitely Name (single event name)
-    const singleEventName = eventName as Name
-    const priorityCount = this._priorityListeners[singleEventName]?.size ?? 0
-    return priorityCount + super.listenerCount(singleEventName)
+  public listenerCount<Name extends keyof EventMap>(
+    eventName?: LiteralUnion<Name, string> | ReadonlyArray<Name>,
+  ): number {
+    const priorityCount = countPriorityListeners(this._priorityListeners, eventName as any)
+    return priorityCount + super.listenerCount(eventName as any)
   }
+}
+
+function createOrGetListenerList<EventMap, EventName extends keyof EventMap>(
+  lists: { [K in keyof EventMap]?: LinkedList<PriorityListener<EventMap, K>> },
+  event: EventName,
+): LinkedList<PriorityListener<EventMap, EventName>> {
+  return (lists[event] ??= new LinkedList<PriorityListener<EventMap, EventName>>(
+    (a, b) => b.priority - a.priority || a.sequence - b.sequence,
+  ))
+}
+
+function createPriorityListener<EventMap, EventName extends keyof EventMap>(
+  callback: ListenerCallback<EventMap, EventName>,
+  options: PriorityListenerOptions<EventMap, EventName> | undefined,
+  sequence: number,
+): Simplify<PriorityListener<EventMap, EventName>> {
+  return {
+    callback,
+    priority: (options?.priority ?? 0) as Priority,
+    filter: options?.filter,
+    sequence,
+  }
+}
+
+function createOnceWrapper<T extends (...args: any[]) => any>(
+  callback: T,
+  unsubscribe: () => void,
+): SetRequired<(...args: Parameters<T>) => Promise<void>, never> {
+  let called = false
+  return async (...args) => {
+    if (called) return
+    called = true
+    unsubscribe()
+    await callback(...args)
+  }
+}
+
+async function executePriorityListeners<EventMap, EventName extends keyof EventMap>(
+  list: LinkedList<PriorityListener<EventMap, EventName>> | undefined,
+  event: EventName,
+  args: Args<EventMap[EventName]>,
+  recordError?: (event: EventName, err: unknown, name: string) => void,
+): Promise<unknown[]> {
+  const errors: unknown[] = []
+  if (!list) return errors
+
+  for (const listener of list) {
+    try {
+      if (!listener.filter || listener.filter(...(args as any))) {
+        await listener.callback(...(args as any))
+      }
+    } catch (err) {
+      errors.push(err)
+      recordError?.(event, err, listener.callback?.name ?? 'anonymous')
+    }
+  }
+
+  return errors
+}
+
+function clearListenersMap<EventMap>(
+  map: { [K in keyof EventMap]?: LinkedList<any> },
+  event?: keyof EventMap,
+): void {
+  if (event) map[event]?.clear()
+  else for (const key in map) map[key]?.clear()
+}
+
+function countPriorityListeners<EventMap>(
+  map: { [K in keyof EventMap]?: LinkedList<any> },
+  eventName?: LiteralUnion<keyof EventMap, string> | ReadonlyArray<keyof EventMap>,
+): number {
+  if (!eventName) {
+    return (Object.values(map) as Array<ValueOf<typeof map>>).reduce(
+      (acc: number, list) => acc + (list?.size ?? 0),
+      0,
+    )
+  }
+  const names: ReadonlyArray<keyof EventMap> = Array.isArray(eventName)
+    ? (eventName as ReadonlyArray<keyof EventMap>)
+    : [eventName as keyof EventMap]
+  return names.reduce((acc: number, name: keyof EventMap) => acc + (map[name]?.size ?? 0), 0)
 }

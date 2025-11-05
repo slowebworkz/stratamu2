@@ -60,7 +60,7 @@ export abstract class LoggedEmitter<
           throw new Error(`Invalid log level: ${level}`)
         }
         return (...args: PinoLogArgs) => {
-          ; (this._logger as any)[level](...args)
+          ;(this._logger as any)[level](...args)
           shouldThrow(level, args)
         }
       },
