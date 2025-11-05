@@ -1,8 +1,7 @@
-
-import type { BaseEventMap, EventName, EventListenerFn } from '@repo/types'
+import type { BaseEventMap, EventListenerFn, EventName } from '@repo/types'
 import type { OmnipresentEventData, UnsubscribeFunction } from 'emittery'
+import type { Level, Logger } from 'pino'
 import type { Merge, Promisable } from 'type-fest'
-
 
 // Base Types
 
@@ -55,9 +54,31 @@ export type SafeEmitterEventName<
 
 export type SafeEmitterListener<
   EventMap extends BaseEventMap<unknown> = BaseEventMap,
-  Name extends keyof SafeEmitterEventMap<EventMap, true> = keyof SafeEmitterEventMap<EventMap, true>,
+  Name extends keyof SafeEmitterEventMap<EventMap, true> = keyof SafeEmitterEventMap<
+    EventMap,
+    true
+  >,
 > = (eventData: SafeEmitterEventMap<EventMap, true>[Name]) => Promisable<void>
 
+// DRY utility for count-like records
+export type CountsMap<
+  K extends string | number | symbol,
+  Extra extends string | number | symbol = never,
+> = Record<K | Extra, number>
+export type ListenerCounts<K extends string | number | symbol> = CountsMap<K, 'total'>
+export type ErrorCounts<K extends string | number | symbol> = CountsMap<K>
+export type LogSizes<K extends string | number | symbol> = CountsMap<K, '__total'>
+
+// =============================================================================
+// Promise-like type for once() with cancellation
+// =============================================================================
+
+/**
+ * Promise-like object returned by SafeEmitter.once().
+ * Behaves like a Promise<T> but also has an .off() method to cancel the listener.
+ * This matches the behavior of Emittery's once() return value.
+ */
+export type EmitteryOncePromise<T> = Promise<T> & { off: () => void }
 
 // LoggedEmitter Types
 
@@ -76,9 +97,11 @@ export type LoggedEmitterEventName<
 // Listener type for LoggedEmitter events
 export type LoggedEmitterListener<
   EventMap extends BaseEventMap<unknown> = BaseEventMap,
-  Name extends keyof LoggedEmitterEventMap<EventMap, true> = keyof LoggedEmitterEventMap<EventMap, true>,
+  Name extends keyof LoggedEmitterEventMap<EventMap, true> = keyof LoggedEmitterEventMap<
+    EventMap,
+    true
+  >,
 > = (eventData: LoggedEmitterEventMap<EventMap, true>[Name]) => Promisable<void>
-
 
 // MetricsEmitter Types
 
@@ -104,17 +127,34 @@ export type MetricsEmitterListener<
   Name extends MetricsEmitterEventName<EventMap> = MetricsEmitterEventName<EventMap>,
 > = (eventData: MetricsEmitterFullEventMap<EventMap>[Name]) => Promisable<void>
 
+// =============================================================================
+// Logging/Emitter Types
+// =============================================================================
 
+/**
+ * Argument signature for pino logger methods, matching the exact call signature for each log level.
+ * This uses Parameters<Logger[Level]> from Pino for type safety and future compatibility.
+ */
+export type PinoLogArgs = Parameters<Logger[Level]>
 
+/**
+ * Used for error escalation logic in emitters
+ */
+export type SafeMergingObject = { [key: string]: unknown; shouldThrow?: boolean }
+export type ThrowConfig = { shouldThrow: true }
 
-
+/**
+ * Logger child context and options for creating child loggers
+ */
+export type Bindings = Record<string, unknown>
+export type ChildLoggerOptions = Record<string, unknown>
 
 // =============================================================================
 // Additional Types from types.ts
 // =============================================================================
 
 import type { Args } from '@repo/types'
-import type { ReadonlyDeep, Simplify, Tagged, LiteralUnion, IntRange } from 'type-fest'
+import type { IntRange, LiteralUnion, ReadonlyDeep, Simplify, Tagged } from 'type-fest'
 
 // Error log entry type for listener errors (deeply immutable)
 export type ListenerErrorLogEntry = ReadonlyDeep<{

@@ -1,130 +1,118 @@
-import Emittery from 'emittery'
-import type { LevelMapping, Logger } from 'pino'
-import pino from 'pino'
-import type { Exact } from 'type-fest'
+import type { BaseEventMap, LogLevel, LogLevelWithSilent } from '@repo/types'
+import { LOGGER_LEVELS } from '@repo/types'
+import type { Jsonify, JsonValue } from 'type-fest'
 
-import type { BaseEventMap } from '@repo/types'
 import isPlainObject from 'is-plain-object'
+import type { LevelChangeEventListener, LevelMapping, Logger } from 'pino'
+import pino from 'pino'
+import { SafeEmitter } from './safe-emitter.js'
 import type {
   Bindings,
   ChildLoggerOptions,
-  LevelChangeEventListener,
-  LogLevel,
-  LogLevelWithSilent,
-  LoggerOptions,
   PinoLogArgs,
   SafeMergingObject,
   ThrowConfig,
 } from './types.js'
-import { LOGGER_LEVELS } from './types.js'
 
-// =============================================================================
-// Class Definition
-// =============================================================================
+type ToJSONReturn = Jsonify<{
+  level: LogLevelWithSilent
+  bindings: Bindings
+  childCount: number
+}>
 
-/**
- * Abstract LoggedEmitter extends Emittery to add structured logging via pino.
- *
- * ## Features:
- * - Per-instance pino logger with configurable options
- * - Log proxy for all pino levels (trace, debug, info, warn, error, fatal)
- * - Throw-capable logging for error and fatal levels via shouldThrow flag
- * - Type-safe bindings and child logger creation
- * - Level change event support
- *
- * @template EventMap - The event map for this emitter.
- */
 export abstract class LoggedEmitter<
-  EventMap extends BaseEventMap<any> = BaseEventMap,
-> extends Emittery<EventMap> {
-  /**
-   * The pino logger instance used for all logging.
-   */
-  protected logger: Logger
-
-  /**
-   * Proxy object for all log levels (trace, debug, info, warn, error, fatal).
-   * Uses precise pino LogFn parameter types for better type safety.
-   */
+  EventMap extends BaseEventMap<unknown[]>,
+> extends SafeEmitter<EventMap> {
+  // Map to store original → wrapped level change listeners for correct removal
+  private _levelChangeWrappers = new WeakMap<LevelChangeEventListener, LevelChangeEventListener>()
+  private _levelChangeKeys = new Set<LevelChangeEventListener>()
+  private readonly _logger: Logger
   public readonly log: {
     [Level in LogLevel]: (...args: PinoLogArgs) => void
   }
+  private readonly _childLoggers: Set<LoggedEmitter<EventMap>> = new Set()
 
   /**
-   * Construct a LoggedEmitter with optional pino logger configuration.
-   * Enhanced with exact type matching for safer configuration.
-   *
-   * @param loggerOptions - Optional pino logger configuration
+   * Clean up resources for controlled shutdowns.
    */
-  constructor(loggerOptions?: Exact<LoggerOptions, LoggerOptions>) {
-    super()
-
-    this.logger = pino({
-      timestamp: pino.stdTimeFunctions.isoTime,
-      ...loggerOptions,
-    })
-
-    // Initialize log methods using LOGGER_LEVELS
-    this.log = {} as typeof this.log
-    for (const level of LOGGER_LEVELS) {
-      this.log[level] = (...args: PinoLogArgs) => {
-        // Cast args to Parameters<Logger[typeof level]> for pino compatibility
-        this.logger[level](...(args as Parameters<Logger[typeof level]>))
-        if (args.length >= 1) {
-          this._shouldThrow(level, ...args)
-        }
+  public destroy(destroyChildren = true): void {
+    if (destroyChildren) {
+      for (const child of this._childLoggers) {
+        child.destroy(false)
       }
+    }
+    this._childLoggers.clear()
+    this._cleanupListeners()
+    this.flush()
+  }
+
+  private _cleanupListeners(): void {
+    cleanupLevelChangeListeners(this._logger, this._levelChangeKeys, this._levelChangeWrappers)
+    this._levelChangeWrappers = new WeakMap()
+  }
+
+  constructor(logger?: Logger) {
+    super()
+    this._logger = logger ?? pino({ timestamp: pino.stdTimeFunctions.isoTime })
+    this.log = new Proxy({} as Record<LogLevel, (...args: PinoLogArgs) => void>, {
+      get: (_, level: LogLevel) => {
+        if (!LOGGER_LEVELS.includes(level)) {
+          throw new Error(`Invalid log level: ${level}`)
+        }
+        return (...args: PinoLogArgs) => {
+          ; (this._logger as any)[level](...args)
+          shouldThrow(level, args)
+        }
+      },
+    }) as typeof this.log
+  }
+
+  private _wrapLevelChangeListener(listener: LevelChangeEventListener): LevelChangeEventListener {
+    return wrapLevelChangeListener(this._logger, listener)
+  }
+
+  toJSON(): ToJSONReturn {
+    return {
+      level: this.level,
+      bindings: this.getBindings() as Record<string, JsonValue>,
+      childCount: this._childLoggers.size,
     }
   }
 
   /**
    * Create a child logger with additional bindings.
    * Updates this instance's logger with additional context that will be included in all subsequent log messages.
-   *
-   * @param bindings - Key-value pairs to include in all log messages
-   * @param options - Optional child logger configuration
-   * @returns This instance with the updated child logger
    */
   createChildLogger<T extends Bindings>(
-    bindings: Exact<T, Bindings>,
-    options?: Exact<ChildLoggerOptions, ChildLoggerOptions>,
-  ): this {
-    // Create child logger and update this instance
-    this.logger = this.logger.child(bindings, options)
-
-    // Reinitialize log methods with the child logger
-    for (const level of LOGGER_LEVELS) {
-      this.log[level] = (...args: PinoLogArgs) => {
-        // Cast args to Parameters<Logger[typeof level]> for pino compatibility
-        this.logger[level](...(args as Parameters<Logger[typeof level]>))
-        if (args.length >= 1) {
-          this._shouldThrow(level, ...args)
-        }
-      }
-    }
-
-    return this
+    bindings: T,
+    options?: ChildLoggerOptions,
+  ): LoggedEmitter<EventMap> {
+    const childLogger = this._logger.child(bindings, options)
+    const ctor = this.constructor as new (logger: Logger) => LoggedEmitter<EventMap>
+    const childEmitter = new ctor(childLogger)
+    this._childLoggers.add(childEmitter)
+    return childEmitter
   }
 
   /**
    * Get the current log level of this logger.
    */
   get level(): LogLevelWithSilent {
-    return this.logger.level as LogLevelWithSilent
+    return this._logger.level as LogLevelWithSilent
   }
 
   /**
    * Set the log level for this logger.
    */
   set level(level: LogLevelWithSilent) {
-    this.logger.level = level
+    this._logger.level = level
   }
 
   /**
    * Check if a given log level is enabled.
    */
   isLevelEnabled(level: LogLevelWithSilent): boolean {
-    return this.logger.isLevelEnabled(level)
+    return this._logger.isLevelEnabled(level)
   }
 
   /**
@@ -132,7 +120,7 @@ export abstract class LoggedEmitter<
    * Useful for level comparisons and administration tools.
    */
   get levelValue(): number {
-    return this.logger.levelVal
+    return this._logger.levelVal
   }
 
   /**
@@ -140,26 +128,21 @@ export abstract class LoggedEmitter<
    * Useful for dynamic level management in admin interfaces.
    */
   get levels(): LevelMapping['values'] {
-    return this.logger.levels.values
+    return this._logger.levels.values
   }
 
   /**
    * Get current bindings for this logger.
    */
   getBindings(): Bindings {
-    return this.logger.bindings()
+    return this._logger.bindings()
   }
 
   /**
    * Add or update bindings for this logger instance.
-   * Useful for updating player context during gameplay (e.g., room changes, state updates).
-   * Note: Does not overwrite existing bindings - can result in duplicate keys.
-   * Enhanced with exact type matching for safer binding updates.
-   *
-   * @param bindings - Key-value pairs to add to log lines as properties
    */
-  setBindings<T extends Bindings>(bindings: Exact<T, Bindings>): void {
-    this.logger.setBindings(bindings)
+  setBindings<T extends Bindings>(bindings: T): void {
+    this._logger.setBindings(bindings)
   }
 
   /**
@@ -169,7 +152,7 @@ export abstract class LoggedEmitter<
    * @param callback - Optional callback when flush completes
    */
   flush(callback?: (error?: Error) => void): void {
-    this.logger.flush(callback)
+    this._logger.flush(callback)
   }
 
   /**
@@ -177,66 +160,75 @@ export abstract class LoggedEmitter<
    * Emitted when the logger's level is changed.
    */
   onLevelChange(listener: LevelChangeEventListener): void {
-    this.logger.on('level-change', listener)
+    if (typeof this._logger?.on === 'function') {
+      const wrapped = this._wrapLevelChangeListener(listener)
+      this._levelChangeWrappers.set(listener, wrapped)
+      this._levelChangeKeys.add(listener)
+      this._logger.on('level-change', wrapped)
+    }
   }
 
   /**
    * Remove level change event listener.
    */
   offLevelChange(listener: LevelChangeEventListener): void {
-    this.logger.removeListener('level-change', listener)
-  }
-
-  /**
-   * Check if an error should be thrown based on the merging object and log level.
-   * Only throws for 'error' and 'fatal' levels when shouldThrow flag is present.
-   * Enhanced with type-safe guards and immutable pattern matching.
-   *
-   * @param level - The log level being used
-   * @param args - The typed arguments passed to the log method
-   */
-  private _shouldThrow(level: LogLevel, ...args: PinoLogArgs): void {
-    // Only error and fatal levels can throw
-    if (level !== 'error' && level !== 'fatal') {
-      return
-    }
-
-    // Check for object-first signature: [obj, msg?, ...args]
-    if (isObjectFirstArgs(args)) {
-      const [mergingObject, errorMessage] = args
-
-      if (hasThrowConfig(mergingObject)) {
-        // Type-safe extraction of error details
-        const ErrorClass = mergingObject.ErrorClass ?? Error
-        const message = typeof errorMessage === 'string' ? errorMessage : 'An error occurred'
-
-        throw new ErrorClass(message)
+    if (typeof this._logger?.removeListener === 'function') {
+      const wrapped = this._levelChangeWrappers.get(listener)
+      if (wrapped) {
+        this._logger.removeListener('level-change', wrapped)
+        this._levelChangeWrappers.delete(listener)
+        this._levelChangeKeys.delete(listener)
       }
     }
-    // Note: Message-first signature [msg, ...args] doesn't support shouldThrow
-    // as there's no merging object to contain the flag
   }
 }
-
-// =============================================================================
-// Helper Functions
-// =============================================================================
 
 /**
  * Type guard to determine if args follow the object-first pattern.
- * Uses isPlainObject for more accurate plain object detection.
- * Enhanced with type-fest for safer type narrowing.
  */
 export function isObjectFirstArgs(
   args: PinoLogArgs,
-): args is readonly [obj: SafeMergingObject, msg?: string, ...args: readonly unknown[]] {
-  return args.length >= 1 && args[0] !== null && isPlainObject(args[0])
+): args is [obj: SafeMergingObject, msg?: string, ...args: unknown[]] {
+  return args.length >= 1 && isPlainObject(args[0])
 }
 
-/**
- * Type-safe check for shouldThrow configuration in merging objects.
- * Uses exact type matching for maximum safety.
- */
 export function hasThrowConfig(obj: SafeMergingObject): obj is SafeMergingObject & ThrowConfig {
-  return obj.shouldThrow === true
+  return isPlainObject(obj) && 'shouldThrow' in obj && (obj as ThrowConfig).shouldThrow === true
+}
+
+export function cleanupLevelChangeListeners(
+  logger: Logger,
+  keys: Set<LevelChangeEventListener>,
+  wrappers: WeakMap<LevelChangeEventListener, LevelChangeEventListener>,
+): void {
+  if (typeof logger?.removeListener !== 'function') return
+  for (const orig of keys) {
+    const wrapped = wrappers.get(orig)
+    if (wrapped) logger.removeListener('level-change', wrapped)
+  }
+  keys.clear()
+}
+
+export function wrapLevelChangeListener(
+  logger: Logger,
+  listener: LevelChangeEventListener,
+): LevelChangeEventListener {
+  return (levelLabel, levelValue, previousLabel, previousLevelValue, instance) => {
+    if (instance === logger) {
+      listener(levelLabel, levelValue, previousLabel, previousLevelValue, instance)
+    }
+  }
+}
+
+export function shouldThrow(level: LogLevel, args: PinoLogArgs): void {
+  if (level !== 'error' && level !== 'fatal') return
+  if (args.length >= 1 && isPlainObject(args[0])) {
+    const [obj, msg] = args
+    if (isPlainObject(obj)) {
+      const throwConfigObj = obj as ThrowConfig
+      if (throwConfigObj.shouldThrow === true) {
+        throw new Error(typeof msg === 'string' ? msg : 'An error occurred')
+      }
+    }
+  }
 }

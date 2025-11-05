@@ -1,6 +1,5 @@
 import type { BaseEventMap } from '@repo/types'
-import { LoggedEmitter } from './events/logged-emitter-3.js'
-import { INTERNAL_ON_CHILD_ERROR } from './events/private-events.js'
+import { LoggedEmitter, INTERNAL_ON_CHILD_ERROR } from './events/index.js'
 
 const ERROR_MSG = 'BaseClass cannot be instantiated directly'
 
@@ -15,11 +14,17 @@ export abstract class BaseClass<
 > extends LoggedEmitter<EventMap> {
   constructor() {
     super()
+    this.ensureNotInstantiatedDirectly(new.target)
+  }
 
-    if (new.target === BaseClass) {
-      // Emit internal error event for direct instantiation
-      this.emit(INTERNAL_ON_CHILD_ERROR, ...([ERROR_MSG, { emitter: this }] as any))
-      // this.log.error({ class: 'BaseClass', shouldThrow: true }, ERROR_MSG)
+  /**
+   * Throws or emits an error if this abstract base class is instantiated directly.
+   * Subclasses can override or extend this for custom instantiation guards.
+   */
+  protected ensureNotInstantiatedDirectly(target: unknown): void {
+    if (target === BaseClass) {
+      this.emit(INTERNAL_ON_CHILD_ERROR, [ERROR_MSG, { emitter: this }])
+      this.log.error({ class: 'BaseClass', shouldThrow: true }, ERROR_MSG)
     }
   }
 }

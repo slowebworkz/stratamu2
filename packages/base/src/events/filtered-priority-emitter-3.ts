@@ -1,9 +1,7 @@
 import { LinkedList } from '@/data'
-import { LoggedEmitter } from './logged-emitter-3.js'
+import { LoggedEmitter } from './logged-emitter.js'
 
-import type {
-  Args, BaseEventMap,
-} from '@repo/types'
+import type { Args, BaseEventMap } from '@repo/types'
 import type { UnsubscribeFunction } from 'emittery'
 import type {
   ListenerCallback,

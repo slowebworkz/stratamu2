@@ -41,7 +41,7 @@ function setAbortTimer(resources: AbortResources, timeoutMs: Milliseconds): void
   // Node.js optimization: unref timer so it doesn't block process exit
   if (typeof (timer as any)?.unref === 'function') {
     try {
-      ; (timer as any).unref()
+      ;(timer as any).unref()
     } catch {
       /* ignore non-Node timers */
     }
@@ -59,7 +59,7 @@ function clearAbortTimer(resources: AbortResources): void {
 }
 
 const setNoopCleanup = (resources: AbortResources) => {
-  resources.cleanup = () => { }
+  resources.cleanup = () => {}
 }
 
 /**

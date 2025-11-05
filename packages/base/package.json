@@ -25,7 +25,7 @@
     "@repo/types": "workspace:*",
     "@repo/vitest-config": "workspace:*",
     "@types/node": "^24.5.2",
-    "type-fest": "^5.0.1",
+    "type-fest": "^5.1.0",
     "typescript": "5.9.2",
     "vite-tsconfig-paths": "^5.1.4",
     "vitest": "^3.2.4"
