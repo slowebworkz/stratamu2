@@ -1,5 +1,5 @@
 import type { BaseEventMap } from '@repo/types'
-import { INTERNAL_ON_CHILD_ERROR, FilteredPriorityEmitter } from './events/index.js'
+import { FilteredPriorityEmitter, INTERNAL_ON_CHILD_ERROR } from './events/index.js'
 
 const ERROR_MSG = 'BaseClass cannot be instantiated directly'
 

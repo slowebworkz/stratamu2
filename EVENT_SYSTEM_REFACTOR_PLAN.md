@@ -5,43 +5,35 @@
 ### Current Inheritance Order (BROKEN)
 
 ```
-Emittery (base)
-  ↑ extends
-LoggedEmitter
-  ↑ extends
-FilteredPriorityEmitter
-  ↑ extends
-MetricsEmitter
-  ↑ extends
-SafeEmitter  ← ERROR HANDLING AT TOP!
-  ↑ extends
-BubblingEmitter
-  ↑ extends
-DestroyableEmitter (final class)
+Emittery (base library)
+↑ extends
+SafeEmitter (FOUNDATIONAL ERROR HANDLING)
+↑ extends
+LoggedEmitter (adds logging to safe base)
+↑ extends
+FilteredPriorityEmitter (adds filtering/priorities to logged safe base)
+↑ extends
+BubblingEmitter (adds bubbling to filtered safe base)
+↑ extends
+DestroyableEmitter (final lifecycle management)
+
 ```
 
 ### Critical Issues with Current Design
 
-1. **SafeEmitter is bypassed by MetricsEmitter.emit()**
-
-   ```typescript
-   // MetricsEmitter.emit() calls super.emit() directly!
-   await super.emit(eventName) // Goes to FilteredPriorityEmitter, bypassing SafeEmitter!
-   ```
-
-2. **FilteredPriorityEmitter.emitWithPriority() has no error protection**
+1. **FilteredPriorityEmitter.emitWithPriority() has no error protection**
 
    ```typescript
    // Direct listener execution without try/catch
    await listener.callback(...args) // UNSAFE!
    ```
 
-3. **Only emitSafe() is actually safe**
+2. **Only emitSafe() is actually safe**
    - Direct `emit()` calls bypass all error handling
    - Priority emissions are completely unprotected
    - Most of the event system is unsafe
 
-4. **Architectural confusion**
+3. **Architectural confusion**
    - Error handling should be foundational, not top-layer
    - SafeEmitter depends on logging but is above LoggedEmitter
    - Violates principle of least surprise
@@ -149,28 +141,6 @@ export class FilteredPriorityEmitter<
   async emitWithPriority() {
     // Let SafeEmitter handle error protection
     await this.emit(event, ...args) // NOW SAFE
-  }
-}
-```
-
-### Phase 4: Update MetricsEmitter
-
-**File: `packages/base/src/events/metrics-emitter.ts`**
-
-Changes needed:
-
-- Extend FilteredPriorityEmitter (same as before)
-- Keep emit() override but now super.emit() goes to safe base
-- All metrics collection benefits from universal safety
-
-```typescript
-// Implementation stays similar, but now super.emit() is safe
-async emit(eventName: EventName, eventData?: EventMap[EventName]) {
-  const start = perfNow()
-  try {
-    await super.emit(eventName as any, eventData as any) // NOW SAFE!
-  } catch (error) {
-    // Error already handled by SafeEmitter, just record metrics
   }
 }
 ```
