@@ -1,7 +1,7 @@
 import { LinkedList } from '@/data'
 import type { Args, BaseEventMap } from '@repo/types'
 import type { UnsubscribeFunction } from 'emittery'
-import type { LiteralUnion, Simplify, SetRequired, ValueOf } from 'type-fest'
+import type { LiteralUnion, SetRequired, Simplify, ValueOf } from 'type-fest'
 import { LoggedEmitter } from './logged-emitter.js'
 import type {
   ListenerCallback,
@@ -17,7 +17,7 @@ import type {
  * @template EventMap - The event map defining event names and their data types
  */
 export abstract class FilteredPriorityEmitter<
-  EventMap extends BaseEventMap<unknown[]> = BaseEventMap<unknown[]>
+  EventMap extends BaseEventMap<unknown[]> = BaseEventMap<unknown[]>,
 > extends LoggedEmitter<EventMap> {
   // --- Private Properties ---
   private _priorityListeners: {
@@ -60,7 +60,7 @@ export abstract class FilteredPriorityEmitter<
     callback: ListenerCallback<EventMap, EventName>,
     options?: PriorityListenerOptions<EventMap, EventName>,
   ): UnsubscribeFunction {
-    let unsubscribe: UnsubscribeFunction = () => { }
+    let unsubscribe: UnsubscribeFunction = () => {}
     const wrapped = createOnceWrapper<ListenerCallback<EventMap, EventName>>(
       async (...args: Args<EventMap[EventName]>) => {
         await callback(...args)
@@ -84,7 +84,7 @@ export abstract class FilteredPriorityEmitter<
     const list = this._priorityListeners[event]
     const errors = await executePriorityListeners(list, event, args, (evt, err, name) => {
       try {
-        ; (this as any).recordListenerErrorFor?.(evt as any, err, name)
+        ;(this as any).recordListenerErrorFor?.(evt as any, err, name)
       } catch {
         void 0
       }
@@ -108,7 +108,9 @@ export abstract class FilteredPriorityEmitter<
    * Remove all priority listeners for a given event or all events.
    * @param event - Optional event name to target. If omitted, clears ALL priority listeners
    */
-  public clearPriorityListeners<EventName extends keyof EventMap>(event?: LiteralUnion<EventName, string>): void {
+  public clearPriorityListeners<EventName extends keyof EventMap>(
+    event?: LiteralUnion<EventName, string>,
+  ): void {
     clearListenersMap(this._priorityListeners, event as any)
   }
 

@@ -1,24 +1,25 @@
 import type { Awaitable, BaseEventMap } from '@repo/types'
 import Emittery from 'emittery'
 import type { ReadonlyDeep } from 'type-fest'
+import { MetricsTracker } from '../performance/index.js'
 import type {
   AllEvents,
   CancelablePromise,
   EventKey,
   ExtractPayload,
   WrappedCancelable,
-} from './index.js'
+} from './events-types.js'
+import { internalPublicBus } from './events-types.js'
+import type { InternalEventMap } from './index.js'
 import {
   INTERNAL_ON_EMIT_ERROR,
   INTERNAL_ON_LISTENER_ERROR,
   INTERNAL_ON_LISTENER_REMOVED,
   INTERNAL_ON_REMOVE_WARN,
-  InternalEventMap,
-  internalPublicBus,
   isInternalEvent,
   isPublicEvent,
-  SafetyEmitter as SafetyManager,
 } from './index.js'
+import { SafetyEmitter as SafetyManager } from './safety-emitter.js'
 
 import type { ErrorCounts, ListenerCounts, LogSizes } from './types.js'
 
@@ -26,7 +27,7 @@ import type { ErrorCounts, ListenerCounts, LogSizes } from './types.js'
  * Default metrics shape returned by `getEventMetrics()`.
  * Kept non-generic and string-keyed for simplicity.
  */
-export type EventMetrics<EventMap extends BaseEventMap<unknown[]> = BaseEventMap<unknown[]>> = {
+type EventMetrics<EventMap extends BaseEventMap<unknown[]> = BaseEventMap<unknown[]>> = {
   listenerCounts: ListenerCounts<EventKey<EventMap>>
   safety: {
     errorCounts: ErrorCounts<EventKey<EventMap>>
@@ -39,9 +40,8 @@ export type EventMetrics<EventMap extends BaseEventMap<unknown[]> = BaseEventMap
 /**
  * Deeply immutable event metrics type.
  */
-export type ReadonlyEventMetrics<
-  EventMap extends BaseEventMap<unknown[]> = BaseEventMap<unknown[]>,
-> = ReadonlyDeep<EventMetrics<EventMap>>
+type ReadonlyEventMetrics<EventMap extends BaseEventMap<unknown[]> = BaseEventMap<unknown[]>> =
+  ReadonlyDeep<EventMetrics<EventMap>>
 
 /**
  * Indicates if the environment is development (not production).
@@ -54,6 +54,9 @@ const DEV_MODE = (process?.env?.NODE_ENV ?? 'development') !== 'production'
  * @template EventMap extends BaseEventMap<unknown[]>
  */
 export abstract class SafeEmitter<EventMap extends BaseEventMap<unknown[]>> {
+  /** Metrics tracker instance, enabled via event or method. */
+  protected _metricsTracker?: MetricsTracker<AllEvents<EventMap>>
+
   /**
    * Global bus for internal diagnostics and error events.
    * @private
@@ -120,6 +123,14 @@ export abstract class SafeEmitter<EventMap extends BaseEventMap<unknown[]>> {
     this._safety = new SafetyManager<EventMap>(internalPublicBus<EventMap>(this), {
       sanitizeErrors: true,
       safetyLogCap: 100,
+    })
+
+    // Listen for the 'enableMetrics' event to activate metrics tracking
+    this._public.once('enableMetrics', (_eventData) => {
+      if (!this._metricsTracker) {
+        this._metricsTracker = new MetricsTracker<AllEvents<EventMap>>(this)
+      }
+      return true
     })
   }
 
@@ -530,8 +541,6 @@ function normalizeEventName(eventName: readonly any[]): any {
  * extends `SafeEmitter` so existing code that does `class X extends SafetyEmitter<EM>`
  * will continue to receive the emitter surface.
  */
-// NOTE: the concrete safety bookkeeping implementation lives in
-// `safety-emitter-3.ts` and is composed into `SafeEmitter` instances.
 
 /**
  * Shared helper for emit() error handling with strict bubbling semantics.
@@ -695,3 +704,8 @@ function attachOffForwarding<T>(
     }
   }
 }
+
+// Example: Combine user events and control events for SafeEmitter
+// type MyEventMap = BaseEventMap<unknown[]> & ControlEvents;
+// const emitter = new SafeEmitter<MyEventMap>()
+// const tracker = new MetricsTracker<MyEventMap>(emitter)
