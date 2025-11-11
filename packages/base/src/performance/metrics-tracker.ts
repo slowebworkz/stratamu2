@@ -1,7 +1,7 @@
 import { isInternalEvent } from '@/events/private-events.js'
-import type { Count, ErrorCount, ListenerName, TimeInMs } from '@/performance/types.js'
 import type { EventKey } from '@/events/types.js'
 import { perfNow } from '@/performance/perf-now.js'
+import type { Count, ErrorCount, ListenerName, TimeInMs } from '@/performance/types.js'
 import type { Awaitable, BaseEventMap } from '@repo/types'
 
 // Type-safe listener for a given event key (single argument, matches SafeEmitter)

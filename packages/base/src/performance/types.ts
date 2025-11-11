@@ -1,4 +1,4 @@
-import type { Tagged, LiteralUnion } from 'type-fest'
+import type { LiteralUnion, Tagged } from 'type-fest'
 
 export type TimeInMs = Tagged<number, 'TimeInMs'>
 

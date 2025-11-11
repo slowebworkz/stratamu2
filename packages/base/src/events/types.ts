@@ -1,3 +1,4 @@
+import type { Count } from '@/performance/types.js'
 import type { Args, BaseEventMap, EventKeyType, EventListenerFn, EventName } from '@repo/types'
 import type { OmnipresentEventData, UnsubscribeFunction } from 'emittery'
 import type { Level, Logger } from 'pino'
@@ -10,7 +11,6 @@ import type {
   Simplify,
   Tagged,
 } from 'type-fest'
-import type { Count } from '@/performance/types.js'
 
 // ===============================
 // Base Types
@@ -68,10 +68,10 @@ export type SafeEmitterListener<
 // DRY utility for count-like records
 // ===============================
 
-export type CountsMap<
-  K extends EventKeyType,
-  Extra extends EventKeyType = never,
-> = Record<K | Extra, number>
+export type CountsMap<K extends EventKeyType, Extra extends EventKeyType = never> = Record<
+  K | Extra,
+  number
+>
 
 export type ListenerCounts<K extends EventKeyType> = CountsMap<K, 'total'>
 

@@ -1,6 +1,6 @@
 import type { BaseEventMap, LogLevel, LogLevelWithSilent } from '@repo/types'
-import { LOGGER_LEVELS } from '@repo/types'
 import type { Jsonify, JsonValue } from 'type-fest'
+import { formatPayload } from './filtered-priority-emitter.js'
 
 import isPlainObject from 'is-plain-object'
 import type { LevelChangeEventListener, LevelMapping, Logger } from 'pino'
@@ -51,16 +51,17 @@ export abstract class LoggedEmitter<
     this._levelChangeWrappers = new WeakMap()
   }
 
-  constructor(logger?: Logger) {
+  constructor() {
     super()
-    this._logger = logger ?? pino({ timestamp: pino.stdTimeFunctions.isoTime })
+
+    this._logger = pino({ timestamp: pino.stdTimeFunctions.isoTime })
+
     this.log = new Proxy({} as Record<LogLevel, (...args: PinoLogArgs) => void>, {
       get: (_, level: LogLevel) => {
-        if (!LOGGER_LEVELS.includes(level)) {
-          throw new Error(`Invalid log level: ${level}`)
-        }
         return (...args: PinoLogArgs) => {
-          ;(this._logger as any)[level](...args)
+          // Format all payloads for safe logging
+          const formattedArgs = args.map(formatPayload)
+          ;(this._logger as any)[level](...formattedArgs)
           shouldThrow(level, args)
         }
       },
@@ -83,12 +84,15 @@ export abstract class LoggedEmitter<
    * Create a child logger with additional bindings.
    * Updates this instance's logger with additional context that will be included in all subsequent log messages.
    */
-  createChildLogger<T extends Bindings>(
-    bindings: T,
-    options?: ChildLoggerOptions,
-  ): LoggedEmitter<EventMap> {
-    const childLogger = this._logger.child(bindings, options)
-    const ctor = this.constructor as new (logger: Logger) => LoggedEmitter<EventMap>
+  /**
+   * Create a child logger with additional bindings or options, matching pino's child signature.
+   * @param bindingsOrOptions - Bindings object, or options object, or both
+   * @param options - Optional options if first arg is bindings
+   */
+  createChildLogger(bindingsOrOptions: Bindings | ChildLoggerOptions): LoggedEmitter<EventMap> {
+    // Always bind the child logger to the same EventMap as the parent
+    const childLogger = this._logger.child(bindingsOrOptions as Bindings)
+    const ctor = this.constructor as { new (logger?: Logger): LoggedEmitter<EventMap> }
     const childEmitter = new ctor(childLogger)
     this._childLoggers.add(childEmitter)
     return childEmitter
