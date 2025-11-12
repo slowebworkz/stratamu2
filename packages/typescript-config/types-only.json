@@ -1,10 +1,10 @@
 {
   "$schema": "https://json.schemastore.org/tsconfig",
-  "extends": "./base.json",
+  "extends": "./no-emit.json",
   "compilerOptions": {
     "composite": false,
     "emitDeclarationOnly": true,
-    "allowImportingTsExtensions": true,
+    "noEmit": false,
     "skipLibCheck": false
   }
 }
