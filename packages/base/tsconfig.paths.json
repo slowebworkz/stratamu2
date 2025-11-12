@@ -1,5 +1,5 @@
 {
-  "extends": "../typescript-config/base.json",
+  "extends": "../typescript-config/no-emit.json",
   "compilerOptions": {
     "paths": {
       "@/*": ["./src/*"],

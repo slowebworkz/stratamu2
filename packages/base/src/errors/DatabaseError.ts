@@ -3,7 +3,7 @@ import type { BaseErrorOptions, ErrorCauseType, ErrorType } from './BaseError.ts
 import { BaseError } from './BaseError.ts'
 
 export interface DatabaseErrorOptions<Cause extends ErrorCauseType = unknown>
-  extends BaseErrorOptions<Cause> { }
+  extends BaseErrorOptions<Cause> {}
 
 export class DatabaseError<Cause extends ErrorCauseType = unknown> extends BaseError<Cause> {
   public override name: string = 'DatabaseError'
