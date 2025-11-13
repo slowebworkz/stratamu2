@@ -1,14 +1,18 @@
 import type { Args, BaseEventMap } from '@repo/types'
+import { FilteredPriorityEmitter } from './index.ts'
+
+// Helper type for parent event map construction
 import type { Simplify } from 'type-fest'
-import { SafeEmitter } from './safe-emitter.js'
-import type { ArgsForParent } from './types.js'
+
+type SimpleEventMap<EventMap extends BaseEventMap<unknown[]>> = Simplify<
+  BaseEventMap<unknown[]> &
+  Record<keyof EventMap, unknown[]>
+>
 
 export abstract class BubblingEmitter<
   EventMap extends BaseEventMap<unknown[]> = BaseEventMap<unknown[]>,
-  ParentEventMap extends Simplify<
-    BaseEventMap<unknown[]> & Record<keyof EventMap, unknown[]>
-  > = EventMap,
-> extends SafeEmitter<EventMap> {
+  ParentEventMap extends SimpleEventMap<EventMap> = SimpleEventMap<EventMap>
+> extends FilteredPriorityEmitter<EventMap> {
   /**
    * Optional parent emitter to which events may bubble.
    */
@@ -36,19 +40,19 @@ export abstract class BubblingEmitter<
   }
 
   /**
-   * Check if bubbling is enabled for a specific event.
-   * @param event The event name to check.
-   */
-  public isBubbling<Name extends keyof EventMap>(event: Name): boolean {
-    return this.bubbleEvents.has(event)
-  }
-
-  /**
    * Get all events that have bubbling enabled as a readonly set.
    * @returns Readonly set of event names with bubbling enabled
    */
   public getBubblingEvents(): ReadonlySet<keyof EventMap> {
     return this.bubbleEvents
+  }
+
+  /**
+   * Check if bubbling is enabled for a specific event.
+   * @param event The event name to check.
+   */
+  public isBubbling<Name extends keyof EventMap>(event: Name): boolean {
+    return this.bubbleEvents.has(event)
   }
 
   /**
@@ -76,8 +80,8 @@ export abstract class BubblingEmitter<
     eventName: Name,
     ...args: Args<EventMap[Name]>
   ): Promise<void> {
-    await this.emitSafe(eventName, ...args)
-    if (this.bubbleEvents.has(eventName)) {
+    await this.emitSafe(eventName, ...(args as any))
+    if (this.isBubbling(eventName)) {
       await this.bubbleToParent(eventName, args)
     }
   }
@@ -92,14 +96,13 @@ export abstract class BubblingEmitter<
     eventName: Name,
     ...args: Args<EventMap[Name]>
   ): Promise<void> {
-    await this.emitSafe(eventName, ...args)
-    if (this.bubbleEvents.has(eventName)) {
-      // Fire-and-forget: don't await parent bubbling
-      this.bubbleToParent(eventName, args).catch((error) => {
-        // Log error to console to prevent unhandled promise rejections
-        console.error('BubblingEmitter: Failed to bubble event to parent:', error)
-      })
-    }
+    await this.emitSafe(eventName, ...(args as any))
+    if (!this.parent || !this.isBubbling(eventName)) return
+    // Fire-and-forget: don't await parent bubbling
+    this.bubbleToParent(eventName, args).catch((error) => {
+      // Log error to console to prevent unhandled promise rejections
+      console.error('BubblingEmitter: Failed to bubble event to parent:', error)
+    })
   }
 
   /**
@@ -109,8 +112,15 @@ export abstract class BubblingEmitter<
   public dispose(): void {
     this.parent = undefined
     this.bubbleEvents.clear()
-    // Clear all listeners using Emittery's built-in method
-    this.clearListeners()
+  }
+
+  /**
+   * Optional tracing hook for debugging event bubbling.
+   */
+  protected traceBubble<Name extends keyof EventMap>(eventName: Name): void {
+    this.log?.debug?.(
+      `[BubblingEmitter] Event "${String(eventName)}" bubbling from ${this.constructor.name}`
+    )
   }
 
   /**
@@ -136,13 +146,40 @@ export abstract class BubblingEmitter<
 
     // Type-safe bubbling using helper type to reduce casting
     const parentEventName = eventName as unknown as keyof ParentEventMap
-    const parentArgs = args as unknown as ArgsForParent<EventMap, ParentEventMap, Name>
+    const parentArgs = args as any // ArgsForParent removed, use any for compatibility
 
-    await parent.emitSafe(parentEventName, ...parentArgs)
+    await parent.emitSafe(parentEventName, ...(parentArgs as any))
 
     // Only continue bubbling if the parent has bubbling enabled for this event
-    if (parent.bubbleEvents.has(parentEventName)) {
+    if (parent.isBubbling(parentEventName)) {
       await parent.bubbleToParent(parentEventName, parentArgs, visited)
     }
   }
+
+  /**
+   * Traverse to the root emitter in the bubbling hierarchy.
+   */
+  public getRoot(): BubblingEmitter<any> {
+    let node: BubblingEmitter<any> = this
+    while (node.parent) node = node.parent
+    return node
+  }
 }
+
+/**
+ * Fire-and-forget helper for async calls.
+ * Catches any errors and logs them without throwing.
+ * @param promise The promise to execute.
+ * @param context Context string for logging purposes.
+ */
+async function fireAndForget(promise: Promise<void>, context: string): Promise<void> {
+  try {
+    await promise
+  } catch (error) {
+    console.error(`${context}:`, error)
+  }
+}
+
+
+
+

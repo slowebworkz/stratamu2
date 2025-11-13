@@ -1,5 +1,6 @@
 import type { BaseEventMap } from '@repo/types'
-import { FilteredPriorityEmitter } from './events/index.js'
+import { BubblingEmitter } from '@/events'
+import { BaseError } from '@/errors'
 
 const ERROR_MSG = 'BaseClass cannot be instantiated directly'
 
@@ -11,7 +12,7 @@ const ERROR_MSG = 'BaseClass cannot be instantiated directly'
  */
 export abstract class BaseClass<
   EventMap extends BaseEventMap<unknown[]> = BaseEventMap<unknown[]>,
-> extends FilteredPriorityEmitter<EventMap> {
+> extends BubblingEmitter<EventMap> {
   constructor() {
     super()
     this.ensureNotInstantiatedDirectly(new.target)
@@ -23,8 +24,8 @@ export abstract class BaseClass<
    */
   protected ensureNotInstantiatedDirectly(target: unknown): void {
     if (target === BaseClass) {
-      // this.emit(INTERNAL_ON_CHILD_ERROR, new Error(ERROR_MSG), { emitter: this })
-      // this.log.error({ class: 'BaseClass', shouldThrow: true }, ERROR_MSG)
+      this.log.error({ class: 'BaseClass', shouldThrow: true }, ERROR_MSG)
+      throw new BaseError(ERROR_MSG)
     }
   }
 }
