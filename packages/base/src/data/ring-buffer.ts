@@ -1,8 +1,8 @@
-// RingBuffer.ts
 import type { TypedArray } from 'type-fest'
 
 // Defined helper types
 type ArraySource<T> = ArrayLike<T> | TypedArray | Buffer
+
 export class RingBuffer<T> {
   private buffer: (T | undefined)[]
   private start = 0
@@ -38,8 +38,7 @@ export class RingBuffer<T> {
     // Fast-path for arrays or array-like (TypedArray, Buffer, etc.): do block copies
     // to avoid repeated modulo math.
     if (Array.isArray(items) || isArrayLike(items)) {
-      const isArr = Array.isArray(items)
-      const n = isArr ? (items as T[]).length : (items as ArraySource<T>).length
+      const n = (items as ArraySource<T>).length
       if (n === 0) return
       const cap = this.capacity
       if (n >= cap) {
@@ -87,7 +86,7 @@ export class RingBuffer<T> {
       const idx = wrapIndex(this.end, -1, this.capacity)
       const val = this.buffer[idx] as T
       this.buffer[idx] = undefined
-      this.end = idx % this.capacity
+      this.end = idx
       this._size--
       this._ensureEndpoints()
       return val
@@ -125,8 +124,32 @@ export class RingBuffer<T> {
     return out
   }
 
+  /**
+   * Returns the buffer contents as an array (oldest -> newest).
+   * Note: This yields direct references to buffer entries. If the buffer holds objects,
+   * consumers can mutate them. For safety-critical or immutable use, see toReadonlyArray().
+   */
   toArray(): T[] {
     return readBufferRange(this.buffer, this.start, this._size, this.capacity)
+  }
+
+  /**
+   * Returns a defensive copy of the buffer contents (oldest -> newest).
+   * For objects, this uses structuredClone if available, otherwise a shallow copy for plain objects/arrays.
+   * Use this for safety-critical or immutable consumers.
+   *
+   * Note: Only plain objects and arrays are shallow-copied. Other types are returned as-is.
+   */
+  toReadonlyArray(): T[] {
+    const arr = this.toArray()
+    if (typeof structuredClone === 'function') {
+      return arr.map((item) => structuredClone(item) as T)
+    }
+    return arr.map((item) => {
+      if (Array.isArray(item)) return [...item] as T
+      if (item && typeof item === 'object' && item.constructor === Object) return { ...item } as T
+      return item
+    })
   }
 
   /** Return the entries as JSON-friendly array (oldest -> newest). */
@@ -167,6 +190,14 @@ export class RingBuffer<T> {
   /** Return the configured capacity of the ring buffer */
   getCapacity(): number {
     return this.capacity
+  }
+
+  isEmpty(): boolean {
+    return this._size === 0
+  }
+
+  isFull(): boolean {
+    return this._size === this.capacity
   }
 
   // Ensure end/start pointers are consistent when buffer is empty

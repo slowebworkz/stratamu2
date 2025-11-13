@@ -1,4 +1,4 @@
-/** src/index.ts */
+// ...existing code...
 
 /**
  * Minimal singly-linked list in TypeScript.

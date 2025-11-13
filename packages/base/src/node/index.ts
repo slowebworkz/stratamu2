@@ -1,2 +1,2 @@
-export * from './diagnostics.js'
-export * from './global-this.js'
+export * from './diagnostics.ts'
+export * from './global-this.ts'

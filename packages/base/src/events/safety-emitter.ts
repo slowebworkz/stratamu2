@@ -1,11 +1,11 @@
 // NOTE: file renamed from safety-emitter-3.ts — same contents, updated path.
 
 import { RingBuffer } from '@/data'
+import { emitDiagnosticWarning } from '@/node/index.ts'
 import type { BaseEventMap } from '@repo/types'
 import Emittery from 'emittery'
 import type { JsonValue } from 'type-fest'
-import { emitDiagnosticWarning } from '../node/diagnostics.js'
-import { EventKey, internalPublicBus } from './events-types.js'
+import { EventKey, internalPublicBus } from './events-types.ts'
 
 /**
  * Options used to configure the standalone safety manager.

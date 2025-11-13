@@ -1,18 +1,19 @@
 import type { BaseEventMap, LogLevel, LogLevelWithSilent } from '@repo/types'
-import type { Jsonify, JsonValue } from 'type-fest'
-import { formatPayload } from './filtered-priority-emitter.js'
-
 import isPlainObject from 'is-plain-object'
 import type { LevelChangeEventListener, LevelMapping, Logger } from 'pino'
 import pino from 'pino'
-import { SafeEmitter } from './safe-emitter.js'
+import type { Jsonify, JsonValue } from 'type-fest'
+import { BaseError } from '../errors/BaseError.ts'
+
+import { isJsonValue, safeFormatPayload } from '@/utils/index.ts'
+import { SafeEmitter } from './safe-emitter.ts'
 import type {
   Bindings,
   ChildLoggerOptions,
   PinoLogArgs,
   SafeMergingObject,
   ThrowConfig,
-} from './types.js'
+} from './types.ts'
 
 type ToJSONReturn = Jsonify<{
   level: LogLevelWithSilent
@@ -60,7 +61,7 @@ export abstract class LoggedEmitter<
       get: (_, level: LogLevel) => {
         return (...args: PinoLogArgs) => {
           // Format all payloads for safe logging
-          const formattedArgs = args.map(formatPayload)
+          const formattedArgs = formatLogArgs(args)
           ;(this._logger as any)[level](...formattedArgs)
           shouldThrow(level, args)
         }
@@ -231,8 +232,12 @@ export function shouldThrow(level: LogLevel, args: PinoLogArgs): void {
     if (isPlainObject(obj)) {
       const throwConfigObj = obj as ThrowConfig
       if (throwConfigObj.shouldThrow === true) {
-        throw new Error(typeof msg === 'string' ? msg : 'An error occurred')
+        throw new BaseError(typeof msg === 'string' ? msg : 'An error occurred', { cause: obj })
       }
     }
   }
+}
+
+export function formatLogArgs(args: unknown[]): unknown[] {
+  return args.map((arg) => (isJsonValue(arg) ? safeFormatPayload(arg) : arg))
 }

@@ -1,13 +1,8 @@
 {
-  "extends": "../typescript-config/types-only.json",
+  "extends": "./tsconfig.paths.json",
   "compilerOptions": {
     "outDir": "dist",
-    "baseUrl": ".",
-    "paths": {
-      "@types/*": ["src/*"],
-      "@networking/*": ["src/networking/*"],
-      "@special/*": ["src/special/*"]
-    }
+    "baseUrl": "."
   },
   "include": ["src/index.ts", "src/**/*.ts"],
   "exclude": ["node_modules"]

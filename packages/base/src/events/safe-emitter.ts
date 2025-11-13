@@ -1,16 +1,16 @@
+import { MetricsTracker } from '@/performance/index.ts'
 import type { Awaitable, BaseEventMap } from '@repo/types'
 import Emittery from 'emittery'
 import type { ReadonlyDeep } from 'type-fest'
-import { MetricsTracker } from '../performance/index.js'
 import type {
   AllEvents,
   CancelablePromise,
   EventKey,
   ExtractPayload,
   WrappedCancelable,
-} from './events-types.js'
-import { internalPublicBus } from './events-types.js'
-import type { InternalEventMap } from './index.js'
+} from './events-types.ts'
+import { internalPublicBus } from './events-types.ts'
+import type { InternalEventMap } from './index.ts'
 import {
   INTERNAL_ON_EMIT_ERROR,
   INTERNAL_ON_LISTENER_ERROR,
@@ -18,10 +18,10 @@ import {
   INTERNAL_ON_REMOVE_WARN,
   isInternalEvent,
   isPublicEvent,
-} from './index.js'
-import { SafetyEmitter as SafetyManager } from './safety-emitter.js'
+} from './index.ts'
+import { SafetyEmitter as SafetyManager } from './safety-emitter.ts'
 
-import type { ErrorCounts, ListenerCounts, LogSizes } from './types.js'
+import type { ErrorCounts, ListenerCounts, LogSizes } from './types.ts'
 
 /**
  * Default metrics shape returned by `getEventMetrics()`.

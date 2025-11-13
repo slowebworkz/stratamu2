@@ -3,7 +3,7 @@
  */
 export type Milliseconds = number
 
-import { toNumber } from './_to-number.js'
+import { toNumber } from '@/data'
 
 /**
  * Normalizes an arbitrary value into a valid positive integer number of milliseconds.

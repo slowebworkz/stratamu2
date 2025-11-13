@@ -1,20 +1,14 @@
 {
+  "$schema": "https://json.schemastore.org/tsconfig",
+  "extends": "../typescript-config/base.json",
   "compilerOptions": {
-    "types": ["eslint"],
-    "target": "ES2020",
-    "module": "NodeNext",
-    "declaration": true,
     "outDir": "dist",
     "rootDir": ".",
-    "esModuleInterop": true,
-    "skipLibCheck": true,
-    "forceConsistentCasingInFileNames": true,
-    "moduleResolution": "nodenext",
     "baseUrl": ".",
-    "paths": {
-      "@/*": ["src/*"]
-    }
+    "declaration": true,
+    "forceConsistentCasingInFileNames": true,
+    "types": ["eslint"]
   },
-  "include": ["src", "index.ts", "index.d.ts"],
-  "exclude": ["node_modules", "dist/src"]
+  "include": ["index.ts", "index.d.ts"],
+  "exclude": ["node_modules", "dist"]
 }

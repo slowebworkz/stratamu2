@@ -1,0 +1,23 @@
+{
+  "extends": "../typescript-config/types-only.json",
+  "compilerOptions": {
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["./src/*"],
+      "@/base": ["src/base/index.ts"],
+      "@/base/*": ["src/base/*"],
+      "@/events": ["src/events/index.ts"],
+      "@/events/*": ["src/events/*"],
+      "@/game": ["src/game/index.ts"],
+      "@/game/*": ["src/game/*"],
+      "@/lifecycle": ["src/lifecycle/index.ts"],
+      "@/lifecycle/*": ["src/lifecycle/*"],
+      "@/logging": ["src/logging/index.ts"],
+      "@/logging/*": ["src/logging/*"],
+      "@/networking": ["src/networking/index.ts"],
+      "@/networking/*": ["src/networking/*"],
+      "@/special": ["./src/special/index.ts"],
+      "@/special/*": ["./src/special/*"]
+    }
+  }
+}

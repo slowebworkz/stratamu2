@@ -1,6 +1,6 @@
+import type { BaseClient } from '@/networking'
 import type { Promisable, ValueOf } from 'type-fest'
-import type { BaseClient } from '../networking/client.ts'
-import type { FilterName } from './client.ts'
+import type { FilterName } from './index.ts'
 
 /**
  * Shared types for the stratamu monorepo.

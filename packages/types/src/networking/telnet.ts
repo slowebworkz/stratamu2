@@ -1,7 +1,6 @@
 import type { JsonValue, PartialDeep, Promisable, SetRequired } from 'type-fest'
 
-import type { TelnetConfig } from './config.ts'
-import type { TelnetEventMap } from './telnet-event-map.ts'
+import type { TelnetConfig, TelnetEventMap } from './index.ts'
 
 export type TelnetConfigRequired = SetRequired<
   TelnetConfig,
