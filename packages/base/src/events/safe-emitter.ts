@@ -1,5 +1,5 @@
 import { MetricsTracker } from '@/performance/index.ts'
-import { emitWithErrorHandling, normalizeEventName } from '@/utils'
+import { emitWithErrorHandling, normalizeEventName, addListenerMapping, removeListenerMapping, clearAllListenerMappings, getWrappedListener } from '@/utils'
 import type { Awaitable, BaseEventMap } from '@repo/types'
 import Emittery from 'emittery'
 import type { AllEvents, CancelablePromise, EventKey, WrappedCancelable } from './events-types.ts'
@@ -75,8 +75,8 @@ export abstract class SafeEmitter<EventMap extends BaseEventMap<unknown[]>> {
     // Clear the public bus
     this._public.clearListeners()
 
-    // Clear the internal mapping of original -> wrapped listeners
-    this._listenerMaps.clear()
+    // Use utility to clear all listener mappings
+    clearAllListenerMappings(this._listenerMaps)
 
     // Optionally, notify that all listeners were removed (internal event)
     this.emitInternal(INTERNAL_ON_LISTENER_REMOVED, [
@@ -182,12 +182,7 @@ export abstract class SafeEmitter<EventMap extends BaseEventMap<unknown[]>> {
     }
 
     for (const e of events) {
-      let map = this._listenerMaps.get(e)
-      if (!map) {
-        map = new Map()
-        this._listenerMaps.set(e, map)
-      }
-      map.set(listener, safeListener)
+      addListenerMapping(this._listenerMaps, e, listener, safeListener)
     }
 
     return this._public.on(event as any, safeListener, options)
@@ -216,16 +211,9 @@ export abstract class SafeEmitter<EventMap extends BaseEventMap<unknown[]>> {
     event: K,
     listener: (data: AllEvents<EventMap>[K]) => Awaitable,
   ) {
-    const map = this._listenerMaps.get(event)
-    const safeListener = map?.get(listener)
+    const safeListener = getWrappedListener(this._listenerMaps, event, listener)
     if (safeListener) {
-      if (map) {
-        map.delete(listener)
-        // Clean up empty map to avoid unbounded growth
-        if (map.size === 0) {
-          this._listenerMaps.delete(event)
-        }
-      }
+      removeListenerMapping(this._listenerMaps, event, listener)
       const result = this._public.off(
         event,
         safeListener as (data: AllEvents<EventMap>[K]) => Awaitable,
