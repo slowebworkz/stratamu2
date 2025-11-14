@@ -1,2 +1,4 @@
+export * from './emit-with-error-handling.ts'
 export * from './format-payload.js'
 export * from './is-json-value.ts'
+export * from './normalize-event-name.ts'

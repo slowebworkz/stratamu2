@@ -5,13 +5,12 @@ import { FilteredPriorityEmitter } from './index.ts'
 import type { Simplify } from 'type-fest'
 
 type SimpleEventMap<EventMap extends BaseEventMap<unknown[]>> = Simplify<
-  BaseEventMap<unknown[]> &
-  Record<keyof EventMap, unknown[]>
+  BaseEventMap<unknown[]> & Record<keyof EventMap, unknown[]>
 >
 
 export abstract class BubblingEmitter<
   EventMap extends BaseEventMap<unknown[]> = BaseEventMap<unknown[]>,
-  ParentEventMap extends SimpleEventMap<EventMap> = SimpleEventMap<EventMap>
+  ParentEventMap extends SimpleEventMap<EventMap> = SimpleEventMap<EventMap>,
 > extends FilteredPriorityEmitter<EventMap> {
   /**
    * Optional parent emitter to which events may bubble.
@@ -119,7 +118,7 @@ export abstract class BubblingEmitter<
    */
   protected traceBubble<Name extends keyof EventMap>(eventName: Name): void {
     this.log?.debug?.(
-      `[BubblingEmitter] Event "${String(eventName)}" bubbling from ${this.constructor.name}`
+      `[BubblingEmitter] Event "${String(eventName)}" bubbling from ${this.constructor.name}`,
     )
   }
 
@@ -179,7 +178,3 @@ async function fireAndForget(promise: Promise<void>, context: string): Promise<v
     console.error(`${context}:`, error)
   }
 }
-
-
-
-

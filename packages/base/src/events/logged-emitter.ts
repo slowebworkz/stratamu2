@@ -1,11 +1,11 @@
+import { BaseError } from '@/errors'
 import type { BaseEventMap, LogLevel, LogLevelWithSilent } from '@repo/types'
 import isPlainObject from 'is-plain-object'
 import type { LevelChangeEventListener, LevelMapping, Logger } from 'pino'
 import pino from 'pino'
-import type { Jsonify, JsonValue } from 'type-fest'
-import { BaseError } from '../errors/BaseError.ts'
+import type { Jsonify, JsonValue, SetRequired, Simplify } from 'type-fest'
 
-import { isJsonValue, safeFormatPayload } from '@/utils/index.ts'
+import { isJsonValue, safeFormatPayload } from '@/utils'
 import { SafeEmitter } from './safe-emitter.ts'
 import type {
   Bindings,
@@ -21,6 +21,24 @@ type ToJSONReturn = Jsonify<{
   childCount: number
 }>
 
+type ThrowLevel = Extract<LogLevel, 'error' | 'fatal'>
+type NonThrowLevel = Exclude<LogLevel, ThrowLevel>
+
+type ThrowLogArgs = [
+  obj: SetRequired<SafeMergingObject, 'shouldThrow'> & ThrowConfig,
+  msg?: string,
+  ...rest: unknown[],
+]
+type NormalLogArgs = PinoLogArgs
+
+type TypedLogger = Simplify<
+  {
+    [Level in ThrowLevel]: (...args: ThrowLogArgs) => void
+  } & {
+    [Level in NonThrowLevel]: (...args: NormalLogArgs) => void
+  }
+>
+
 export abstract class LoggedEmitter<
   EventMap extends BaseEventMap<unknown[]>,
 > extends SafeEmitter<EventMap> {
@@ -28,8 +46,28 @@ export abstract class LoggedEmitter<
   private _levelChangeWrappers = new WeakMap<LevelChangeEventListener, LevelChangeEventListener>()
   private _levelChangeKeys = new Set<LevelChangeEventListener>()
   private readonly _logger: Logger
-  public readonly log: {
-    [Level in LogLevel]: (...args: PinoLogArgs) => void
+  get log(): TypedLogger {
+    const self = this
+    return {
+      error(...args: ThrowLogArgs) {
+        logWithFormat(self._logger, 'error', args)
+      },
+      fatal(...args: ThrowLogArgs) {
+        logWithFormat(self._logger, 'fatal', args)
+      },
+      warn(...args: NormalLogArgs) {
+        logWithFormat(self._logger, 'warn', args)
+      },
+      info(...args: NormalLogArgs) {
+        logWithFormat(self._logger, 'info', args)
+      },
+      debug(...args: NormalLogArgs) {
+        logWithFormat(self._logger, 'debug', args)
+      },
+      trace(...args: NormalLogArgs) {
+        logWithFormat(self._logger, 'trace', args)
+      },
+    }
   }
   private readonly _childLoggers: Set<LoggedEmitter<EventMap>> = new Set()
 
@@ -52,21 +90,9 @@ export abstract class LoggedEmitter<
     this._levelChangeWrappers = new WeakMap()
   }
 
-  constructor() {
+  constructor(logger?: Logger) {
     super()
-
-    this._logger = pino({ timestamp: pino.stdTimeFunctions.isoTime })
-
-    this.log = new Proxy({} as Record<LogLevel, (...args: PinoLogArgs) => void>, {
-      get: (_, level: LogLevel) => {
-        return (...args: PinoLogArgs) => {
-          // Format all payloads for safe logging
-          const formattedArgs = formatLogArgs(args)
-          ;(this._logger as any)[level](...formattedArgs)
-          shouldThrow(level, args)
-        }
-      },
-    }) as typeof this.log
+    this._logger = logger ?? pino({ timestamp: pino.stdTimeFunctions.isoTime })
   }
 
   private _wrapLevelChangeListener(listener: LevelChangeEventListener): LevelChangeEventListener {
@@ -225,19 +251,28 @@ export function wrapLevelChangeListener(
   }
 }
 
-export function shouldThrow(level: LogLevel, args: PinoLogArgs): void {
-  if (level !== 'error' && level !== 'fatal') return
-  if (args.length >= 1 && isPlainObject(args[0])) {
-    const [obj, msg] = args
-    if (isPlainObject(obj)) {
-      const throwConfigObj = obj as ThrowConfig
-      if (throwConfigObj.shouldThrow === true) {
-        throw new BaseError(typeof msg === 'string' ? msg : 'An error occurred', { cause: obj })
-      }
-    }
-  }
+export function shouldThrow(level: ThrowLevel, args: PinoLogArgs): void {
+  if (!args.length || !isPlainObject(args[0])) return
+
+  const [obj, msg = 'An error occurred'] = args
+
+  const throwConfigObj = obj as ThrowConfig
+  if (!throwConfigObj?.shouldThrow) return
+
+  throw new BaseError(msg, { cause: obj })
 }
 
 export function formatLogArgs(args: unknown[]): unknown[] {
   return args.map((arg) => (isJsonValue(arg) ? safeFormatPayload(arg) : arg))
+}
+
+export function logWithFormat<L extends LogLevel>(
+  logger: Logger,
+  level: L,
+  args: L extends ThrowLevel ? ThrowLogArgs : NormalLogArgs,
+): void {
+  const formatted = formatLogArgs(args)
+  // Use index signature to access the method safely
+  ;(logger[level] as (...a: unknown[]) => void)(...formatted)
+  shouldThrow(level as ThrowLevel, args as ThrowLogArgs)
 }

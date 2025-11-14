@@ -29,10 +29,11 @@ export class BaseError<Cause extends ErrorCauseType = unknown> extends globalThi
    */
   toString(): string {
     const causeStr = this.cause
-      ? `\nCaused by: ${BaseError.is(this.cause)
-        ? (this.cause.stack ?? this.cause.message)
-        : JSON.stringify(this.cause)
-      }`
+      ? `\nCaused by: ${
+          BaseError.is(this.cause)
+            ? (this.cause.stack ?? this.cause.message)
+            : JSON.stringify(this.cause)
+        }`
       : ''
     return `${this.name}: ${this.message}${causeStr}`
   }

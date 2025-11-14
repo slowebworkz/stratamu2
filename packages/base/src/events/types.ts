@@ -23,19 +23,19 @@ export type Listener<
   Name extends keyof EventMap = keyof EventMap,
 > = (eventData: EventMap[Name]) => Promisable<void>
 
+export type FullListener<
+  EventMap extends BaseEventMap<unknown>,
+  Name extends keyof FullEventMap<EventMap> = keyof FullEventMap<EventMap>,
+> = Listener<FullEventMap<EventMap>, Name>
+
 export type FullEventMap<EventMap extends BaseEventMap<unknown> = BaseEventMap> = Merge<
   EventMap,
-  OmnipresentEventData
+  ReadonlyDeep<OmnipresentEventData>
 >
 
 export type FullEventName<EventMap extends BaseEventMap<unknown> = BaseEventMap> = EventName<
   FullEventMap<EventMap>
 >
-
-export type FullListener<
-  EventMap extends BaseEventMap<unknown>,
-  Name extends keyof FullEventMap<EventMap> = keyof FullEventMap<EventMap>,
-> = Listener<FullEventMap<EventMap>, Name>
 
 export type EventListener<
   EventMap extends BaseEventMap<unknown> = BaseEventMap,
@@ -43,35 +43,12 @@ export type EventListener<
 > = EventListenerFn<EventMap[Name]>
 
 // ===============================
-// SafeEmitter Types
-// ===============================
-
-export type SafeEmitterEventMap<
-  EventMap extends BaseEventMap<unknown> = BaseEventMap,
-  IncludeOmnipresent extends boolean = true,
-> = IncludeOmnipresent extends true ? Merge<EventMap, OmnipresentEventData> : EventMap
-
-export type SafeEmitterEventName<
-  EventMap extends BaseEventMap<unknown> = BaseEventMap,
-  IncludeOmnipresent extends boolean = true,
-> = EventName<SafeEmitterEventMap<EventMap, IncludeOmnipresent>>
-
-export type SafeEmitterListener<
-  EventMap extends BaseEventMap<unknown> = BaseEventMap,
-  Name extends keyof SafeEmitterEventMap<EventMap, true> = keyof SafeEmitterEventMap<
-    EventMap,
-    true
-  >,
-> = (eventData: SafeEmitterEventMap<EventMap, true>[Name]) => Promisable<void>
-
-// ===============================
 // DRY utility for count-like records
 // ===============================
 
-export type CountsMap<K extends EventKeyType, Extra extends EventKeyType = never> = Record<
-  K | Extra,
-  number
->
+export type CountsMap<K extends EventKeyType, Extra extends EventKeyType = never> = {
+  [P in K]: number
+} & Partial<Record<Extra, number>>
 
 export type ListenerCounts<K extends EventKeyType> = CountsMap<K, 'total'>
 
@@ -83,7 +60,28 @@ export type LogSizes<K extends EventKeyType> = CountsMap<K, '__total'>
 // Promise-like type for once() with cancellation
 // ===============================
 
-export type EmitteryOncePromise<T> = Promise<T> & { off: () => void }
+export type EmitteryOncePromise<T> = Omit<Promise<T>, 'finally'> & {
+  off(): void
+  finally: Promise<T>['finally']
+}
+
+// ===============================
+// SafeEmitter Types
+// ===============================
+
+export type EventMetrics<EventMap extends BaseEventMap<unknown[]> = BaseEventMap<unknown[]>> = {
+  listenerCounts: ListenerCounts<EventKey<EventMap>>
+  safety: {
+    errorCounts: ErrorCounts<EventKey<EventMap>>
+    logSizes: LogSizes<EventKey<EventMap>>
+    capacity: number
+    enabled: boolean
+  }
+}
+
+export type ReadonlyEventMetrics<
+  EventMap extends BaseEventMap<unknown[]> = BaseEventMap<unknown[]>,
+> = ReadonlyDeep<EventMetrics<EventMap>>
 
 // ===============================
 // LoggedEmitter Types

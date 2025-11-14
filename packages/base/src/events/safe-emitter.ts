@@ -1,14 +1,8 @@
 import { MetricsTracker } from '@/performance/index.ts'
+import { emitWithErrorHandling, normalizeEventName } from '@/utils'
 import type { Awaitable, BaseEventMap } from '@repo/types'
 import Emittery from 'emittery'
-import type { ReadonlyDeep } from 'type-fest'
-import type {
-  AllEvents,
-  CancelablePromise,
-  EventKey,
-  ExtractPayload,
-  WrappedCancelable,
-} from './events-types.ts'
+import type { AllEvents, CancelablePromise, EventKey, WrappedCancelable } from './events-types.ts'
 import { internalPublicBus } from './events-types.ts'
 import type { InternalEventMap } from './index.ts'
 import {
@@ -21,64 +15,20 @@ import {
 } from './index.ts'
 import { SafetyEmitter as SafetyManager } from './safety-emitter.ts'
 
-import type { ErrorCounts, ListenerCounts, LogSizes } from './types.ts'
+import type { ReadonlyEventMetrics } from './types.ts'
 
-/**
- * Default metrics shape returned by `getEventMetrics()`.
- * Kept non-generic and string-keyed for simplicity.
- */
-type EventMetrics<EventMap extends BaseEventMap<unknown[]> = BaseEventMap<unknown[]>> = {
-  listenerCounts: ListenerCounts<EventKey<EventMap>>
-  safety: {
-    errorCounts: ErrorCounts<EventKey<EventMap>>
-    logSizes: LogSizes<EventKey<EventMap>>
-    capacity: number
-    enabled: boolean
-  }
-}
+const DEV_MODE = (typeof process !== 'undefined' && process.env?.NODE_ENV) !== 'production'
 
-/**
- * Deeply immutable event metrics type.
- */
-type ReadonlyEventMetrics<EventMap extends BaseEventMap<unknown[]> = BaseEventMap<unknown[]>> =
-  ReadonlyDeep<EventMetrics<EventMap>>
-
-/**
- * Indicates if the environment is development (not production).
- */
-const DEV_MODE = (process?.env?.NODE_ENV ?? 'development') !== 'production'
-
-/**
- * Type-safe event emitter with internal diagnostics and error handling.
- *
- * @template EventMap extends BaseEventMap<unknown[]>
- */
 export abstract class SafeEmitter<EventMap extends BaseEventMap<unknown[]>> {
   /** Metrics tracker instance, enabled via event or method. */
   protected _metricsTracker?: MetricsTracker<AllEvents<EventMap>>
 
-  /**
-   * Global bus for internal diagnostics and error events.
-   * @private
-   */
   private static readonly global = new Emittery<InternalEventMap<any>>()
 
-  /**
-   * Emit a diagnostic or error event on the global bus.
-   * @param event Internal event name
-   * @param payload Event payload
-   */
   public static report(event: keyof InternalEventMap<any>, payload: any) {
     SafeEmitter.global.emit(event as any, payload)
   }
 
-  /**
-   * Listen for global internal events.
-   * @template K
-   * @param event Internal event name
-   * @param listener Listener function
-   * @returns Unsubscribe function
-   */
   public static onGlobal<K extends keyof InternalEventMap<any>>(
     event: K,
     listener: (payload: InternalEventMap<any>[K]) => Awaitable,
@@ -86,38 +36,26 @@ export abstract class SafeEmitter<EventMap extends BaseEventMap<unknown[]>> {
     return SafeEmitter.global.on(event as any, listener)
   }
 
-  /**
-   * Internal bus for public and internal events.
-   * Protected so subclasses (e.g. SafetyEmitter) can register internal control listeners.
-   */
   protected readonly _public: Emittery<AllEvents<EventMap>> = new Emittery<AllEvents<EventMap>>()
 
-  // internal SafetyEmitter (composition). Instantiated by default so safety
-  // bookkeeping is enabled for all emitters unless explicitly disabled via
-  // options. Typed via the internalPublicBus helper to avoid `any` casts.
   private readonly _safety: SafetyManager<EventMap>
 
-  /** Protected accessor for subclasses to reach the internal safety emitter (for compatibility). */
   protected get _safetyManager(): SafetyManager<EventMap> {
     return this._safety
   }
 
-  /**
-   * Maps event names to listener maps for safe removal.
-   * @private
-   */
+  protected emitInternal<K extends keyof InternalEventMap<any>>(
+    key: K,
+    payload: InternalEventMap<any>[K],
+  ): void {
+    fireAndForgetInternal(this._public, key, payload, this)
+  }
+
   private readonly _listenerMaps = new Map<
     keyof AllEvents<EventMap>,
-    WeakMap<(data: any) => Awaitable, (data: any) => Awaitable>
+    Map<(data: any) => Awaitable, (data: any) => Awaitable>
   >()
 
-  /**
-   * Register a listener for an event.
-   * @template K
-   * @param event Event name
-   * @param listener Listener function
-   * @returns Unsubscribe function
-   */
   constructor() {
     // Compose the safety manager with hardcoded presets (no user config)
     this._safety = new SafetyManager<EventMap>(internalPublicBus<EventMap>(this), {
@@ -125,7 +63,6 @@ export abstract class SafeEmitter<EventMap extends BaseEventMap<unknown[]>> {
       safetyLogCap: 100,
     })
 
-    // Listen for the 'enableMetrics' event to activate metrics tracking
     this._public.once('enableMetrics', (_eventData) => {
       if (!this._metricsTracker) {
         this._metricsTracker = new MetricsTracker<AllEvents<EventMap>>(this)
@@ -134,16 +71,25 @@ export abstract class SafeEmitter<EventMap extends BaseEventMap<unknown[]>> {
     })
   }
 
-  /**
-   * Backwards-compatible protected hook: record a listener error. Delegates
-   * to the composed `SafetyEmitter` manager so tests/consumers that call the
-   * old protected method name continue to work.
-   */
+  public removeAllListeners(): void {
+    // Clear the public bus
+    this._public.clearListeners()
+
+    // Clear the internal mapping of original -> wrapped listeners
+    this._listenerMaps.clear()
+
+    // Optionally, notify that all listeners were removed (internal event)
+    this.emitInternal(INTERNAL_ON_LISTENER_REMOVED, [
+      null, // no specific event
+      null, // no specific listener
+      { emitter: this },
+    ] as any)
+  }
+
   protected recordListenerError(eventName: string, error: unknown, listenerName: string): void {
     this._safety.recordListenerErrorFor(eventName, error, listenerName)
   }
 
-  /** Read-only snapshot of error counts (compatibility getter). */
   protected get _errorCounts(): Record<string, number> {
     const m = this._safety.getAllErrorCounts()
     const out: Record<string, number> = {}
@@ -151,7 +97,6 @@ export abstract class SafeEmitter<EventMap extends BaseEventMap<unknown[]>> {
     return out
   }
 
-  /** Read-only snapshot of safety logs (compatibility getter). */
   protected get _safetyLogs(): Record<
     string,
     Array<{ timestamp: number; error: unknown; listener: string }>
@@ -165,7 +110,6 @@ export abstract class SafeEmitter<EventMap extends BaseEventMap<unknown[]>> {
     return out
   }
 
-  /** Convenience proxy to the composed manager's enabled flag. */
   protected get _safetyEnabled(): boolean {
     return this._safety.isSafetyEnabled()
   }
@@ -174,20 +118,6 @@ export abstract class SafeEmitter<EventMap extends BaseEventMap<unknown[]>> {
     this._safety.setSafetyEnabled(enabled)
   }
 
-  /** Shape returned from `getEventMetrics()` describing listener and safety state. */
-
-  /**
-   * Default metrics implementation. Returns quick, non-allocating aggregates:
-   * - listenerCounts.total: total listener count
-   * - listenerCounts[<event>]: per-event counts for events that have been
-   *   registered via this emitter's public listener map
-   * - safety.errorCounts: per-event error counts from the composed safety manager
-   * - safety.logSizes: per-event ring-buffer sizes (plus total under key "__total")
-   * - safety.capacity: configured per-event capacity
-   * - safety.enabled: whether safety bookkeeping is enabled
-   *
-   * Subclasses may override this to provide richer metrics.
-   */
   public getEventMetrics(): ReadonlyEventMetrics<EventMap> {
     const listenerCounts: Record<EventKey<EventMap> | 'total', number> = {} as Record<
       EventKey<EventMap> | 'total',
@@ -200,7 +130,6 @@ export abstract class SafeEmitter<EventMap extends BaseEventMap<unknown[]>> {
       listenerCounts.total = 0
     }
 
-    // per-event counts for events we have tracked in _listenerMaps
     for (const k of this._listenerMaps.keys()) {
       try {
         const name = String(k as any)
@@ -218,21 +147,20 @@ export abstract class SafeEmitter<EventMap extends BaseEventMap<unknown[]>> {
       EventKey<EventMap> | '__total',
       number
     >
-    // per-event sizes (keys present in errorCountsMap), plus total
     for (const k of errorCountsMap.keys()) {
       logSizes[String(k) as EventKey<EventMap>] = this._safety.getSafetyLogSize(String(k))
     }
     logSizes.__total = this._safety.getSafetyLogSize()
 
     return {
-      listenerCounts: listenerCounts as ReadonlyDeep<ListenerCounts<EventKey<EventMap>>>,
+      listenerCounts,
       safety: {
-        errorCounts: errorCounts as ReadonlyDeep<ErrorCounts<EventKey<EventMap>>>,
-        logSizes: logSizes as ReadonlyDeep<LogSizes<EventKey<EventMap>>>,
+        errorCounts,
+        logSizes,
         capacity: this._safety.getSafetyLogCapacity(),
         enabled: this._safety.isSafetyEnabled(),
       },
-    }
+    } as ReadonlyEventMetrics<EventMap>
   }
 
   public on<K extends keyof AllEvents<EventMap>>(
@@ -242,13 +170,13 @@ export abstract class SafeEmitter<EventMap extends BaseEventMap<unknown[]>> {
   ) {
     // Support subscribing to multiple events (array form) while keeping
     // our listener-mapping bookkeeping per-event so `off(original)` works.
-    const events = Array.isArray(event) ? event : [event]
+    const events: readonly K[] = Array.isArray(event) ? event : [event]
 
     const safeListener = async (data: AllEvents<EventMap>[K]) => {
       try {
         await listener(data)
       } catch (error) {
-        const actual = normalizeEventName(events as readonly any[])
+        const actual = normalizeEventName(events)
         this.onListenerError(actual as any, error, { type: 'on', listener, emitter: this })
       }
     }
@@ -256,7 +184,7 @@ export abstract class SafeEmitter<EventMap extends BaseEventMap<unknown[]>> {
     for (const e of events) {
       let map = this._listenerMaps.get(e)
       if (!map) {
-        map = new WeakMap()
+        map = new Map()
         this._listenerMaps.set(e, map)
       }
       map.set(listener, safeListener)
@@ -265,32 +193,25 @@ export abstract class SafeEmitter<EventMap extends BaseEventMap<unknown[]>> {
     return this._public.on(event as any, safeListener, options)
   }
 
-  /**
-   * Register a one-time listener for an event.
-   * @template K
-   * @param event Event name
-   * @param listener Listener function
-   * @returns Promise resolving to event payload
-   */
   public once<K extends keyof AllEvents<EventMap>>(
     event: K,
     listener: (data: AllEvents<EventMap>[K]) => Awaitable,
     options?: { signal?: AbortSignal },
   ): CancelablePromise<AllEvents<EventMap>[K]> {
-    const originalPromise = this._public.once(event) as CancelablePromise<AllEvents<EventMap>[K]>
+    const originalPromise = this._public.once(event) as WrappedCancelable<AllEvents<EventMap>[K]>
 
     const notify = (error: unknown) =>
       this.onListenerError(event, error, { type: 'once', listener, emitter: this })
 
-    return createCancelableOnce(originalPromise, listener as any, options, notify)
+    // Explicitly specify the generic for correct inference
+    return createCancelableOnce<AllEvents<EventMap>[K]>(
+      originalPromise,
+      listener as any,
+      options,
+      notify,
+    )
   }
 
-  /**
-   * Remove a listener for an event.
-   * @template K
-   * @param event Event name
-   * @param listener Listener function
-   */
   public off<K extends keyof AllEvents<EventMap>>(
     event: K,
     listener: (data: AllEvents<EventMap>[K]) => Awaitable,
@@ -300,6 +221,10 @@ export abstract class SafeEmitter<EventMap extends BaseEventMap<unknown[]>> {
     if (safeListener) {
       if (map) {
         map.delete(listener)
+        // Clean up empty map to avoid unbounded growth
+        if (map.size === 0) {
+          this._listenerMaps.delete(event)
+        }
       }
       const result = this._public.off(
         event,
@@ -330,30 +255,16 @@ export abstract class SafeEmitter<EventMap extends BaseEventMap<unknown[]>> {
     }
   }
 
-  /**
-   * Emit an event to all listeners, with error handling.
-   * @template K
-   * @param event Event name
-   * @param args Event payload
-   */
   public async emit<K extends keyof AllEvents<EventMap>>(
     event: K,
     ...args: AllEvents<EventMap>[K] extends undefined ? [] : [AllEvents<EventMap>[K]]
   ): Promise<void> {
-    await emitWithErrorHandling(
-      args,
-      (data) => this._public.emitSerial(event, data as AllEvents<EventMap>[K]),
-      (error) => this.onEmitError(event, error),
+    const promises = emitWithErrorHandling(args, (data) =>
+      this._public.emitSerial(event, data as AllEvents<EventMap>[K]),
     )
+    await Promise.allSettled(promises)
   }
 
-  /**
-   * Emit an event and return success/failure.
-   * @template K
-   * @param event Event name
-   * @param args Event payload
-   * @returns True if successful, false if error
-   */
   public async emitSafe<K extends keyof AllEvents<EventMap>>(
     event: K,
     ...args: AllEvents<EventMap>[K] extends undefined ? [] : [AllEvents<EventMap>[K]]
@@ -367,10 +278,6 @@ export abstract class SafeEmitter<EventMap extends BaseEventMap<unknown[]>> {
     }
   }
 
-  /**
-   * Return the number of listeners. Accepts no arg, a single event name, or an array of event names.
-   * This is a small public helper used by extended emitters that maintain extra listener lists.
-   */
   public listenerCount(
     eventName?: keyof AllEvents<EventMap> | readonly (keyof AllEvents<EventMap>)[],
   ): number {
@@ -385,13 +292,6 @@ export abstract class SafeEmitter<EventMap extends BaseEventMap<unknown[]>> {
     return this._public.listenerCount(eventName as any)
   }
 
-  /**
-   * Handle errors thrown by listeners.
-   * @param eventName Event name
-   * @param error Error thrown
-   * @param context Listener context
-   * @protected
-   */
   protected onListenerError(
     eventName: keyof AllEvents<EventMap>,
     error: unknown,
@@ -417,12 +317,11 @@ export abstract class SafeEmitter<EventMap extends BaseEventMap<unknown[]>> {
         void 0
       }
 
-      fireAndForgetInternal(
-        this._public,
-        INTERNAL_ON_LISTENER_ERROR,
-        [eventName, error, context] as AllEvents<EventMap>[typeof INTERNAL_ON_LISTENER_ERROR],
-        this,
-      )
+      this.emitInternal(INTERNAL_ON_LISTENER_ERROR, [
+        eventName,
+        error,
+        context,
+      ] as AllEvents<EventMap>[typeof INTERNAL_ON_LISTENER_ERROR])
     } else {
       if (DEV_MODE) {
         console.error('[SafeEmitter] Internal event listener error:', { eventName, error, context })
@@ -430,13 +329,6 @@ export abstract class SafeEmitter<EventMap extends BaseEventMap<unknown[]>> {
     }
   }
 
-  /**
-   * Handle errors thrown during event emission.
-   * @param eventName Event name
-   * @param error Error thrown
-   * @param context Emission context
-   * @protected
-   */
   protected onEmitError(
     eventName: keyof AllEvents<EventMap>,
     error: unknown,
@@ -449,88 +341,22 @@ export abstract class SafeEmitter<EventMap extends BaseEventMap<unknown[]>> {
         void 0
       }
 
-      fireAndForgetInternal(
-        this._public,
-        INTERNAL_ON_EMIT_ERROR,
-        [
-          eventName,
-          error,
-          { ...(context || {}), emitter: this },
-        ] as AllEvents<EventMap>[typeof INTERNAL_ON_EMIT_ERROR],
-        this,
-      )
+      this.emitInternal(INTERNAL_ON_EMIT_ERROR, [
+        eventName,
+        error,
+        { ...(context || {}), emitter: this },
+      ] as AllEvents<EventMap>[typeof INTERNAL_ON_EMIT_ERROR])
     }
   }
 
-  /**
-   * Hook for subclasses to record listener/emit errors. Default is no-op.
-   * SafetyEmitter overrides this to maintain error counts/logs.
-   */
   protected recordListenerErrorFor(
     eventName: PropertyKey,
     error: unknown,
     listenerName?: string,
   ): void {
     // Delegate to internal safety emitter if present. Subclasses may override
-    // this hook; keeping it protected preserves the original extension point.
     this._safety?.recordListenerErrorFor(eventName, error, listenerName)
   }
-
-  // --- Public safety accessors (compatibility proxies) --------------------
-  // These forward to the composed SafetyManager when present. Returning
-  // defaults when the manager is absent keeps callers safe.
-
-  public getErrorCount(eventName?: PropertyKey): number {
-    return this._safety.getErrorCount(eventName)
-  }
-
-  public getAllErrorCounts(): ReadonlyMap<any, number> {
-    return this._safety.getAllErrorCounts()
-  }
-
-  public getSafetyLogs(eventName?: PropertyKey) {
-    return this._safety.getSafetyLogs(eventName)
-  }
-
-  public getSafetyLogForEvent(
-    eventName?: PropertyKey,
-    opts?: { limit?: number; newestFirst?: boolean },
-  ) {
-    return this._safety.getSafetyLogForEvent(eventName, opts)
-  }
-
-  public getSafetyLogSize(eventName?: PropertyKey): number {
-    return this._safety.getSafetyLogSize(eventName)
-  }
-
-  public getSafetyLogCapacity(): number {
-    return this._safety.getSafetyLogCapacity()
-  }
-
-  public *getSafetyLogIterator(eventName?: PropertyKey) {
-    yield* this._safety.getSafetyLogIterator(eventName)
-  }
-
-  public resetErrorCounts(eventName?: PropertyKey): void {
-    this._safety.resetErrorCounts(eventName)
-  }
-
-  public clearSafetyLogs(eventName?: PropertyKey): void {
-    this._safety.clearSafetyLogs(eventName)
-  }
-
-  public isSafetyEnabled(): boolean {
-    return this._safety.isSafetyEnabled()
-  }
-
-  public setSafetyEnabled(enabled: boolean): void {
-    this._safety.setSafetyEnabled(enabled)
-  }
-}
-
-/** Normalize the event name to a concrete single value (take first if array). */
-function normalizeEventName(eventName: readonly any[]): any {
-  return Array.isArray(eventName) ? eventName[0] : eventName
 }
 
 /**
@@ -550,26 +376,6 @@ function normalizeEventName(eventName: readonly any[]): any {
  * @param emitMethod Callback to perform the actual emission
  * @param onEmitError Callback to report errors
  */
-async function emitWithErrorHandling<T>(
-  args: T,
-  emitMethod: (data: ExtractPayload<T> | undefined) => Promise<void>,
-  onEmitError: (error: unknown) => void,
-): Promise<void> {
-  const data = (Array.isArray(args) && args.length > 0 ? args[0] : undefined) as ExtractPayload<T>
-  try {
-    await emitMethod(data)
-  } catch (error) {
-    if (error instanceof AggregateError) {
-      for (const err of error.errors) onEmitError(err)
-    } else {
-      onEmitError(error)
-    }
-    throw error // always rethrow here
-  } finally {
-    // possible future hooks, e.g. metrics or cleanup
-    void 0
-  }
-}
 
 /**
  * Emit an internal event and forward errors to the global bus.
@@ -581,18 +387,16 @@ async function emitWithErrorHandling<T>(
  * @param payload Event payload
  * @param instance Optional SafeEmitter instance for diagnostics
  */
-function fireAndForgetInternal<EM extends Emittery<any>, K extends keyof InternalEventMap<any>>(
-  emitter: EM,
-  event: K,
-  payload: InternalEventMap<any>[K],
-  instance?: SafeEmitter<any>,
-) {
+export function fireAndForgetInternal<
+  EM extends Emittery<any>,
+  K extends keyof InternalEventMap<any>,
+>(emitter: EM, event: K, payload: InternalEventMap<any>[K], instance?: SafeEmitter<any>) {
   void emitter.emit(event as any, payload).catch((err) => {
     // best-effort: forward to global
     SafeEmitter.report(INTERNAL_ON_EMIT_ERROR, [event, err, { emitter: instance }])
   })
-  if (isInternalEvent(event)) {
-    SafeEmitter.report(event, payload)
+  if (isInternalEvent(event as PropertyKey)) {
+    SafeEmitter.report(event as any, payload)
   }
 }
 
