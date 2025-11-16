@@ -1,39 +1,57 @@
-import { MetricsTracker } from '@/performance/index.ts'
-import { emitWithErrorHandling, normalizeEventName, addListenerMapping, removeListenerMapping, clearAllListenerMappings, getWrappedListener } from '@/utils'
-import type { Awaitable, BaseEventMap } from '@repo/types'
-import Emittery from 'emittery'
-import type { AllEvents, CancelablePromise, EventKey, WrappedCancelable } from './events-types.ts'
-import { internalPublicBus } from './events-types.ts'
-import type { InternalEventMap } from './index.ts'
+import { DEV_MODE } from '@/env'
 import {
   INTERNAL_ON_EMIT_ERROR,
   INTERNAL_ON_LISTENER_ERROR,
   INTERNAL_ON_LISTENER_REMOVED,
   INTERNAL_ON_REMOVE_WARN,
+  internalPublicBus,
   isInternalEvent,
   isPublicEvent,
-} from './index.ts'
+} from '@/events'
+import { MetricsTracker } from '@/performance'
+import {
+  addListenerMappingWeak,
+  clearAllListenerMappingsWeak,
+  emitWithErrorHandling,
+  getWrappedListenerWeak,
+  removeListenerMapping,
+} from '@/utils'
+import Emittery from 'emittery'
 import { SafetyEmitter as SafetyManager } from './safety-emitter.ts'
 
-import type { ReadonlyEventMetrics } from './types.ts'
+import type {
+  AllEvents,
+  CancelablePromise,
+  EventKey,
+  InternalEventMap,
+  ReadonlyEventMetrics,
+  WrappedCancelable,
+  PublicEventMap
+} from '@/events'
+import type { Awaitable, BaseEventMap } from '@repo/types'
 
-const DEV_MODE = (typeof process !== 'undefined' && process.env?.NODE_ENV) !== 'production'
+export type DefaultInternalEventMap = InternalEventMap<Record<string, unknown[]>>
 
 export abstract class SafeEmitter<EventMap extends BaseEventMap<unknown[]>> {
+  /** Tracks all event names seen via on/once/off for complete metrics. */
+  private readonly _seenEvents = new Set<keyof AllEvents<EventMap>>()
   /** Metrics tracker instance, enabled via event or method. */
   protected _metricsTracker?: MetricsTracker<AllEvents<EventMap>>
 
-  private static readonly global = new Emittery<InternalEventMap<any>>()
+  private static readonly global = new Emittery<DefaultInternalEventMap>()
 
-  public static report(event: keyof InternalEventMap<any>, payload: any) {
-    SafeEmitter.global.emit(event as any, payload)
+  public static report<K extends keyof DefaultInternalEventMap>(
+    event: K,
+    payload: DefaultInternalEventMap[K],
+  ) {
+    return SafeEmitter.global.emit(event, payload)
   }
 
-  public static onGlobal<K extends keyof InternalEventMap<any>>(
+  public static onGlobal<K extends keyof DefaultInternalEventMap>(
     event: K,
-    listener: (payload: InternalEventMap<any>[K]) => Awaitable,
+    listener: (payload: DefaultInternalEventMap[K]) => Awaitable,
   ) {
-    return SafeEmitter.global.on(event as any, listener)
+    return SafeEmitter.global.on(event, listener)
   }
 
   protected readonly _public: Emittery<AllEvents<EventMap>> = new Emittery<AllEvents<EventMap>>()
@@ -53,19 +71,22 @@ export abstract class SafeEmitter<EventMap extends BaseEventMap<unknown[]>> {
 
   private readonly _listenerMaps = new Map<
     keyof AllEvents<EventMap>,
-    Map<(data: any) => Awaitable, (data: any) => Awaitable>
+    WeakMap<(data: any) => Awaitable, (data: any) => Awaitable>
   >()
 
   constructor() {
     // Compose the safety manager with hardcoded presets (no user config)
-    this._safety = new SafetyManager<EventMap>(internalPublicBus<EventMap>(this), {
+    // Compose the safety manager with hardcoded presets (no user config)
+    const safetyManagerBus = new Emittery<PublicEventMap<EventMap>>();
+
+    this._safety = new SafetyManager<EventMap>(safetyManagerBus, {
       sanitizeErrors: true,
-      safetyLogCap: 100,
+      safetyLogCap: 100
     })
 
     this._public.once('enableMetrics', (_eventData) => {
       if (!this._metricsTracker) {
-        this._metricsTracker = new MetricsTracker<AllEvents<EventMap>>(this)
+        this._metricsTracker = new MetricsTracker<AllEvents<EventMap>>(this._public)
       }
       return true
     })
@@ -76,7 +97,10 @@ export abstract class SafeEmitter<EventMap extends BaseEventMap<unknown[]>> {
     this._public.clearListeners()
 
     // Use utility to clear all listener mappings
-    clearAllListenerMappings(this._listenerMaps)
+    clearAllListenerMappingsWeak(this._listenerMaps)
+
+    // Clear all safety logs and error counts
+    this._safety.reset()
 
     // Optionally, notify that all listeners were removed (internal event)
     this.emitInternal(INTERNAL_ON_LISTENER_REMOVED, [
@@ -130,7 +154,7 @@ export abstract class SafeEmitter<EventMap extends BaseEventMap<unknown[]>> {
       listenerCounts.total = 0
     }
 
-    for (const k of this._listenerMaps.keys()) {
+    for (const k of this._seenEvents) {
       try {
         const name = String(k as any)
         listenerCounts[name as EventKey<EventMap>] = this._public.listenerCount(k as any)
@@ -172,20 +196,20 @@ export abstract class SafeEmitter<EventMap extends BaseEventMap<unknown[]>> {
     // our listener-mapping bookkeeping per-event so `off(original)` works.
     const events: readonly K[] = Array.isArray(event) ? event : [event]
 
-    const safeListener = async (data: AllEvents<EventMap>[K]) => {
-      try {
-        await listener(data)
-      } catch (error) {
-        const actual = normalizeEventName(events)
-        this.onListenerError(actual as any, error, { type: 'on', listener, emitter: this })
-      }
-    }
-
     for (const e of events) {
-      addListenerMapping(this._listenerMaps, e, listener, safeListener)
+      this._seenEvents.add(e)
+      const safeListenerForE = async (data: AllEvents<EventMap>[typeof e]) => {
+        try {
+          await listener(data)
+        } catch (error) {
+          this.onListenerError(e, error, { type: 'on', listener, emitter: this })
+        }
+      }
+      addListenerMappingWeak(this._listenerMaps, e, listener, safeListenerForE)
+      this._public.on(e, safeListenerForE, options)
     }
 
-    return this._public.on(event as any, safeListener, options)
+    // Optionally, return a disposable or similar if needed
   }
 
   public once<K extends keyof AllEvents<EventMap>>(
@@ -193,6 +217,7 @@ export abstract class SafeEmitter<EventMap extends BaseEventMap<unknown[]>> {
     listener: (data: AllEvents<EventMap>[K]) => Awaitable,
     options?: { signal?: AbortSignal },
   ): CancelablePromise<AllEvents<EventMap>[K]> {
+    this._seenEvents.add(event)
     const originalPromise = this._public.once(event) as WrappedCancelable<AllEvents<EventMap>[K]>
 
     const notify = (error: unknown) =>
@@ -211,7 +236,8 @@ export abstract class SafeEmitter<EventMap extends BaseEventMap<unknown[]>> {
     event: K,
     listener: (data: AllEvents<EventMap>[K]) => Awaitable,
   ) {
-    const safeListener = getWrappedListener(this._listenerMaps, event, listener)
+    this._seenEvents.add(event)
+    const safeListener = getWrappedListenerWeak(this._listenerMaps, event, listener)
     if (safeListener) {
       removeListenerMapping(this._listenerMaps, event, listener)
       const result = this._public.off(
@@ -348,13 +374,16 @@ export abstract class SafeEmitter<EventMap extends BaseEventMap<unknown[]>> {
 }
 
 /**
- * Compatibility subclass to preserve the historical export `SafetyEmitter`.
+ * Compatibility subclass to preserve historical export `SafetyEmitter`.
  *
  * Many places in the codebase (and tests) import and extend `SafetyEmitter`.
  * To avoid breaking changes we provide a tiny subclass here that simply
  * extends `SafeEmitter` so existing code that does `class X extends SafetyEmitter<EM>`
  * will continue to receive the emitter surface.
  */
+export class SafetyEmitter<
+  EventMap extends BaseEventMap<unknown[]>,
+> extends SafeEmitter<EventMap> { }
 
 /**
  * Shared helper for emit() error handling with strict bubbling semantics.
@@ -381,10 +410,10 @@ export function fireAndForgetInternal<
 >(emitter: EM, event: K, payload: InternalEventMap<any>[K], instance?: SafeEmitter<any>) {
   void emitter.emit(event as any, payload).catch((err) => {
     // best-effort: forward to global
-    SafeEmitter.report(INTERNAL_ON_EMIT_ERROR, [event, err, { emitter: instance }])
+    SafeEmitter.report(INTERNAL_ON_EMIT_ERROR as any, [event, err, { emitter: instance }])
   })
   if (isInternalEvent(event as PropertyKey)) {
-    SafeEmitter.report(event as any, payload)
+    void SafeEmitter.report(event as any, payload).catch(() => { })
   }
 }
 

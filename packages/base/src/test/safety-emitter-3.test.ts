@@ -1,7 +1,7 @@
+import { internalPublicBus } from '@/events'
 import type { BaseEventMap } from '@repo/types'
 import Emittery from 'emittery'
 import { describe, expect, it } from 'vitest'
-import { internalPublicBus } from '../events/events-types.js'
 import { SafetyEmitter } from '../events/safety-emitter.js'
 
 type EM = {

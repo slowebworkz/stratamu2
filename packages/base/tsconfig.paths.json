@@ -5,6 +5,8 @@
       "@/*": ["./src/*"],
       "@/data": ["./src/data/index.ts"],
       "@/data/*": ["./src/data/*"],
+      "@/env": ["./src/env/index.ts"],
+      "@/env/*": ["./src/env/*"],
       "@/events": ["./src/events/index.ts"],
       "@/events/*": ["./src/events/*"],
       "@/performance": ["./src/performance/index.ts"],

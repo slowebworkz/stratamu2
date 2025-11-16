@@ -4,6 +4,7 @@ import type { OmnipresentEventData, UnsubscribeFunction } from 'emittery'
 import type { Level, Logger } from 'pino'
 import type {
   IntRange,
+  JsonValue,
   LiteralUnion,
   Merge,
   Promisable,
@@ -11,6 +12,15 @@ import type {
   Simplify,
   Tagged,
 } from 'type-fest'
+import {
+  INTERNAL_ON_CHILD_ERROR,
+  INTERNAL_ON_DESTROY,
+  INTERNAL_ON_EMIT_ERROR,
+  INTERNAL_ON_LISTENER_ERROR,
+  INTERNAL_ON_LISTENER_REMOVED,
+  INTERNAL_ON_REMOVE_WARN,
+  LISTENER_STATES,
+} from './constants.ts'
 
 // ===============================
 // Base Types
@@ -57,8 +67,14 @@ export type ErrorCounts<K extends EventKeyType> = CountsMap<K>
 export type LogSizes<K extends EventKeyType> = CountsMap<K, '__total'>
 
 // ===============================
-// Promise-like type for once() with cancellation
+// Promise-like types for once() with cancellation
 // ===============================
+
+/** Promise that may expose an optional `.off()` cancellation method. */
+export type CancelablePromise<T> = Promise<T> & { off?: () => void }
+
+/** Internal alias used for wrapped promises that may receive an `.off` binding. */
+export type WrappedCancelable<T> = Promise<T> & { off?: () => void }
 
 export type EmitteryOncePromise<T> = Omit<Promise<T>, 'finally'> & {
   off(): void
@@ -106,29 +122,48 @@ export type LoggedEmitterListener<
 > = (eventData: LoggedEmitterEventMap<EventMap, true>[Name]) => Promisable<void>
 
 // ===============================
-// MetricsEmitter Types
+// Private events
 // ===============================
 
-export type MetricsEmitterEvents<EventMap extends BaseEventMap<unknown[]>> = {
-  [K in keyof EventMap]: {
-    eventName: K
-    args: EventMap[K]
-    time?: number
-    error?: Error
-    count?: number
-  }
-}
+type InternalEventMapListener = (...args: any[]) => Promisable<void>
+type InternalEventMapContext = Partial<Record<'emitter', unknown>>
 
-export type MetricsEmitterFullEventMap<EventMap extends BaseEventMap<unknown[]>> =
-  MetricsEmitterEvents<EventMap> & OmnipresentEventData
+export type InternalEventMap<EventMap extends BaseEventMap<unknown[]>> = Simplify<{
+  [INTERNAL_ON_LISTENER_ERROR]: [
+    eventName: keyof EventMap,
+    error: unknown,
+    context: {
+      type: 'on' | 'once'
+      listener?: InternalEventMapListener
+      hasFilter?: boolean
+    },
+  ]
+  [INTERNAL_ON_EMIT_ERROR]: [
+    eventName: keyof EventMap,
+    error: unknown,
+    context?: InternalEventMapContext,
+  ]
+  [INTERNAL_ON_REMOVE_WARN]: [
+    eventName: keyof EventMap,
+    listener: InternalEventMapListener,
+    context?: InternalEventMapContext,
+  ]
+  [INTERNAL_ON_LISTENER_REMOVED]: [
+    eventName: keyof EventMap,
+    listener: InternalEventMapListener,
+    context?: InternalEventMapContext,
+  ]
+  [INTERNAL_ON_CHILD_ERROR]: [error: unknown, context?: InternalEventMapContext]
+  [INTERNAL_ON_DESTROY]: [emitter: unknown]
+}>
 
-export type MetricsEmitterEventName<EventMap extends BaseEventMap<unknown[]>> =
-  keyof MetricsEmitterFullEventMap<EventMap>
-
-export type MetricsEmitterListener<
-  EventMap extends BaseEventMap<unknown[]>,
-  Name extends MetricsEmitterEventName<EventMap> = MetricsEmitterEventName<EventMap>,
-> = (eventData: MetricsEmitterFullEventMap<EventMap>[Name]) => Promisable<void>
+/**
+ * Combines user event map and internal event map for type-safe event handling.
+ *
+ * @template EventMap extends BaseEventMap<unknown[]>
+ */
+export type AllEvents<EventMap extends BaseEventMap<unknown[]>> = EventMap &
+  InternalEventMap<EventMap>
 
 // ===============================
 // Logging/Emitter Types
@@ -136,7 +171,10 @@ export type MetricsEmitterListener<
 
 export type PinoLogArgs = Parameters<Logger[Level]>
 
-export type SafeMergingObject = { [key: string]: unknown; shouldThrow?: boolean }
+export type SafeMergingObject = {
+  [key: string]: unknown
+  shouldThrow?: boolean
+}
 
 export type ThrowConfig = { shouldThrow: true }
 
@@ -148,31 +186,30 @@ export type ChildLoggerOptions = Record<string, unknown>
 // Additional Types from types.ts
 // ===============================
 
+/**
+ * Utility type to extract the payload type from a tuple.
+ *
+ * @template T extends any[]
+ */
+export type ExtractPayload<T> = T extends [infer U] ? U : never
+
+/** Developer-friendly helper: the public (string-named) events map simplified for IDEs. */
+export type PublicEventMap<EventMap extends BaseEventMap<unknown[]>> = Simplify<
+  Pick<AllEvents<EventMap>, Extract<keyof AllEvents<EventMap>, string>> & {
+    resetErrorCounts: [eventName?: string]
+    clearSafetyLogs: [eventName?: string]
+    enableSafeMode: [enabled: boolean]
+  }
+>
+
+/** Developer-friendly union type for public event names (string literals + arbitrary strings). */
+export type PublicEventName<E> = LiteralUnion<Extract<keyof E, string>, string>
+
 export type ListenerErrorLogEntry = ReadonlyDeep<{
   timestamp: number
   error: unknown
   listener: string
 }>
-
-export const EVENT_PRIORITIES = {
-  CRITICAL: 1000,
-  HIGH: 100,
-  NORMAL: 0,
-  LOW: -100,
-  BACKGROUND: -1000,
-} as const satisfies Record<string, number>
-
-export type EventPriority = (typeof EVENT_PRIORITIES)[keyof typeof EVENT_PRIORITIES] & Priority
-
-export const EVENT_PATTERNS = {
-  LIFECYCLE: /^(init|start|stop|destroy)$/,
-  USER_ACTION: /^user\./,
-  SYSTEM_EVENT: /^system\./,
-  ERROR_EVENT: /^error\./,
-  METRIC_EVENT: /^metric\./,
-} as const
-
-export type EventPatternKey = keyof typeof EVENT_PATTERNS
 
 export type EfficiencyRatio = Tagged<number, 'EfficiencyRatio'>
 
@@ -220,7 +257,7 @@ export type PriorityListener<EventMap, EventName extends keyof EventMap> = Simpl
   sequence: number
 }>
 
-export type ListenerState = 'registered' | 'active' | 'paused' | 'errored' | 'unsubscribed'
+export type ListenerState = (typeof LISTENER_STATES)[number]
 
 export type UnsubscribeMeta = {
   readonly state: ListenerState
@@ -229,3 +266,41 @@ export type UnsubscribeMeta = {
 }
 
 export type EnhancedUnsubscribeFunction = UnsubscribeFunction & UnsubscribeMeta
+
+/**
+ * Deeply readonly record type for event constants.
+ * @template K - key type (e.g., string, Uppercase<string>)
+ * @template V - value type (e.g., number, RegExp)
+ */
+export type DeepReadonlyRecord<K extends string, V = unknown> = ReadonlyDeep<Record<K, V>>
+
+// ===============================
+// SafetyEmitter Types
+// ===============================
+
+/**
+ * Options used to configure the standalone safety manager.
+ *
+ * Generic by EventMap so `perEventCap` can be keyed by actual event names.
+ */
+export type PerEventCap<EventMap extends BaseEventMap<unknown[]> = BaseEventMap<unknown[]>> =
+  Partial<Record<EventKey<EventMap>, number>>
+
+export type SafetyEmitterOptions<
+  EventMap extends BaseEventMap<unknown[]> = BaseEventMap<unknown[]>,
+> = {
+  safetyLogCap?: number
+  sanitizeErrors?: boolean
+  enabled?: boolean
+  perEventCap?: PerEventCap<EventMap>
+}
+
+/**
+ * Sanitized error shapes. Either a trimmed Error-like shape, a stringified
+ * representation, or any JSON-friendly value.
+ */
+
+export type SanitizedError =
+  | { kind: 'Error'; name: string; message: string; stackSnippet?: string }
+  | { kind: 'String'; value: string }
+  | { kind: 'Json'; value: JsonValue }

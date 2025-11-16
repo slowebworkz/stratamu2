@@ -1,4 +1,4 @@
-import { isInternalEvent } from '@/events/private-events.js'
+import { isInternalEvent } from '@/events'
 import type { EventKey } from '@/events/types.js'
 import { perfNow } from '@/performance/perf-now.js'
 import type { Count, ErrorCount, ListenerName, TimeInMs } from '@/performance/types.js'

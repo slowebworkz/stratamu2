@@ -4,15 +4,15 @@ import type { UnsubscribeFunction } from 'emittery'
 import isPlainObject from 'is-plain-object'
 import type { Jsonifiable, LiteralUnion, ReadonlyDeep, SetOptional } from 'type-fest'
 import { safeFormatPayload, serializeError } from '../utils/index.ts'
-import type { AllEvents } from './events-types.js'
+import { INTERNAL_ON_EMIT_ERROR, INTERNAL_ON_LISTENER_ERROR } from './constants.js'
 import { LoggedEmitter } from './logged-emitter.js'
-import { INTERNAL_ON_EMIT_ERROR, INTERNAL_ON_LISTENER_ERROR } from './private-events.js'
 import type {
+  AllEvents,
   ListenerCallback,
   Priority,
   PriorityListener,
   PriorityListenerOptions,
-} from './types.js'
+} from './types.ts'
 
 type EmitOptions = SetOptional<{ skipBaseListeners: boolean }, 'skipBaseListeners'>
 
