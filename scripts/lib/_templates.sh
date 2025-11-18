@@ -82,7 +82,7 @@ create_package_json() {
     },
     "scripts": {
       "build": "tsc --project tsconfig.json",
-      "lint": "eslint . --ext .ts,.tsx"
+      "lint": "pnpm exec biome check . --no-cache"
     },
     "devDependencies": {
       "typescript": $ts_version,
