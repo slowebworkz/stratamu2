@@ -9,7 +9,7 @@ function assertValidWeakMapKey<Original, Wrapped>(
 ): asserts key is Extract<Original, object> {
   if (subMap instanceof WeakMap) {
     if (!isValidWeakMapKey(key)) {
-      throw new TypeError('WeakMap keys must be non-null objects or functions')
+      throw new TypeError("WeakMap keys must be non-null objects or functions");
     }
   }
 }
@@ -17,9 +17,15 @@ function assertValidWeakMapKey<Original, Wrapped>(
 /**
  * Returns true if the value is a valid WeakMap key (function or plain object).
  */
-function isValidWeakMapKey(value: unknown): value is object | Function {
-  return (typeof value === 'object' && value !== null) || typeof value === 'function'
+function isValidWeakMapKey(value: unknown): value is object | AnyListenerFn {
+  return (typeof value === "object" && value !== null) || typeof value === "function";
 }
+
+
+/**
+ * Canonical type for any function signature (for event listeners, etc.)
+ */
+export type AnyListenerFn = (...args: unknown[]) => unknown;
 
 /**
  * Listener bookkeeping utilities for event systems.
@@ -27,28 +33,31 @@ function isValidWeakMapKey(value: unknown): value is object | Function {
  * cleaning up empty maps, and aggregating listener counts.
  */
 
-export type ListenerMap<EventName = string, Original = Function, Wrapped = Function> = Map<
-  EventName,
-  Map<Original, Wrapped>
->
+
+export type ListenerMap<
+  EventName = string,
+  Original = AnyListenerFn,
+  Wrapped = AnyListenerFn
+> = Map<EventName, Map<Original, Wrapped>>;
+
 
 export type ListenerMapWeak<
   EventName = string | symbol,
   Original extends object = object,
-  Wrapped = Function,
-> = Map<EventName, WeakMap<Original, Wrapped>>
+  Wrapped = AnyListenerFn
+> = Map<EventName, WeakMap<Original, Wrapped>>;
 
 type AnyMapLike<Original, Wrapped> =
   | Map<Original, Wrapped>
-  | WeakMap<Extract<Original, object>, Wrapped>
+  | WeakMap<Extract<Original, object>, Wrapped>;
 
 /** Create a new listener bookkeeping map. */
 export function createListenerMap<
   EventName = string,
-  Original = Function,
-  Wrapped = Function,
+  Original = AnyListenerFn,
+  Wrapped = AnyListenerFn,
 >(): ListenerMap<EventName, Original, Wrapped> {
-  return new Map()
+  return new Map();
 }
 
 /**
@@ -61,8 +70,8 @@ export function addListenerMapping<EventName, Original, Wrapped>(
   original: Original,
   wrapped: Wrapped,
 ): void {
-  const subMap = getOrCreateSubMap(map, event, () => new Map<Original, Wrapped>())
-  subMap.set(original, wrapped)
+  const subMap = getOrCreateSubMap(map, event, () => new Map<Original, Wrapped>());
+  subMap.set(original, wrapped);
 }
 
 /**
@@ -74,14 +83,14 @@ export function removeListenerMapping<EventName, Original, Wrapped>(
   event: EventName,
   original: Original,
 ): void {
-  removeEntry(map, event, original)
+  removeEntry(map, event, original);
 }
 
 /** Remove all listener mappings. */
 export function clearAllListenerMappings<EventName, Original, Wrapped>(
   map: ListenerMap<EventName, Original, Wrapped>,
 ): void {
-  clearAllCommon(map)
+  clearAllCommon(map);
 }
 
 /** Get the wrapped listener for a given event and original listener. */
@@ -90,21 +99,21 @@ export function getWrappedListener<EventName, Original, Wrapped>(
   event: EventName,
   original: Original,
 ): Wrapped | undefined {
-  return map.get(event)?.get(original)
+  return map.get(event)?.get(original);
 }
 
 /** Get listener counts per event and total, preserving key fidelity. */
 export function getListenerCounts<EventName, Original, Wrapped>(
   map: ListenerMap<EventName, Original, Wrapped>,
 ): { perEvent: Map<EventName, number>; total: number } {
-  const perEvent = new Map<EventName, number>()
-  let total = 0
+  const perEvent = new Map<EventName, number>();
+  let total = 0;
   for (const [event, subMap] of map.entries()) {
-    const count = subMap.size
-    perEvent.set(event, count)
-    total += count
+    const count = subMap.size;
+    perEvent.set(event, count);
+    total += count;
   }
-  return { perEvent, total }
+  return { perEvent, total };
 }
 
 /** Check if a mapping exists for a given event and original listener. */
@@ -113,7 +122,7 @@ export function hasListener<EventName, Original, Wrapped>(
   event: EventName,
   original: Original,
 ): boolean {
-  return hasListenerCommon(map, event, original)
+  return hasListenerCommon(map, event, original);
 }
 
 /**
@@ -127,7 +136,7 @@ export function createListenerMapWeak<
   Original extends object = object,
   Wrapped = Function,
 >(): ListenerMapWeak<EventName, Original, Wrapped> {
-  return new Map()
+  return new Map();
 }
 
 /**
@@ -140,8 +149,8 @@ export function addListenerMappingWeak<EventName, Original extends object, Wrapp
   original: Original,
   wrapped: Wrapped,
 ): void {
-  const subMap = getOrCreateSubMap(map, event, () => new WeakMap<Original, Wrapped>())
-  subMap.set(original, wrapped)
+  const subMap = getOrCreateSubMap(map, event, () => new WeakMap<Original, Wrapped>());
+  subMap.set(original, wrapped);
 }
 
 /**
@@ -153,7 +162,7 @@ export function addListenerMappingWeak<EventName, Original extends object, Wrapp
 export function clearAllListenerMappingsWeak<EventName, Original extends object, Wrapped>(
   map: ListenerMapWeak<EventName, Original, Wrapped>,
 ): void {
-  clearAllCommon(map)
+  clearAllCommon(map);
 }
 
 /** Get the wrapped listener for a given event and original listener (WeakMap version). */
@@ -163,7 +172,7 @@ export function getWrappedListenerWeak<EventName, Original extends object, Wrapp
   original: Original,
 ): Wrapped | undefined {
   // Type constraint ensures only objects/functions are used as keys; no cast or runtime check needed
-  return map.get(event)?.get(original)
+  return map.get(event)?.get(original);
 }
 
 /** Check if a mapping exists for a given event and original listener (WeakMap version). */
@@ -173,7 +182,7 @@ export function hasListenerWeak<EventName, Original extends object, Wrapped>(
   original: Original,
 ): boolean {
   // Type constraint ensures only objects/functions are used as keys; no cast or runtime check needed
-  return map.get(event)?.has(original) ?? false
+  return map.get(event)?.has(original) ?? false;
 }
 
 /** Common helper to get or create a sub-map (Map or WeakMap) */
@@ -183,12 +192,12 @@ function getOrCreateSubMap<
   Wrapped,
   SubMap extends AnyMapLike<Original, Wrapped>,
 >(map: Map<EventName, SubMap>, event: EventName, createSubMap: () => SubMap): SubMap {
-  let subMap = map.get(event)
+  let subMap = map.get(event);
   if (!subMap) {
-    subMap = createSubMap()
-    map.set(event, subMap)
+    subMap = createSubMap();
+    map.set(event, subMap);
   }
-  return subMap
+  return subMap;
 }
 
 /** Common helper to check existence (Map or WeakMap) */
@@ -197,10 +206,10 @@ function hasListenerCommon<Original, Wrapped>(
   event: any,
   original: unknown,
 ): boolean {
-  const subMap = map.get(event)
-  if (!subMap) return false
-  assertValidWeakMapKey<Original, Wrapped>(subMap, original)
-  return subMap.has(original)
+  const subMap = map.get(event);
+  if (!subMap) return false;
+  assertValidWeakMapKey<Original, Wrapped>(subMap, original);
+  return subMap.has(original);
 }
 
 /** Unified remove helper for Map and WeakMap sub-maps */
@@ -209,20 +218,20 @@ function removeEntry<EventName, Original, Wrapped>(
   event: EventName,
   original: Original,
 ): void {
-  const subMap = map.get(event)
-  if (!subMap) return
-  assertValidWeakMapKey<Original, Wrapped>(subMap, original)
-  subMap.delete(original)
+  const subMap = map.get(event);
+  if (!subMap) return;
+  assertValidWeakMapKey<Original, Wrapped>(subMap, original);
+  subMap.delete(original);
   // Note: For Map sub-maps, we can remove the event key if the sub-map is empty.
   // For WeakMap sub-maps, JavaScript does not provide a way to check if the WeakMap is empty,
   // so the event key may remain in the main map even if the WeakMap is empty. This is not a significant
   // memory leak, as WeakMap entries are garbage collected when their keys are unreachable.
   if (subMap instanceof Map && subMap.size === 0) {
-    map.delete(event)
+    map.delete(event);
   }
 }
 
 /** Common clear helper */
 function clearAllCommon(map: Map<any, any>): void {
-  map.clear()
+  map.clear();
 }

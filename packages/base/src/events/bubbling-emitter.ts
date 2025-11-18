@@ -1,6 +1,6 @@
-import type { AllEvents } from '@/events'
-import { FilteredPriorityEmitter } from '@/events'
-import type { Args, BaseEventMap } from '@repo/types'
+import type { AllEvents } from "@/events";
+import { FilteredPriorityEmitter } from "@/events";
+import type { Args, BaseEventMap } from "@repo/types";
 
 // Helper type for parent event map construction
 
@@ -11,27 +11,27 @@ export abstract class BubblingEmitter<
   /**
    * Optional parent emitter to which events may bubble.
    */
-  protected parent?: BubblingEmitter<ParentEventMap>
+  protected parent?: BubblingEmitter<ParentEventMap>;
 
   /**
    * Set of event names that should bubble to the parent.
    */
-  private bubbleEvents = new Set<keyof EventMap>()
+  private bubbleEvents = new Set<keyof EventMap>();
 
   /**
    * Construct a BubblingEmitter with an optional parent.
    * @param parent Optional parent emitter for bubbling.
    */
   constructor(parent?: BubblingEmitter<ParentEventMap>) {
-    super()
-    this.parent = parent
+    super();
+    this.parent = parent;
   }
 
   /**
    * Get the parent emitter, if any.
    */
   public getParent(): BubblingEmitter<ParentEventMap> | undefined {
-    return this.parent
+    return this.parent;
   }
 
   /**
@@ -39,7 +39,7 @@ export abstract class BubblingEmitter<
    * @returns Readonly set of event names with bubbling enabled
    */
   public getBubblingEvents(): ReadonlySet<keyof EventMap> {
-    return this.bubbleEvents
+    return this.bubbleEvents;
   }
 
   /**
@@ -47,7 +47,7 @@ export abstract class BubblingEmitter<
    * @param event The event name to check.
    */
   public isBubbling<Name extends keyof EventMap>(event: Name): boolean {
-    return this.bubbleEvents.has(event)
+    return this.bubbleEvents.has(event);
   }
 
   /**
@@ -55,7 +55,7 @@ export abstract class BubblingEmitter<
    * @param event The event name to enable bubbling for.
    */
   public enableBubble<Name extends keyof EventMap>(event: Name): void {
-    this.bubbleEvents.add(event)
+    this.bubbleEvents.add(event);
   }
 
   /**
@@ -63,7 +63,7 @@ export abstract class BubblingEmitter<
    * @param event The event name to disable bubbling for.
    */
   public disableBubble<Name extends keyof EventMap>(event: Name): void {
-    this.bubbleEvents.delete(event)
+    this.bubbleEvents.delete(event);
   }
 
   /**
@@ -75,9 +75,9 @@ export abstract class BubblingEmitter<
     eventName: Name,
     ...args: Args<EventMap[Name]>
   ): Promise<void> {
-    await this.emitSafe(eventName, ...(args as any))
+    await this.emitSafe(eventName, ...(args as any));
     if (this.isBubbling(eventName)) {
-      await this.bubbleToParent(eventName, args)
+      await this.bubbleToParent(eventName, args);
     }
   }
 
@@ -91,13 +91,13 @@ export abstract class BubblingEmitter<
     eventName: Name,
     ...args: Args<EventMap[Name]>
   ): Promise<void> {
-    await this.emitSafe(eventName, ...(args as any))
-    if (!this.parent || !this.isBubbling(eventName)) return
+    await this.emitSafe(eventName, ...(args as any));
+    if (!this.parent || !this.isBubbling(eventName)) return;
     // Fire-and-forget: don't await parent bubbling
     this.bubbleToParent(eventName, args).catch((error) => {
       // Log error to console to prevent unhandled promise rejections
-      console.error('BubblingEmitter: Failed to bubble event to parent:', error)
-    })
+      console.error("BubblingEmitter: Failed to bubble event to parent:", error);
+    });
   }
 
   /**
@@ -105,8 +105,8 @@ export abstract class BubblingEmitter<
    * This should be called when removing an emitter from a hierarchy.
    */
   public dispose(): void {
-    this.parent = undefined
-    this.bubbleEvents.clear()
+    this.parent = undefined;
+    this.bubbleEvents.clear();
   }
 
   /**
@@ -115,7 +115,7 @@ export abstract class BubblingEmitter<
   protected traceBubble<Name extends keyof EventMap>(eventName: Name): void {
     this.log?.debug?.(
       `[BubblingEmitter] Event "${String(eventName)}" bubbling from ${this.constructor.name}`,
-    )
+    );
   }
 
   /**
@@ -130,24 +130,24 @@ export abstract class BubblingEmitter<
     args: Args<EventMap[Name]>,
     visited: Set<BubblingEmitter<any>> = new Set(),
   ): Promise<void> {
-    const parent = this.parent
-    if (!parent) return
+    const parent = this.parent;
+    if (!parent) return;
 
     // Check if we've already visited this exact parent to prevent infinite loops
-    if (visited.has(parent)) return
+    if (visited.has(parent)) return;
 
     // Add current parent to visited set before continuing
-    visited.add(parent)
+    visited.add(parent);
 
     // Type-safe bubbling using helper type to reduce casting
-    const parentEventName = eventName as unknown as keyof ParentEventMap
-    const parentArgs = args as any // ArgsForParent removed, use any for compatibility
+    const parentEventName = eventName as unknown as keyof ParentEventMap;
+    const parentArgs = args as any; // ArgsForParent removed, use any for compatibility
 
-    await parent.emitSafe(parentEventName, ...(parentArgs as any))
+    await parent.emitSafe(parentEventName, ...(parentArgs as any));
 
     // Only continue bubbling if the parent has bubbling enabled for this event
     if (parent.isBubbling(parentEventName)) {
-      await parent.bubbleToParent(parentEventName, parentArgs, visited)
+      await parent.bubbleToParent(parentEventName, parentArgs, visited);
     }
   }
 
@@ -155,9 +155,9 @@ export abstract class BubblingEmitter<
    * Traverse to the root emitter in the bubbling hierarchy.
    */
   public getRoot(): BubblingEmitter<any> {
-    let node: BubblingEmitter<any> = this
-    while (node.parent) node = node.parent
-    return node
+    let node: BubblingEmitter<any> = this;
+    while (node.parent) node = node.parent;
+    return node;
   }
 }
 
@@ -169,8 +169,8 @@ export abstract class BubblingEmitter<
  */
 async function fireAndForget(promise: Promise<void>, context: string): Promise<void> {
   try {
-    await promise
+    await promise;
   } catch (error) {
-    console.error(`${context}:`, error)
+    console.error(`${context}:`, error);
   }
 }

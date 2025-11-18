@@ -3,7 +3,7 @@
  */
 export function normalizeEventName<K>(eventName: readonly K[] | K): K | undefined {
   if (Array.isArray(eventName)) {
-    return eventName.length > 0 ? eventName[0] : undefined
+    return eventName.length > 0 ? eventName[0] : undefined;
   }
-  return eventName as K
+  return eventName as K;
 }

@@ -1,26 +1,26 @@
-export type ErrorType = globalThis.Error
-export type ErrorOptionsType = globalThis.ErrorOptions
-export type ErrorCauseType = ErrorOptionsType['cause']
+export type ErrorType = globalThis.Error;
+export type ErrorOptionsType = globalThis.ErrorOptions;
+export type ErrorCauseType = ErrorOptionsType["cause"];
 
 export interface BaseErrorOptions<Cause extends ErrorCauseType = unknown> extends ErrorOptionsType {
-  cause?: Cause
+  cause?: Cause;
 }
 
 export class BaseError<Cause extends ErrorCauseType = unknown> extends globalThis.Error {
-  public override name: string = 'BaseError'
-  public override cause?: Cause
+  public override name = "BaseError";
+  public override cause?: Cause;
 
-  constructor(message: ErrorType['message'], options?: BaseErrorOptions<Cause>) {
-    super(message, options)
-    Object.setPrototypeOf(this, new.target.prototype) // Fix prototype chain
-    this.name = new.target.name // Dynamically set error name for subclasses
+  constructor(message: ErrorType["message"], options?: BaseErrorOptions<Cause>) {
+    super(message, options);
+    Object.setPrototypeOf(this, new.target.prototype); // Fix prototype chain
+    this.name = new.target.name; // Dynamically set error name for subclasses
 
     if (Error.captureStackTrace) {
-      Error.captureStackTrace(this, this.constructor)
+      Error.captureStackTrace(this, this.constructor);
     }
 
     if (options?.cause !== undefined) {
-      this.cause = options.cause
+      this.cause = options.cause;
     }
   }
 
@@ -34,8 +34,8 @@ export class BaseError<Cause extends ErrorCauseType = unknown> extends globalThi
             ? (this.cause.stack ?? this.cause.message)
             : JSON.stringify(this.cause)
         }`
-      : ''
-    return `${this.name}: ${this.message}${causeStr}`
+      : "";
+    return `${this.name}: ${this.message}${causeStr}`;
   }
 
   /**
@@ -43,7 +43,7 @@ export class BaseError<Cause extends ErrorCauseType = unknown> extends globalThi
    * Uses precise constructor typing for maximum type safety
    */
   static is<E extends BaseError<any>>(this: new (...args: any[]) => E, error: unknown): error is E {
-    return error instanceof this
+    return error instanceof BaseError;
   }
 
   /**
@@ -52,19 +52,21 @@ export class BaseError<Cause extends ErrorCauseType = unknown> extends globalThi
    * Uses the class's constructor for correct subclassing and type safety.
    */
   static wrap<T, E extends BaseError<any>>(
-    this: new (...args: any[]) => E,
+    this: new (
+      ...args: any[]
+    ) => E,
     innerFn: () => T,
     innerMessage: string,
     outerMessage: string,
   ): T {
     try {
       try {
-        return innerFn()
+        return innerFn();
       } catch (innerErr) {
-        throw new this(innerMessage, { cause: innerErr })
+        throw new BaseError(innerMessage, { cause: innerErr });
       }
     } catch (outerErr) {
-      throw new this(outerMessage, { cause: outerErr })
+      throw new BaseError(outerMessage, { cause: outerErr });
     }
   }
 
@@ -72,19 +74,21 @@ export class BaseError<Cause extends ErrorCauseType = unknown> extends globalThi
    * Async version of wrap for error chaining in async workflows.
    */
   static async wrapAsync<T, E extends BaseError<any>>(
-    this: new (...args: any[]) => E,
+    this: new (
+      ...args: any[]
+    ) => E,
     innerFn: () => Promise<T>,
     innerMessage: string,
     outerMessage: string,
   ): Promise<T> {
     try {
       try {
-        return await innerFn()
+        return await innerFn();
       } catch (innerErr) {
-        throw new this(innerMessage, { cause: innerErr })
+        throw new BaseError(innerMessage, { cause: innerErr });
       }
     } catch (outerErr) {
-      throw new this(outerMessage, { cause: outerErr })
+      throw new BaseError(outerMessage, { cause: outerErr });
     }
   }
 
@@ -92,10 +96,10 @@ export class BaseError<Cause extends ErrorCauseType = unknown> extends globalThi
    * Returns the deepest (root) cause in the error chain.
    */
   get rootCause(): unknown {
-    let cause: unknown = this.cause
+    let cause: unknown = this.cause;
     while (cause instanceof BaseError && cause.cause) {
-      cause = cause.cause
+      cause = cause.cause;
     }
-    return cause
+    return cause;
   }
 }

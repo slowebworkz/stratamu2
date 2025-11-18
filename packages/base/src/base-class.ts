@@ -1,7 +1,7 @@
-import { BubblingEmitter } from '@/events'
-import type { BaseEventMap } from '@repo/types'
+import { BubblingEmitter } from "@/events";
+import type { BaseEventMap } from "@repo/types";
 
-const ERROR_MSG = 'BaseClass cannot be instantiated directly'
+const ERROR_MSG = "BaseClass cannot be instantiated directly";
 
 /**
  * @abstract
@@ -14,8 +14,8 @@ export abstract class BaseClass<
   EventMap extends BaseEventMap<unknown[]> = BaseEventMap<unknown[]>,
 > extends BubblingEmitter<EventMap> {
   constructor() {
-    super()
-    BaseClass.ensureNotInstantiatedDirectly(new.target)
+    super();
+    BaseClass.ensureNotInstantiatedDirectly(new.target);
   }
 
   /**
@@ -24,7 +24,7 @@ export abstract class BaseClass<
    */
   protected static ensureNotInstantiatedDirectly(target: unknown): void {
     if (target === BaseClass) {
-      this.prototype.log?.error?.({ class: this.name, shouldThrow: true }, ERROR_MSG)
+      BaseClass.prototype.log?.error?.({ class: BaseClass.name, shouldThrow: true }, ERROR_MSG);
     }
   }
 }

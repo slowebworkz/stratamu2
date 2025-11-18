@@ -6,15 +6,15 @@
  */
 export function getGlobalThis(): typeof globalThis {
   // Prefer the standardized globalThis if available
-  if (typeof globalThis !== 'undefined') {
-    return globalThis
+  if (typeof globalThis !== "undefined") {
+    return globalThis;
   }
 
   // Fallback for very old Node versions
-  if (typeof global !== 'undefined') {
-    return global as typeof globalThis
+  if (typeof global !== "undefined") {
+    return global as typeof globalThis;
   }
 
   // Last resort: use Function constructor to escape sandboxed environments
-  return Function('return this')()
+  return Function("return this")();
 }
