@@ -1,11 +1,11 @@
 // Shared lifecycle event contract for all emitters
 
 export interface LifecycleEvents {
-  init: void
-  start: void
-  resume: void
-  suspend: void
-  stop: void
-  reset: void
-  destroy: void
+  init: undefined;
+  start: undefined;
+  resume: undefined;
+  suspend: undefined;
+  stop: undefined;
+  reset: undefined;
+  destroy: undefined;
 }

@@ -9,8 +9,8 @@
  * - non-finite values (NaN, Infinity) -> `undefined`
  */
 export function toNumber(value: unknown): number | undefined {
-  if (value == null) return undefined
-  if (typeof value === 'string' && value.trim() === '') return undefined
-  const n = Number(value)
-  return Number.isFinite(n) ? n : undefined
+  if (value == null) return undefined;
+  if (typeof value === "string" && value.trim() === "") return undefined;
+  const n = Number(value);
+  return Number.isFinite(n) ? n : undefined;
 }

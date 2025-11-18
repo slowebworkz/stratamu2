@@ -1,1 +1,1 @@
-export type Awaitable<T = void> = T | Promise<T>
+export type Awaitable<T = void> = T | Promise<T>;

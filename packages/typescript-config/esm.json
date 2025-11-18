@@ -9,7 +9,5 @@
     "declaration": true,
     "declarationDir": "dist"
   },
-  "include": [
-    "src/index.ts"
-  ]
+  "include": ["src/index.ts"]
 }

@@ -1,1 +1,1 @@
-export * from './dev-mode.ts'
+export * from "./dev-mode.ts";

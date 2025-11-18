@@ -1,1 +1,1 @@
-export type EventKeyType = string | number | symbol
+export type EventKeyType = string | number | symbol;

@@ -1,6 +1,5 @@
-import type { AllEventKeys, ListenerFn } from '@/events'
-import type { BaseEventMap } from '@repo/types';
-
+import type { AllEventKeys, ListenerFn } from "@/events";
+import type { BaseEventMap } from "@repo/types";
 
 /**
  * ListenerRegistry centralizes listener bookkeeping for event emitters.
@@ -19,11 +18,11 @@ export class ListenerRegistry<EventMap extends BaseEventMap<unknown[]>> {
     listener: ListenerFn<EventMap, E>,
     wrap?: (listener: ListenerFn<EventMap, E>) => ListenerFn<EventMap, E>,
   ): void {
-    const set = this.getListenerSet(event)
-    const map = this.getListenerMap(event)
-    const wrapped = wrap?.(listener) ?? listener
-    set.add(listener)
-    map.set(listener, wrapped)
+    const set = this.getListenerSet(event);
+    const map = this.getListenerMap(event);
+    const wrapped = wrap?.(listener) ?? listener;
+    set.add(listener);
+    map.set(listener, wrapped);
   }
 
   /**
@@ -34,48 +33,52 @@ export class ListenerRegistry<EventMap extends BaseEventMap<unknown[]>> {
     event: E,
     listener: ListenerFn<EventMap, E>,
   ): boolean {
-    const set = this.getListenerSet(event)
-    const map = this.getListenerMap(event)
-    map.delete(listener)
-    return set.delete(listener)
+    const set = this.getListenerSet(event);
+    const map = this.getListenerMap(event);
+    map.delete(listener);
+    return set.delete(listener);
   }
 
   /** Remove all listeners registered for a given event */
   public removeAllListenersFor<E extends AllEventKeys<EventMap>>(event: E): void {
-    const set = this.getListenerSet(event)
-    const map = this.getListenerMap(event)
-    map.clear()
-    set.clear()
+    const set = this.getListenerSet(event);
+    const map = this.getListenerMap(event);
+    map.clear();
+    set.clear();
   }
 
   /** Remove all listeners that reference a given target object (useful for player/entity teardown) */
-  public removeListenersByTarget(predicate: (listener: ListenerFn<EventMap, any>) => boolean): number {
-    return removeListenersByTargetCore(this.listenerSets, this.listenerMaps, predicate)
+  public removeListenersByTarget(
+    predicate: (listener: ListenerFn<EventMap, any>) => boolean,
+  ): number {
+    return removeListenersByTargetCore(this.listenerSets, this.listenerMaps, predicate);
   }
 
   /** Get the number of listeners for a specific event or all events */
   public getListenerCount(event?: AllEventKeys<EventMap>): number {
-    return getListenerCountCore(this.listenerSets, event)
+    return getListenerCountCore(this.listenerSets, event);
   }
 
   public addSeenEvent(event: AllEventKeys<EventMap>): void {
-    this.seenEvents.add(event)
+    this.seenEvents.add(event);
   }
 
   public getSeenEvents(): ReadonlySet<AllEventKeys<EventMap>> {
-    return this.seenEvents
+    return this.seenEvents;
   }
 
   public clearAll(): void {
-    this.listenerSets.clear()
-    this.seenEvents.clear()
-    this.listenerMaps.clear()
+    this.listenerSets.clear();
+    this.seenEvents.clear();
+    this.listenerMaps.clear();
   }
 
   /* ------------------- Internal retrieval ------------------- */
 
-  protected getListenerSet<E extends AllEventKeys<EventMap>>(event: E): Set<ListenerFn<EventMap, E>> {
-    return getListenerSetCore(this.listenerSets, event)
+  protected getListenerSet<E extends AllEventKeys<EventMap>>(
+    event: E,
+  ): Set<ListenerFn<EventMap, E>> {
+    return getListenerSetCore(this.listenerSets, event);
   }
 
   protected getListenerMap<E extends AllEventKeys<EventMap>>(
@@ -84,14 +87,14 @@ export class ListenerRegistry<EventMap extends BaseEventMap<unknown[]>> {
     return getOrCreateMap(this.listenerMaps, event) as Map<
       ListenerFn<EventMap, E>,
       ListenerFn<EventMap, E>
-    >
+    >;
   }
 
   /**
    * Get all listeners registered for a given event as an array.
    */
   public getListeners<E extends AllEventKeys<EventMap>>(event: E): ListenerFn<EventMap, E>[] {
-    return Array.from(this.getListenerSet(event))
+    return Array.from(this.getListenerSet(event));
   }
 
   /**
@@ -101,7 +104,7 @@ export class ListenerRegistry<EventMap extends BaseEventMap<unknown[]>> {
     event: E,
     listener: ListenerFn<EventMap, E>,
   ): boolean {
-    return this.getListenerSet(event).has(listener)
+    return this.getListenerSet(event).has(listener);
   }
 
   /**
@@ -112,22 +115,22 @@ export class ListenerRegistry<EventMap extends BaseEventMap<unknown[]>> {
     event: E,
     original: ListenerFn<EventMap, E>,
   ): ListenerFn<EventMap, E> | undefined {
-    return this.getListenerMap(event).get(original)
+    return this.getListenerMap(event).get(original);
   }
 
   /* ------------------- Private storage ------------------- */
 
   /** Map of event key to Set of original listeners (typed per event) */
-  private readonly listenerSets = new Map<AllEventKeys<EventMap>, Set<ListenerFn<EventMap, any>>>()
+  private readonly listenerSets = new Map<AllEventKeys<EventMap>, Set<ListenerFn<EventMap, any>>>();
 
   /** Map of event key to Map of original listener to wrapped listener (typed per event) */
   private readonly listenerMaps = new Map<
     AllEventKeys<EventMap>,
     Map<ListenerFn<EventMap, any>, ListenerFn<EventMap, any>>
-  >()
+  >();
 
   /** Set of event keys that have been seen (used for metrics, etc.) */
-  private readonly seenEvents = new Set<AllEventKeys<EventMap>>()
+  private readonly seenEvents = new Set<AllEventKeys<EventMap>>();
 
   /* ------------------- Static API ------------------- */
 
@@ -140,20 +143,20 @@ export class ListenerRegistry<EventMap extends BaseEventMap<unknown[]>> {
   public static createSafeListener<
     EventMap extends BaseEventMap<unknown[]>,
     K extends AllEventKeys<EventMap>,
-    Ctx
+    Ctx,
   >(
     event: K,
     listener: ListenerFn<{ [E in K]: [EventMap[E]] }, K>,
     onError: (event: K, error: unknown, context: Ctx) => void,
-    context: Ctx
+    context: Ctx,
   ): ListenerFn<{ [E in K]: [EventMap[E]] }, K> {
     return async (...args: [EventMap[K]]) => {
       try {
-        await listener(...args)
+        await listener(...args);
       } catch (error) {
-        onError(event, error, context)
+        onError(event, error, context);
       }
-    }
+    };
   }
 }
 
@@ -168,12 +171,12 @@ export class ListenerRegistry<EventMap extends BaseEventMap<unknown[]>> {
  * @returns {Set<L>} The set of listeners for the event
  */
 export function getListenerSetCore<E, L>(sets: Map<E, Set<L>>, event: E): Set<L> {
-  let set = sets.get(event)
+  let set = sets.get(event);
   if (!set) {
-    set = new Set<L>()
-    sets.set(event, set)
+    set = new Set<L>();
+    sets.set(event, set);
   }
-  return set
+  return set;
 }
 
 /**
@@ -185,12 +188,12 @@ export function getListenerSetCore<E, L>(sets: Map<E, Set<L>>, event: E): Set<L>
  * @returns {Map<V, V>} The map for the given key
  */
 export function getOrCreateMap<K, V>(root: Map<K, Map<V, V>>, key: K): Map<V, V> {
-  let map = root.get(key)
+  let map = root.get(key);
   if (!map) {
-    map = new Map<V, V>()
-    root.set(key, map)
+    map = new Map<V, V>();
+    root.set(key, map);
   }
-  return map
+  return map;
 }
 
 /**
@@ -205,22 +208,22 @@ export function removeListenersByTargetCore(
   listenerMaps: Map<unknown, Map<unknown, unknown>>,
   predicate: (listener: any) => boolean,
 ): number {
-  let removed = 0
+  let removed = 0;
 
   for (const [event, set] of listenerSets) {
-    const map = listenerMaps.get(event)
-    if (!map) continue
+    const map = listenerMaps.get(event);
+    if (!map) continue;
 
     for (const listener of Array.from(set)) {
       if (predicate(listener)) {
-        map.delete(listener)
-        set.delete(listener)
-        removed++
+        map.delete(listener);
+        set.delete(listener);
+        removed++;
       }
     }
   }
 
-  return removed
+  return removed;
 }
 /**
  * Get the number of listeners for a specific event or all events.
@@ -229,10 +232,10 @@ export function removeListenersByTargetCore(
  * @returns {number} The number of listeners
  */
 export function getListenerCountCore(sets: Map<any, Set<any>>, event?: any): number {
-  if (event) return sets.get(event)?.size ?? 0
-  let total = 0
-  for (const s of sets.values()) total += s.size
-  return total
+  if (event) return sets.get(event)?.size ?? 0;
+  let total = 0;
+  for (const s of sets.values()) total += s.size;
+  return total;
 }
 
 /**
@@ -240,13 +243,13 @@ export function getListenerCountCore(sets: Map<any, Set<any>>, event?: any): num
  * The tag is stored as a non-enumerable property on the function.
  */
 export function tagListener<T extends Function>(listener: T, tag: any): T {
-  Object.defineProperty(listener, '__tag', {
+  Object.defineProperty(listener, "__tag", {
     configurable: true,
     enumerable: false,
     writable: true,
     value: tag,
-  })
-  return listener
+  });
+  return listener;
 }
 
 /**
@@ -255,12 +258,12 @@ export function tagListener<T extends Function>(listener: T, tag: any): T {
  */
 export function addListenerToRegistry<
   EventMap extends BaseEventMap<unknown[]>,
-  E extends AllEventKeys<EventMap>
+  E extends AllEventKeys<EventMap>,
 >(
   registry: ListenerRegistry<EventMap>,
   event: E,
   listener: ListenerFn<EventMap, E>,
-  wrap?: (listener: ListenerFn<EventMap, E>) => ListenerFn<EventMap, E>
+  wrap?: (listener: ListenerFn<EventMap, E>) => ListenerFn<EventMap, E>,
 ): void {
-  registry.addListener(event, listener, wrap)
+  registry.addListener(event, listener, wrap);
 }
