@@ -1,5 +1,5 @@
 import type { Count } from '@/performance/types.js'
-import type { Args, BaseEventMap, EventKeyType, EventListenerFn, EventName } from '@repo/types'
+import type { Args, Awaitable, BaseEventMap, EventKeyType, EventListenerFn, EventName } from '@repo/types'
 import type { OmnipresentEventData, UnsubscribeFunction } from 'emittery'
 import type { Level, Logger } from 'pino'
 import type {
@@ -15,6 +15,7 @@ import type {
 import {
   INTERNAL_ON_CHILD_ERROR,
   INTERNAL_ON_DESTROY,
+  INTERNAL_ON_DESTROY_ERROR,
   INTERNAL_ON_EMIT_ERROR,
   INTERNAL_ON_LISTENER_ERROR,
   INTERNAL_ON_LISTENER_REMOVED,
@@ -28,11 +29,29 @@ import {
 
 export type EventKey<T> = LiteralUnion<Extract<keyof T, string>, string>
 
+/**
+ * Strongly-typed listener function for a given event.
+ * @template EventMap - The event map type
+ * @template E - The event key (defaults to all keys of EventMap)
+ */
+export type ListenerFn<
+  EventMap extends BaseEventMap<unknown[]>,
+  E extends AllEventKeys<EventMap> = AllEventKeys<EventMap>,
+> = (...args: EventMap[E]) => Awaitable
+
+/**
+ * Listener for a single-payload event, defined in terms of ListenerFn for consistency.
+ * Accepts the event payload as a single argument.
+ */
 export type Listener<
   EventMap extends BaseEventMap<unknown> = BaseEventMap,
   Name extends keyof EventMap = keyof EventMap,
-> = (eventData: EventMap[Name]) => Promisable<void>
+> = ListenerFn<{ [K in Name]: [EventMap[K]] }, Name>
 
+/**
+ * Listener for a single-payload event on the full event map (user + omnipresent events).
+ * Alias for Listener using FullEventMap.
+ */
 export type FullListener<
   EventMap extends BaseEventMap<unknown>,
   Name extends keyof FullEventMap<EventMap> = keyof FullEventMap<EventMap>,
@@ -99,6 +118,23 @@ export type ReadonlyEventMetrics<
   EventMap extends BaseEventMap<unknown[]> = BaseEventMap<unknown[]>,
 > = ReadonlyDeep<EventMetrics<EventMap>>
 
+/**
+ * Utility type: If EventName<EventMap> is a string, use it; otherwise, fall back to string.
+ */
+export type EventNameString<EventMap extends Record<string, unknown>> =
+  EventName<EventMap> extends string ? EventName<EventMap> : string
+
+/**
+ * Performance level classification for event metrics.
+ */
+export type PerformanceLevel = 'excellent' | 'good' | 'concerning' | 'poor'
+
+// ===============================
+// Default Internal Event Map
+// ===============================
+
+export type DefaultInternalEventMap = InternalEventMap<Record<string, unknown[]>>
+
 // ===============================
 // LoggedEmitter Types
 // ===============================
@@ -125,18 +161,14 @@ export type LoggedEmitterListener<
 // Private events
 // ===============================
 
-type InternalEventMapListener = (...args: any[]) => Promisable<void>
+type InternalEventMapListener = ListenerFn<any, any>
 type InternalEventMapContext = Partial<Record<'emitter', unknown>>
 
 export type InternalEventMap<EventMap extends BaseEventMap<unknown[]>> = Simplify<{
   [INTERNAL_ON_LISTENER_ERROR]: [
     eventName: keyof EventMap,
     error: unknown,
-    context: {
-      type: 'on' | 'once'
-      listener?: InternalEventMapListener
-      hasFilter?: boolean
-    },
+    context: ListenerErrorContext,
   ]
   [INTERNAL_ON_EMIT_ERROR]: [
     eventName: keyof EventMap,
@@ -155,6 +187,7 @@ export type InternalEventMap<EventMap extends BaseEventMap<unknown[]>> = Simplif
   ]
   [INTERNAL_ON_CHILD_ERROR]: [error: unknown, context?: InternalEventMapContext]
   [INTERNAL_ON_DESTROY]: [emitter: unknown]
+  [INTERNAL_ON_DESTROY_ERROR]: [error: unknown, emitter: unknown]
 }>
 
 /**
@@ -164,6 +197,12 @@ export type InternalEventMap<EventMap extends BaseEventMap<unknown[]>> = Simplif
  */
 export type AllEvents<EventMap extends BaseEventMap<unknown[]>> = EventMap &
   InternalEventMap<EventMap>
+
+// ===============================
+// AllEventKeys Type
+// ===============================
+
+export type AllEventKeys<EventMap extends BaseEventMap<unknown[]>> = keyof AllEvents<EventMap>
 
 // ===============================
 // Logging/Emitter Types
@@ -204,6 +243,13 @@ export type PublicEventMap<EventMap extends BaseEventMap<unknown[]>> = Simplify<
 
 /** Developer-friendly union type for public event names (string literals + arbitrary strings). */
 export type PublicEventName<E> = LiteralUnion<Extract<keyof E, string>, string>
+
+export type ListenerErrorContext<Emitter = unknown> = {
+  type: 'on' | 'once'
+  listener?: ListenerFn<any, any>
+  hasFilter?: boolean
+  emitter?: Emitter
+}
 
 export type ListenerErrorLogEntry = ReadonlyDeep<{
   timestamp: number

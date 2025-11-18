@@ -1,11 +1,16 @@
 import { RingBuffer } from '@/data'
-import type { EventKey } from '@/events'
-import { incrementCount, internalPublicBus, normalizeEventKeyForMap, sumMapValues } from '@/events'
+import type {
+  EventKey,
+  PerEventCap,
+  PublicEventMap,
+  SafetyEmitterOptions,
+  SanitizedError,
+} from '@/events'
+import { incrementCount, normalizeEventKeyForMap, sumMapValues } from '@/events'
 import { emitDiagnosticWarning } from '@/node'
 import type { BaseEventMap } from '@repo/types'
 import Emittery from 'emittery'
 import type { JsonValue } from 'type-fest'
-import type { PerEventCap, PublicEventMap, SafetyEmitterOptions, SanitizedError } from '@/events'
 
 /** Default maximum number of safety log entries to keep per event. */
 const DEFAULT_SAFETY_LOG_CAP = 100 as const

@@ -1,16 +1,12 @@
+import type { AllEvents } from '@/events'
+import { FilteredPriorityEmitter } from '@/events'
 import type { Args, BaseEventMap } from '@repo/types'
-import { FilteredPriorityEmitter } from './index.ts'
 
 // Helper type for parent event map construction
-import type { Simplify } from 'type-fest'
-
-type SimpleEventMap<EventMap extends BaseEventMap<unknown[]>> = Simplify<
-  BaseEventMap<unknown[]> & Record<keyof EventMap, unknown[]>
->
 
 export abstract class BubblingEmitter<
   EventMap extends BaseEventMap<unknown[]> = BaseEventMap<unknown[]>,
-  ParentEventMap extends SimpleEventMap<EventMap> = SimpleEventMap<EventMap>,
+  ParentEventMap extends AllEvents<EventMap> = AllEvents<EventMap>,
 > extends FilteredPriorityEmitter<EventMap> {
   /**
    * Optional parent emitter to which events may bubble.
