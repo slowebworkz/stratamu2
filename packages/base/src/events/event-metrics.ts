@@ -1,36 +1,14 @@
-import type { EventName } from '@repo/types'
-import type { ReadonlyDeep, Simplify } from 'type-fest'
 import type {
-  Count,
+  // EventNameString,
   EfficiencyRatio,
   EfficiencyThreshold,
-  ErrorCount,
-  ListenerName,
-  TimeInMs,
-} from './types.js'
-
-/**
- * Utility type: If EventName<EventMap> is a string, use it; otherwise, fall back to string.
- */
-type EventNameString<EventMap extends Record<string, unknown>> =
-  EventName<EventMap> extends string ? EventName<EventMap> : string
-
-/**
- * Performance level classification for event metrics.
- */
-export type PerformanceLevel = 'excellent' | 'good' | 'concerning' | 'poor'
-
-// Domain constants for branded types
-const ZERO_MS = 0 as TimeInMs
-const ZERO_COUNT = 0 as Count
-
-/**
- * Centralized performance thresholds for event metrics.
- */
-export const PERFORMANCE_THRESHOLDS = {
-  concern: 3 as EfficiencyThreshold,
-  outlier: 5 as EfficiencyThreshold,
-} as const
+  PerformanceLevel,
+} from '@/events'
+import { PERFORMANCE_THRESHOLDS } from '@/events'
+import type { Count, ErrorCount, ListenerName, TimeInMs } from '@/performance'
+import { isFiniteNumber, isNumber } from '@/utils'
+import type { EventName } from '@repo/types'
+import type { ReadonlyDeep, Simplify } from 'type-fest'
 
 /**
  * EventMetrics class encapsulates per-event emission statistics with type-safe branded properties.
@@ -245,7 +223,7 @@ function toEventNameString<T>(arg: T): string {
  * @param fallback - String to use if value is not a finite number (default: 'N/A')
  */
 function formatNumber(value: number | null | undefined, digits = 2, fallback = 'N/A'): string {
-  if (typeof value !== 'number' || !Number.isFinite(value)) return fallback
+  if (!isNumber(value) || !isFiniteNumber(value)) return fallback
   return value.toFixed(digits)
 }
 
@@ -254,7 +232,7 @@ function formatNumber(value: number | null | undefined, digits = 2, fallback = '
  * Returns 0 if count is zero or if the result is not a finite, non-negative number.
  */
 function computeAverageTimeMs(count: Count, totalTimeMs: TimeInMs): TimeInMs {
-  if (typeof count !== 'number' || typeof totalTimeMs !== 'number') {
+  if (!isNumber(count) || !isNumber(totalTimeMs)) {
     throw new TypeError('computeAverageTimeMs: count and totalTimeMs must be numbers')
   }
   if (count <= 0) return 0 as TimeInMs
@@ -271,7 +249,7 @@ function computeEfficiencyRatio(
   slowestTimeMs?: TimeInMs,
 ): EfficiencyRatio | undefined {
   if (slowestTimeMs === undefined) return undefined
-  if (typeof averageTimeMs !== 'number' || typeof slowestTimeMs !== 'number') return undefined
+  if (!isNumber(averageTimeMs) || !isNumber(slowestTimeMs)) return undefined
   if (!isFinite(averageTimeMs) || !isFinite(slowestTimeMs)) return undefined
   if (averageTimeMs <= 0 || slowestTimeMs < 0) return undefined
   const ratio = slowestTimeMs / averageTimeMs
@@ -283,7 +261,7 @@ function computeEfficiencyRatio(
  * Returns 100 if there are no attempts, clamps result to [0, 100], and checks for valid, non-negative, finite inputs.
  */
 function computeSuccessRate(count: Count, errorCount: ErrorCount): number {
-  if (typeof count !== 'number' || typeof errorCount !== 'number') {
+  if (!isNumber(count) || !isNumber(errorCount)) {
     throw new TypeError('computeSuccessRate: count and errorCount must be numbers')
   }
   if (!isFinite(count) || !isFinite(errorCount) || count < 0 || errorCount < 0) {
@@ -302,7 +280,7 @@ function computeSuccessRate(count: Count, errorCount: ErrorCount): number {
  * Returns 0 if there are no attempts, clamps result to [0, 100], and checks for valid, non-negative, finite inputs.
  */
 function computeErrorRate(count: Count, errorCount: ErrorCount): number {
-  if (typeof count !== 'number' || typeof errorCount !== 'number') {
+  if (!isNumber(count) || !isNumber(errorCount)) {
     throw new TypeError('computeErrorRate: count and errorCount must be numbers')
   }
   if (!isFinite(count) || !isFinite(errorCount) || count < 0 || errorCount < 0) {
@@ -324,8 +302,8 @@ function hasPerformanceConcerns(
   ratio: EfficiencyRatio | undefined,
   threshold: EfficiencyThreshold,
 ): boolean {
-  if (typeof ratio !== 'number' || !isFinite(ratio) || ratio <= 0) return false
-  if (typeof threshold !== 'number' || !isFinite(threshold) || threshold <= 0) return false
+  if (!isNumber(ratio) || !isFinite(ratio) || ratio <= 0) return false
+  if (!isNumber(threshold) || !isFinite(threshold) || threshold <= 0) return false
   return ratio > threshold
 }
 
@@ -337,7 +315,7 @@ function getPerformanceLevel(
   ratio: EfficiencyRatio | undefined,
   hasEmissions: boolean,
 ): PerformanceLevel {
-  const r = typeof ratio === 'number' && isFinite(ratio) ? ratio : 1
+  const r = isNumber(ratio) && isFinite(ratio) ? ratio : 1
   if (!hasEmissions || r <= 1.5) return 'excellent'
   if (r <= 2.5) return 'good'
   if (r <= 4) return 'concerning'
@@ -434,25 +412,25 @@ function validateEventMetricsInput(params: {
     [
       'count',
       count,
-      (v) => typeof v === 'number' && v >= 0 && isFinite(v),
+      (v) => isNumber(v) && v >= 0 && isFinite(v),
       'must be a non-negative finite number',
     ],
     [
       'totalTimeMs',
       totalTimeMs,
-      (v) => typeof v === 'number' && v >= 0 && isFinite(v),
+      (v) => isNumber(v) && v >= 0 && isFinite(v),
       'must be a non-negative finite number',
     ],
     [
       'lastTimeMs',
       lastTimeMs,
-      (v) => typeof v === 'number' && v >= 0 && isFinite(v),
+      (v) => isNumber(v) && v >= 0 && isFinite(v),
       'must be a non-negative finite number',
     ],
     [
       'errorCount',
       errorCount,
-      (v) => typeof v === 'number' && v >= 0 && isFinite(v),
+      (v) => isNumber(v) && v >= 0 && isFinite(v),
       'must be a non-negative finite number',
     ],
   ]

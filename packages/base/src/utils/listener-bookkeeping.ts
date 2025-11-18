@@ -213,7 +213,10 @@ function removeEntry<EventName, Original, Wrapped>(
   if (!subMap) return
   assertValidWeakMapKey<Original, Wrapped>(subMap, original)
   subMap.delete(original)
-  // WeakMaps cannot be introspected, so event keys are not auto-deleted.
+  // Note: For Map sub-maps, we can remove the event key if the sub-map is empty.
+  // For WeakMap sub-maps, JavaScript does not provide a way to check if the WeakMap is empty,
+  // so the event key may remain in the main map even if the WeakMap is empty. This is not a significant
+  // memory leak, as WeakMap entries are garbage collected when their keys are unreachable.
   if (subMap instanceof Map && subMap.size === 0) {
     map.delete(event)
   }

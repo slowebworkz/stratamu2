@@ -1,5 +1,5 @@
-import type { LiteralUnion, ReadonlyDeep } from 'type-fest'
 import type { DeepReadonlyRecord, EfficiencyThreshold } from '@/events'
+import type { LiteralUnion, ReadonlyDeep } from 'type-fest'
 
 // -----------------------------------------------------------------------------
 // General Event Constants
@@ -35,6 +35,7 @@ export const INTERNAL_ON_REMOVE_WARN = Symbol('internal_on_remove_warn')
 export const INTERNAL_ON_LISTENER_REMOVED = Symbol('internal_on_listener_removed')
 export const INTERNAL_ON_CHILD_ERROR = Symbol('internal_on_child_error')
 export const INTERNAL_ON_DESTROY = Symbol('internal_on_destroy')
+export const INTERNAL_ON_DESTROY_ERROR = Symbol('internal_on_destroy_error')
 export const INTERNAL_ENABLE_METRICS = Symbol('internal_enable_metrics')
 
 export type InternalEvent =

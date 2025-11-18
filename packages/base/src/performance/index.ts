@@ -1,2 +1,3 @@
-export * from './metrics-tracker.js'
-export * from './perf-now.js'
+export * from './metrics-tracker.ts'
+export * from './perf-now.ts'
+export * from './types.ts'
