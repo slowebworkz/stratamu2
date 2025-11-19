@@ -9,7 +9,7 @@
     "lint": "turbo run lint",
     "lint:fix": "turbo run lint:fix",
     "format:sh": "shfmt -w scripts/*",
-    "format": "pnpm run format:sh",
+    "format": "pnpm exec biome format . --write",
     "check-types": "turbo run check-types",
     "prepare": "husky",
     "test": "turbo run test"

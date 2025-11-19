@@ -6,12 +6,12 @@
  */
 
 export class ListNode<T> {
-  value: T;
+  value: T
 
-  next: ListNode<T> | null = null;
+  next: ListNode<T> | null = null
 
   constructor(value: T) {
-    this.value = value;
+    this.value = value
   }
 }
 
@@ -20,18 +20,18 @@ export class LinkedList<T> implements Iterable<T> {
    * Returns a new array of all items matching the predicate.
    */
   filter(predicate: (value: T, index: number) => boolean): T[] {
-    const result: T[] = [];
-    let i = 0;
+    const result: T[] = []
+    let i = 0
     for (const v of this) {
-      if (predicate(v, i)) result.push(v);
-      i++;
+      if (predicate(v, i)) result.push(v)
+      i++
     }
-    return result;
+    return result
   }
-  private head: ListNode<T> | null = null;
-  private tail: ListNode<T> | null = null;
-  private _size = 0;
-  private compareFn?: (a: T, b: T) => number;
+  private head: ListNode<T> | null = null
+  private tail: ListNode<T> | null = null
+  private _size = 0
+  private compareFn?: (a: T, b: T) => number
 
   /**
    * Create a linked list.
@@ -43,153 +43,153 @@ export class LinkedList<T> implements Iterable<T> {
     maybeCompare?: (a: T, b: T) => number,
   ) {
     if (typeof iterableOrCompare === "function") {
-      this.compareFn = iterableOrCompare;
+      this.compareFn = iterableOrCompare
     } else if (iterableOrCompare) {
       // Set compareFn first if provided
-      if (maybeCompare) this.compareFn = maybeCompare;
+      if (maybeCompare) this.compareFn = maybeCompare
 
       // Now add items (they will be sorted if compareFn is set)
-      for (const v of iterableOrCompare) this.push(v);
+      for (const v of iterableOrCompare) this.push(v)
     }
 
     // Set compareFn if it wasn't set above
-    if (maybeCompare && !this.compareFn) this.compareFn = maybeCompare;
+    if (maybeCompare && !this.compareFn) this.compareFn = maybeCompare
   }
 
   /** Number of items */
   get size(): number {
-    return this._size;
+    return this._size
   }
 
   /** Add to the end (or sorted insert if compareFn is set) */
   push(value: T): this {
-    if (this.compareFn) return this.sortedInsert(value, this.compareFn);
-    const node = new ListNode(value);
+    if (this.compareFn) return this.sortedInsert(value, this.compareFn)
+    const node = new ListNode(value)
     if (!this.head) {
-      this.head = this.tail = node;
+      this.head = this.tail = node
     } else {
-      this.tail!.next = node;
-      this.tail = node;
+      this.tail!.next = node
+      this.tail = node
     }
-    this._size++;
-    return this;
+    this._size++
+    return this
   }
 
   /** Add to the front (or sorted insert if compareFn is set) */
   unshift(value: T): this {
-    if (this.compareFn) return this.sortedInsert(value, this.compareFn);
-    const node = new ListNode(value);
-    node.next = this.head;
-    this.head = node;
-    if (!this.tail) this.tail = node;
-    this._size++;
-    return this;
+    if (this.compareFn) return this.sortedInsert(value, this.compareFn)
+    const node = new ListNode(value)
+    node.next = this.head
+    this.head = node
+    if (!this.tail) this.tail = node
+    this._size++
+    return this
   }
 
   /** Remove from the front */
   shift(): T | undefined {
-    if (!this.head) return undefined;
-    const v = this.head.value;
-    this.head = this.head.next;
-    if (!this.head) this.tail = null;
-    this._size--;
-    return v;
+    if (!this.head) return undefined
+    const v = this.head.value
+    this.head = this.head.next
+    if (!this.head) this.tail = null
+    this._size--
+    return v
   }
 
   /** Get node value at index (0-based) */
   get(index: number): T | undefined {
-    if (index < 0 || index >= this._size) return undefined;
-    let i = 0;
-    let cur = this.head;
+    if (index < 0 || index >= this._size) return undefined
+    let i = 0
+    let cur = this.head
     while (cur && i < index) {
-      cur = cur.next;
-      i++;
+      cur = cur.next
+      i++
     }
-    return cur?.value;
+    return cur?.value
   }
 
   /** Remove first occurrence of value (uses strict equality) */
   remove(value: T): boolean {
-    if (!this.head) return false;
+    if (!this.head) return false
     if (this.head.value === value) {
-      this.head = this.head.next;
-      if (!this.head) this.tail = null;
-      this._size--;
-      return true;
+      this.head = this.head.next
+      if (!this.head) this.tail = null
+      this._size--
+      return true
     }
-    let prev = this.head;
-    let cur = this.head.next;
+    let prev = this.head
+    let cur = this.head.next
     while (cur) {
       if (cur.value === value) {
-        prev.next = cur.next;
-        if (cur === this.tail) this.tail = prev;
-        this._size--;
-        return true;
+        prev.next = cur.next
+        if (cur === this.tail) this.tail = prev
+        this._size--
+        return true
       }
-      prev = cur;
-      cur = cur.next;
+      prev = cur
+      cur = cur.next
     }
-    return false;
+    return false
   }
 
   /** Convert to array */
   toArray(): T[] {
-    const out: T[] = [];
-    let cur = this.head;
+    const out: T[] = []
+    let cur = this.head
     while (cur) {
-      out.push(cur.value);
-      cur = cur.next;
+      out.push(cur.value)
+      cur = cur.next
     }
-    return out;
+    return out
   }
 
   /** Clear list */
   clear(): void {
-    this.head = this.tail = null;
-    this._size = 0;
+    this.head = this.tail = null
+    this._size = 0
   }
 
   /** Create from array/iterable */
   static fromArray<U>(items: Iterable<U>): LinkedList<U> {
-    return new LinkedList(items);
+    return new LinkedList(items)
   }
 
   /** Iterate over values */
   *[Symbol.iterator](): Iterator<T> {
-    let cur = this.head;
+    let cur = this.head
     while (cur) {
-      yield cur.value;
-      cur = cur.next;
+      yield cur.value
+      cur = cur.next
     }
   }
 
   /** forEach helper */
   forEach(fn: (value: T, index: number) => void): void {
-    let i = 0;
+    let i = 0
     for (const v of this) {
-      fn(v, i++);
+      fn(v, i++)
     }
   }
 
   /** Insert at index (0..size). returns false if index invalid */
   insertAt(index: number, value: T): boolean {
-    if (index < 0 || index > this._size) return false;
-    if (index === 0) return !!this.unshift(value); // always true
+    if (index < 0 || index > this._size) return false
+    if (index === 0) return !!this.unshift(value) // always true
     if (index === this._size) {
-      this.push(value);
-      return true;
+      this.push(value)
+      return true
     }
-    let i = 0;
-    let prev = this.head!;
+    let i = 0
+    let prev = this.head!
     while (i < index - 1) {
-      prev = prev.next!;
-      i++;
+      prev = prev.next!
+      i++
     }
-    const node = new ListNode(value);
-    node.next = prev.next;
-    prev.next = node;
-    this._size++;
-    return true;
+    const node = new ListNode(value)
+    node.next = prev.next
+    prev.next = node
+    this._size++
+    return true
   }
 
   /** Insert value into the list in sorted order */
@@ -197,39 +197,39 @@ export class LinkedList<T> implements Iterable<T> {
     value: T,
     compareFn: (a: T, b: T) => number = this.compareFn ?? ((a, b) => (a < b ? -1 : a > b ? 1 : 0)),
   ): this {
-    const node = new ListNode(value);
+    const node = new ListNode(value)
 
     // If the list is empty, insert as the only node
     if (!this.head) {
-      this.head = this.tail = node;
-      this._size++;
-      return this;
+      this.head = this.tail = node
+      this._size++
+      return this
     }
 
     // If should be inserted at the head
     if (compareFn(value, this.head.value) <= 0) {
-      node.next = this.head;
-      this.head = node;
-      this._size++;
-      return this;
+      node.next = this.head
+      this.head = node
+      this._size++
+      return this
     }
 
     // Traverse to find the correct spot
-    let prev = this.head;
-    let cur = this.head.next;
+    let prev = this.head
+    let cur = this.head.next
     while (cur && compareFn(value, cur.value) > 0) {
-      prev = cur;
-      cur = cur.next;
+      prev = cur
+      cur = cur.next
     }
 
     // Insert between prev and cur
-    node.next = cur;
-    prev.next = node;
+    node.next = cur
+    prev.next = node
 
     // If inserted at the end, update tail
-    if (!cur) this.tail = node;
+    if (!cur) this.tail = node
 
-    this._size++;
-    return this;
+    this._size++
+    return this
   }
 }

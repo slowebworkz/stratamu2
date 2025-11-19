@@ -1,5 +1,5 @@
-import type { BaseEventMap } from "@repo/types";
-import { BubblingEmitter } from "./bubbling-emitter.js";
+import type { BaseEventMap } from "@repo/types"
+import { BubblingEmitter } from "./bubbling-emitter.js"
 
 /**
  * DestroyableEmitter extends BubblingEmitter to add lifecycle cleanup.
@@ -16,13 +16,13 @@ export class DestroyableEmitter<
    * Remove all listeners from this emitter.
    */
   unsubscribeAll(): void {
-    super.clearListeners();
+    super.clearListeners()
     // Also clear priority listeners if this emitter has them
     if (
       "clearPriorityListeners" in this &&
       typeof (this as any).clearPriorityListeners === "function"
     ) {
-      (this as any).clearPriorityListeners();
+      ;(this as any).clearPriorityListeners()
     }
   }
 
@@ -32,13 +32,13 @@ export class DestroyableEmitter<
    */
   destroy(): void {
     try {
-      this.dispose(); // clears parent & bubbleEvents & listeners
+      this.dispose() // clears parent & bubbleEvents & listeners
     } catch {
       // Ignore dispose errors during destruction
     }
 
     try {
-      this.logger.flush?.();
+      this.logger.flush?.()
     } catch {
       // Ignore logger flush errors during destruction
     }

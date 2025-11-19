@@ -19,15 +19,15 @@
 export function isNumber(arg: unknown): arg is number {
   // Fast path: number primitive
   if (typeof arg === "number") {
-    return true;
+    return true
   }
 
   // Cross-realm Number object detection
   if (arg !== null && typeof arg === "object") {
-    return Object.prototype.toString.call(arg) === "[object Number]";
+    return Object.prototype.toString.call(arg) === "[object Number]"
   }
 
-  return false;
+  return false
 }
 
 /**
@@ -49,10 +49,10 @@ export function isNumber(arg: unknown): arg is number {
  */
 export function isFiniteNumber(arg: unknown): arg is number {
   if (!isNumber(arg)) {
-    return false;
+    return false
   }
 
-  return Number.isFinite(arg as number);
+  return Number.isFinite(arg as number)
 }
 
 /**
@@ -71,5 +71,5 @@ export function isFiniteNumber(arg: unknown): arg is number {
  * It deliberately does not treat non-number values as NaN.
  */
 export function isNaNValue(arg: unknown): boolean {
-  return isNumber(arg) && Number.isNaN(arg as number);
+  return isNumber(arg) && Number.isNaN(arg as number)
 }

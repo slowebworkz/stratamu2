@@ -5,6 +5,6 @@ const _LIFECYCLE_STATE = [
   "suspended",
   "stopped",
   "destroyed",
-] as const;
+] as const
 
-export type LifecycleState = (typeof _LIFECYCLE_STATE)[number];
+export type LifecycleState = (typeof _LIFECYCLE_STATE)[number]

@@ -12,7 +12,7 @@
     "clean": "rm -rf dist",
     "build": "pnpm run clean && tsc --project tsconfig.json && pnpm exec dts-bundle-generator -o dist/index.d.ts index.ts",
     "lint": "echo 'noop'",
-    "format": "echo 'noop'",
+    "format": "pnpm exec biome format . --write --no-cache",
     "lint:fix": "pnpm run lint || (pnpm run format && pnpm run lint)",
     "test": "echo 'noop'"
   },

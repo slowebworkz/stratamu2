@@ -8,7 +8,7 @@
 export const DEV_MODE: boolean = (() => {
   // --- Node / Bun / SSR environments ---
   if (typeof process !== "undefined" && process?.env?.NODE_ENV) {
-    return process.env.NODE_ENV !== "production";
+    return process.env.NODE_ENV !== "production"
   }
 
   // --- Bundlers may define __DEV__ (Vite, esbuild, Metro, Rollup) ---
@@ -16,7 +16,7 @@ export const DEV_MODE: boolean = (() => {
     // @ts-ignore - bundlers may inject this constant
     if (typeof __DEV__ !== "undefined") {
       // @ts-ignore
-      return Boolean(__DEV__);
+      return Boolean(__DEV__)
     }
   } catch {
     /* ignore */
@@ -28,12 +28,12 @@ export const DEV_MODE: boolean = (() => {
     // @ts-ignore - user may set window.__DEV__ manually
     if (typeof globalThis.__DEV__ !== "undefined") {
       // @ts-ignore
-      return Boolean(globalThis.__DEV__);
+      return Boolean(globalThis.__DEV__)
     }
   } catch {
     /* ignore */
   }
 
   // --- Default: assume production for safety ---
-  return false;
-})();
+  return false
+})()

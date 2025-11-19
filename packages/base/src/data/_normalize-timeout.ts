@@ -1,9 +1,9 @@
 /**
  * Represents a time duration in milliseconds.
  */
-export type Milliseconds = number;
+export type Milliseconds = number
 
-import { toNumber } from "@/data";
+import { toNumber } from "@/data"
 
 /**
  * Normalizes an arbitrary value into a valid positive integer number of milliseconds.
@@ -16,8 +16,8 @@ import { toNumber } from "@/data";
  * @returns A positive integer number of milliseconds, or `undefined` if invalid
  */
 export function normalizeTimeout(timeout: unknown): Milliseconds | undefined {
-  const n = toNumber(timeout);
-  if (n === undefined || n < 1) return undefined;
+  const n = toNumber(timeout)
+  if (n === undefined || n < 1) return undefined
 
-  return Math.floor(n);
+  return Math.floor(n)
 }

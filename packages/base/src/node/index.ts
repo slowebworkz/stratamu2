@@ -1,2 +1,2 @@
-export * from "./diagnostics.ts";
-export * from "./global-this.ts";
+export * from "./diagnostics.ts"
+export * from "./global-this.ts"

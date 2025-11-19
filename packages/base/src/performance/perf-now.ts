@@ -1,9 +1,9 @@
-import { performance } from "node:perf_hooks";
-import { getGlobalThis } from "../node/index.js";
+import { performance } from "node:perf_hooks"
+import { getGlobalThis } from "../node/index.js"
 
 // Obtain a runtime-safe reference to the global object so we don't rely on the
 // presence of the global `globalThis` identifier at parse-time in all targets.
-const g = getGlobalThis();
+const g = getGlobalThis()
 
 /**
  * High-precision timer wrapper:
@@ -16,4 +16,4 @@ export const perfNow: () => number =
     ? () => g.performance.now()
     : typeof performance?.now === "function"
       ? () => performance.now()
-      : () => Date.now();
+      : () => Date.now()

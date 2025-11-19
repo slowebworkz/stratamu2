@@ -1,6 +1,6 @@
-import tsconfigPaths from "vite-tsconfig-paths";
-import type { ViteUserConfig } from "vitest/config";
-import { defineConfig, mergeConfig } from "vitest/config";
+import tsconfigPaths from "vite-tsconfig-paths"
+import type { ViteUserConfig } from "vitest/config"
+import { defineConfig, mergeConfig } from "vitest/config"
 
 /**
  * Base Vitest configuration for packages in the monorepo.
@@ -22,7 +22,7 @@ const BASE_CONFIG = defineConfig({
       "**/{karma,rollup,webpack,vite,vitest,jest,ava,babel,nyc,cypress,tsup,build}.config.*",
     ],
   },
-});
+})
 
 /**
  * Creates a Vitest configuration by merging the base config with package-specific overrides.
@@ -42,8 +42,8 @@ const BASE_CONFIG = defineConfig({
  * ```
  */
 export function createVitestConfig(overrides: Partial<ViteUserConfig> = {}) {
-  return mergeConfig(BASE_CONFIG, defineConfig(overrides));
+  return mergeConfig(BASE_CONFIG, defineConfig(overrides))
 }
 
 // Export base config as default for backward compatibility
-export default BASE_CONFIG;
+export default BASE_CONFIG

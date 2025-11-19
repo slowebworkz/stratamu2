@@ -3,12 +3,12 @@ import type {
   EfficiencyRatio,
   EfficiencyThreshold,
   PerformanceLevel,
-} from "@/events";
-import { PERFORMANCE_THRESHOLDS } from "@/events";
-import type { Count, ErrorCount, ListenerName, TimeInMs } from "@/performance";
-import { isFiniteNumber, isNumber } from "@/utils";
-import type { EventName } from "@repo/types";
-import type { ReadonlyDeep, Simplify } from "type-fest";
+} from "@/events"
+import { PERFORMANCE_THRESHOLDS } from "@/events"
+import type { Count, ErrorCount, ListenerName, TimeInMs } from "@/performance"
+import { isFiniteNumber, isNumber } from "@/utils"
+import type { EventName } from "@repo/types"
+import type { ReadonlyDeep, Simplify } from "type-fest"
 
 /**
  * EventMetrics class encapsulates per-event emission statistics with type-safe branded properties.
@@ -17,10 +17,10 @@ import type { ReadonlyDeep, Simplify } from "type-fest";
  */
 export class EventMetrics<EventMap extends Record<string, unknown> = Record<string, unknown>> {
   // Private memoization cache
-  private _cachedAverageTimeMs?: TimeInMs;
-  private _cachedEfficiencyRatio?: EfficiencyRatio | undefined;
-  private _cachedSuccessRate?: number;
-  private _cachedErrorRate?: number;
+  private _cachedAverageTimeMs?: TimeInMs
+  private _cachedEfficiencyRatio?: EfficiencyRatio | undefined
+  private _cachedSuccessRate?: number
+  private _cachedErrorRate?: number
 
   constructor(
     public readonly event: EventName<EventMap>,
@@ -38,9 +38,9 @@ export class EventMetrics<EventMap extends Record<string, unknown> = Record<stri
       slowestTimeMs,
       slowestListener,
       errorCount,
-    });
+    })
     // Enforce immutability at runtime to prevent stale memoized values
-    Object.freeze(this);
+    Object.freeze(this)
   }
 
   /**
@@ -49,9 +49,9 @@ export class EventMetrics<EventMap extends Record<string, unknown> = Record<stri
    */
   get averageTimeMs(): TimeInMs {
     if (this._cachedAverageTimeMs === undefined) {
-      this._cachedAverageTimeMs = computeAverageTimeMs(this.count, this.totalTimeMs);
+      this._cachedAverageTimeMs = computeAverageTimeMs(this.count, this.totalTimeMs)
     }
-    return this._cachedAverageTimeMs;
+    return this._cachedAverageTimeMs
   }
 
   /**
@@ -60,10 +60,10 @@ export class EventMetrics<EventMap extends Record<string, unknown> = Record<stri
    */
   get efficiencyRatio(): EfficiencyRatio | undefined {
     if (this._cachedEfficiencyRatio !== undefined) {
-      return this._cachedEfficiencyRatio;
+      return this._cachedEfficiencyRatio
     }
-    this._cachedEfficiencyRatio = computeEfficiencyRatio(this.averageTimeMs, this.slowestTimeMs);
-    return this._cachedEfficiencyRatio;
+    this._cachedEfficiencyRatio = computeEfficiencyRatio(this.averageTimeMs, this.slowestTimeMs)
+    return this._cachedEfficiencyRatio
   }
 
   /**
@@ -72,7 +72,7 @@ export class EventMetrics<EventMap extends Record<string, unknown> = Record<stri
    * @returns True if efficiency ratio exceeds threshold
    */
   hasConcerns(threshold: EfficiencyThreshold = PERFORMANCE_THRESHOLDS.concern): boolean {
-    return hasPerformanceConcerns(this.efficiencyRatio, threshold);
+    return hasPerformanceConcerns(this.efficiencyRatio, threshold)
   }
 
   /**
@@ -80,7 +80,7 @@ export class EventMetrics<EventMap extends Record<string, unknown> = Record<stri
    * @returns True if the event has been emitted at least once
    */
   hasEmissions(): boolean {
-    return this.count > 0;
+    return this.count > 0
   }
 
   /**
@@ -88,7 +88,7 @@ export class EventMetrics<EventMap extends Record<string, unknown> = Record<stri
    * @returns True if the event has had at least one error
    */
   hasErrors(): boolean {
-    return this.errorCount > 0;
+    return this.errorCount > 0
   }
 
   /**
@@ -97,10 +97,10 @@ export class EventMetrics<EventMap extends Record<string, unknown> = Record<stri
    */
   getSuccessRate(): number {
     if (this._cachedSuccessRate !== undefined) {
-      return this._cachedSuccessRate;
+      return this._cachedSuccessRate
     }
-    this._cachedSuccessRate = computeSuccessRate(this.count, this.errorCount);
-    return this._cachedSuccessRate;
+    this._cachedSuccessRate = computeSuccessRate(this.count, this.errorCount)
+    return this._cachedSuccessRate
   }
 
   /**
@@ -109,10 +109,10 @@ export class EventMetrics<EventMap extends Record<string, unknown> = Record<stri
    */
   getErrorRate(): number {
     if (this._cachedErrorRate !== undefined) {
-      return this._cachedErrorRate;
+      return this._cachedErrorRate
     }
-    this._cachedErrorRate = computeErrorRate(this.count, this.errorCount);
-    return this._cachedErrorRate;
+    this._cachedErrorRate = computeErrorRate(this.count, this.errorCount)
+    return this._cachedErrorRate
   }
 
   /**
@@ -121,7 +121,7 @@ export class EventMetrics<EventMap extends Record<string, unknown> = Record<stri
    * @returns True if slowest listener is more than 5x the average time
    */
   isPerformanceOutlier(): boolean {
-    return hasPerformanceConcerns(this.efficiencyRatio, PERFORMANCE_THRESHOLDS.outlier);
+    return hasPerformanceConcerns(this.efficiencyRatio, PERFORMANCE_THRESHOLDS.outlier)
   }
 
   /**
@@ -129,7 +129,7 @@ export class EventMetrics<EventMap extends Record<string, unknown> = Record<stri
    * @returns Performance level: 'excellent', 'good', 'concerning', or 'poor'
    */
   getPerformanceLevel(): PerformanceLevel {
-    return getPerformanceLevel(this.efficiencyRatio, this.hasEmissions());
+    return getPerformanceLevel(this.efficiencyRatio, this.hasEmissions())
   }
 
   /**
@@ -138,7 +138,7 @@ export class EventMetrics<EventMap extends Record<string, unknown> = Record<stri
    * @returns True if this event has a lower average time
    */
   isFasterThan(other: EventMetrics): boolean {
-    return this.averageTimeMs < other.averageTimeMs;
+    return this.averageTimeMs < other.averageTimeMs
   }
 
   /**
@@ -153,7 +153,7 @@ export class EventMetrics<EventMap extends Record<string, unknown> = Record<stri
       avg: this.averageTimeMs,
       ratio: this.efficiencyRatio,
       successRate: this.getSuccessRate(),
-    });
+    })
   }
 
   /**
@@ -171,7 +171,7 @@ export class EventMetrics<EventMap extends Record<string, unknown> = Record<stri
       errorRate: this.getErrorRate(),
       slowestListener: this.slowestListener,
       slowestTimeMs: this.slowestTimeMs,
-    });
+    })
   }
 
   /**
@@ -180,16 +180,16 @@ export class EventMetrics<EventMap extends Record<string, unknown> = Record<stri
    */
   toJSON(): Simplify<
     ReadonlyDeep<{
-      event: string;
-      count: Count;
-      totalTimeMs: TimeInMs;
-      lastTimeMs: TimeInMs;
-      averageTimeMs: TimeInMs;
-      efficiencyRatio: EfficiencyRatio | undefined;
-      errorCount: ErrorCount;
-      successRate: number;
-      slowestListener?: ListenerName;
-      slowestTimeMs?: TimeInMs;
+      event: string
+      count: Count
+      totalTimeMs: TimeInMs
+      lastTimeMs: TimeInMs
+      averageTimeMs: TimeInMs
+      efficiencyRatio: EfficiencyRatio | undefined
+      errorCount: ErrorCount
+      successRate: number
+      slowestListener?: ListenerName
+      slowestTimeMs?: TimeInMs
     }>
   > {
     return {
@@ -203,7 +203,7 @@ export class EventMetrics<EventMap extends Record<string, unknown> = Record<stri
       successRate: this.getSuccessRate(),
       slowestListener: this.slowestListener,
       slowestTimeMs: this.slowestTimeMs,
-    };
+    }
   }
 }
 
@@ -213,7 +213,7 @@ export class EventMetrics<EventMap extends Record<string, unknown> = Record<stri
  * Otherwise, returns String(arg).
  */
 function toEventNameString<T>(arg: T): string {
-  return typeof arg === "string" ? arg : String(arg);
+  return typeof arg === "string" ? arg : String(arg)
 }
 
 /**
@@ -223,8 +223,8 @@ function toEventNameString<T>(arg: T): string {
  * @param fallback - String to use if value is not a finite number (default: 'N/A')
  */
 function formatNumber(value: number | null | undefined, digits = 2, fallback = "N/A"): string {
-  if (!isNumber(value) || !isFiniteNumber(value)) return fallback;
-  return value.toFixed(digits);
+  if (!isNumber(value) || !isFiniteNumber(value)) return fallback
+  return value.toFixed(digits)
 }
 
 /**
@@ -233,11 +233,11 @@ function formatNumber(value: number | null | undefined, digits = 2, fallback = "
  */
 function computeAverageTimeMs(count: Count, totalTimeMs: TimeInMs): TimeInMs {
   if (!isNumber(count) || !isNumber(totalTimeMs)) {
-    throw new TypeError("computeAverageTimeMs: count and totalTimeMs must be numbers");
+    throw new TypeError("computeAverageTimeMs: count and totalTimeMs must be numbers")
   }
-  if (count <= 0) return 0 as TimeInMs;
-  const avg = totalTimeMs / count;
-  return (Number.isFinite(avg) && avg >= 0 ? avg : 0) as TimeInMs;
+  if (count <= 0) return 0 as TimeInMs
+  const avg = totalTimeMs / count
+  return (Number.isFinite(avg) && avg >= 0 ? avg : 0) as TimeInMs
 }
 
 /**
@@ -248,12 +248,12 @@ function computeEfficiencyRatio(
   averageTimeMs: TimeInMs,
   slowestTimeMs?: TimeInMs,
 ): EfficiencyRatio | undefined {
-  if (slowestTimeMs === undefined) return undefined;
-  if (!isNumber(averageTimeMs) || !isNumber(slowestTimeMs)) return undefined;
-  if (!Number.isFinite(averageTimeMs) || !Number.isFinite(slowestTimeMs)) return undefined;
-  if (averageTimeMs <= 0 || slowestTimeMs < 0) return undefined;
-  const ratio = slowestTimeMs / averageTimeMs;
-  return (Number.isFinite(ratio) && ratio >= 0 ? ratio : undefined) as EfficiencyRatio | undefined;
+  if (slowestTimeMs === undefined) return undefined
+  if (!isNumber(averageTimeMs) || !isNumber(slowestTimeMs)) return undefined
+  if (!Number.isFinite(averageTimeMs) || !Number.isFinite(slowestTimeMs)) return undefined
+  if (averageTimeMs <= 0 || slowestTimeMs < 0) return undefined
+  const ratio = slowestTimeMs / averageTimeMs
+  return (Number.isFinite(ratio) && ratio >= 0 ? ratio : undefined) as EfficiencyRatio | undefined
 }
 
 /**
@@ -262,17 +262,17 @@ function computeEfficiencyRatio(
  */
 function computeSuccessRate(count: Count, errorCount: ErrorCount): number {
   if (!isNumber(count) || !isNumber(errorCount)) {
-    throw new TypeError("computeSuccessRate: count and errorCount must be numbers");
+    throw new TypeError("computeSuccessRate: count and errorCount must be numbers")
   }
   if (!Number.isFinite(count) || !Number.isFinite(errorCount) || count < 0 || errorCount < 0) {
-    return 100;
+    return 100
   }
-  const totalAttempts = count + errorCount;
-  if (totalAttempts === 0) return 100;
-  const rate = (count / totalAttempts) * 100;
-  if (!Number.isFinite(rate) || rate < 0) return 0;
-  if (rate > 100) return 100;
-  return rate;
+  const totalAttempts = count + errorCount
+  if (totalAttempts === 0) return 100
+  const rate = (count / totalAttempts) * 100
+  if (!Number.isFinite(rate) || rate < 0) return 0
+  if (rate > 100) return 100
+  return rate
 }
 
 /**
@@ -281,17 +281,17 @@ function computeSuccessRate(count: Count, errorCount: ErrorCount): number {
  */
 function computeErrorRate(count: Count, errorCount: ErrorCount): number {
   if (!isNumber(count) || !isNumber(errorCount)) {
-    throw new TypeError("computeErrorRate: count and errorCount must be numbers");
+    throw new TypeError("computeErrorRate: count and errorCount must be numbers")
   }
   if (!Number.isFinite(count) || !Number.isFinite(errorCount) || count < 0 || errorCount < 0) {
-    return 0;
+    return 0
   }
-  const totalAttempts = count + errorCount;
-  if (totalAttempts === 0) return 0;
-  const rate = (errorCount / totalAttempts) * 100;
-  if (!Number.isFinite(rate) || rate < 0) return 0;
-  if (rate > 100) return 100;
-  return rate;
+  const totalAttempts = count + errorCount
+  if (totalAttempts === 0) return 0
+  const rate = (errorCount / totalAttempts) * 100
+  if (!Number.isFinite(rate) || rate < 0) return 0
+  if (rate > 100) return 100
+  return rate
 }
 
 /**
@@ -302,9 +302,9 @@ function hasPerformanceConcerns(
   ratio: EfficiencyRatio | undefined,
   threshold: EfficiencyThreshold,
 ): boolean {
-  if (!isNumber(ratio) || !Number.isFinite(ratio) || ratio <= 0) return false;
-  if (!isNumber(threshold) || !Number.isFinite(threshold) || threshold <= 0) return false;
-  return ratio > threshold;
+  if (!isNumber(ratio) || !Number.isFinite(ratio) || ratio <= 0) return false
+  if (!isNumber(threshold) || !Number.isFinite(threshold) || threshold <= 0) return false
+  return ratio > threshold
 }
 
 /**
@@ -315,11 +315,11 @@ function getPerformanceLevel(
   ratio: EfficiencyRatio | undefined,
   hasEmissions: boolean,
 ): PerformanceLevel {
-  const r = isNumber(ratio) && Number.isFinite(ratio) ? ratio : 1;
-  if (!hasEmissions || r <= 1.5) return "excellent";
-  if (r <= 2.5) return "good";
-  if (r <= 4) return "concerning";
-  return "poor";
+  const r = isNumber(ratio) && Number.isFinite(ratio) ? ratio : 1
+  if (!hasEmissions || r <= 1.5) return "excellent"
+  if (r <= 2.5) return "good"
+  if (r <= 4) return "concerning"
+  return "poor"
 }
 
 /**
@@ -328,27 +328,27 @@ function getPerformanceLevel(
  * @returns Human-readable summary string
  */
 function formatPerformanceSummary(params: {
-  hasEmissions: boolean;
-  hasErrors: boolean;
-  level: PerformanceLevel;
-  avg: TimeInMs;
-  ratio?: EfficiencyRatio;
-  successRate: number;
+  hasEmissions: boolean
+  hasErrors: boolean
+  level: PerformanceLevel
+  avg: TimeInMs
+  ratio?: EfficiencyRatio
+  successRate: number
 }): string {
-  const { hasEmissions, hasErrors, level, avg, ratio, successRate } = params;
-  if (!hasEmissions && !hasErrors) return "No emissions recorded";
+  const { hasEmissions, hasErrors, level, avg, ratio, successRate } = params
+  if (!hasEmissions && !hasErrors) return "No emissions recorded"
 
-  const avgStr = formatNumber(avg, 2);
-  const ratioStr = formatNumber(ratio ?? 1, 1);
-  const successRateStr = formatNumber(successRate, 1);
+  const avgStr = formatNumber(avg, 2)
+  const ratioStr = formatNumber(ratio ?? 1, 1)
+  const successRateStr = formatNumber(successRate, 1)
 
-  const LEVEL_LABEL = `${level.toUpperCase()}:`;
-  const AVG_LABEL = `avg ${avgStr}ms`;
-  const RATIO_LABEL = `efficiency ratio ${ratioStr}x`;
-  const SUCCESS_LABEL = `success rate ${successRateStr}%`;
-  const parts = [LEVEL_LABEL, AVG_LABEL, RATIO_LABEL];
-  if (hasErrors) parts.push(SUCCESS_LABEL);
-  return parts.join(", ");
+  const LEVEL_LABEL = `${level.toUpperCase()}:`
+  const AVG_LABEL = `avg ${avgStr}ms`
+  const RATIO_LABEL = `efficiency ratio ${ratioStr}x`
+  const SUCCESS_LABEL = `success rate ${successRateStr}%`
+  const parts = [LEVEL_LABEL, AVG_LABEL, RATIO_LABEL]
+  if (hasErrors) parts.push(SUCCESS_LABEL)
+  return parts.join(", ")
 }
 
 /**
@@ -357,15 +357,15 @@ function formatPerformanceSummary(params: {
  * @returns Human-readable, non-empty string
  */
 function formatMetricsString(params: {
-  event: string;
-  count: Count;
-  avg: TimeInMs;
-  total: TimeInMs;
-  hasErrors: boolean;
-  errorCount: ErrorCount;
-  errorRate: number;
-  slowestListener?: ListenerName;
-  slowestTimeMs?: TimeInMs;
+  event: string
+  count: Count
+  avg: TimeInMs
+  total: TimeInMs
+  hasErrors: boolean
+  errorCount: ErrorCount
+  errorRate: number
+  slowestListener?: ListenerName
+  slowestTimeMs?: TimeInMs
 }): string {
   const {
     event,
@@ -377,21 +377,21 @@ function formatMetricsString(params: {
     errorRate,
     slowestListener,
     slowestTimeMs,
-  } = params;
+  } = params
 
-  const EVENT_LABEL = `${event}: ${count} emissions`;
-  const AVG_LABEL = `avg: ${formatNumber(avg, 2)}ms`;
-  const TOTAL_LABEL = `total: ${formatNumber(total, 2)}ms`;
-  const ERRORS_LABEL = `errors: ${errorCount} (${formatNumber(errorRate, 1)}%)`;
+  const EVENT_LABEL = `${event}: ${count} emissions`
+  const AVG_LABEL = `avg: ${formatNumber(avg, 2)}ms`
+  const TOTAL_LABEL = `total: ${formatNumber(total, 2)}ms`
+  const ERRORS_LABEL = `errors: ${errorCount} (${formatNumber(errorRate, 1)}%)`
   const SLOWEST_LABEL =
     slowestListener && slowestTimeMs !== undefined
       ? `slowest: ${slowestListener} (${formatNumber(slowestTimeMs, 2)}ms)`
-      : undefined;
+      : undefined
 
-  const parts = [EVENT_LABEL, AVG_LABEL, TOTAL_LABEL];
-  if (hasErrors) parts.push(ERRORS_LABEL);
-  if (SLOWEST_LABEL) parts.push(SLOWEST_LABEL);
-  return parts.join(", ");
+  const parts = [EVENT_LABEL, AVG_LABEL, TOTAL_LABEL]
+  if (hasErrors) parts.push(ERRORS_LABEL)
+  if (SLOWEST_LABEL) parts.push(SLOWEST_LABEL)
+  return parts.join(", ")
 }
 
 /**
@@ -399,52 +399,52 @@ function formatMetricsString(params: {
  * Throws TypeError if any value is invalid.
  */
 function validateEventMetricsInput(params: {
-  count: Count;
-  totalTimeMs: TimeInMs;
-  lastTimeMs: TimeInMs;
-  slowestTimeMs?: TimeInMs;
-  slowestListener?: ListenerName;
-  errorCount: ErrorCount;
+  count: Count
+  totalTimeMs: TimeInMs
+  lastTimeMs: TimeInMs
+  slowestTimeMs?: TimeInMs
+  slowestListener?: ListenerName
+  errorCount: ErrorCount
 }): void {
-  const { count, totalTimeMs, lastTimeMs, slowestTimeMs, slowestListener, errorCount } = params;
+  const { count, totalTimeMs, lastTimeMs, slowestTimeMs, slowestListener, errorCount } = params
 
   const checks: [string, unknown, (v: unknown) => boolean, string][] = [
     [
       "count",
       count,
-      (v) => isNumber(v) && v >= 0 && Number.isFinite(v),
+      v => isNumber(v) && v >= 0 && Number.isFinite(v),
       "must be a non-negative finite number",
     ],
     [
       "totalTimeMs",
       totalTimeMs,
-      (v) => isNumber(v) && v >= 0 && Number.isFinite(v),
+      v => isNumber(v) && v >= 0 && Number.isFinite(v),
       "must be a non-negative finite number",
     ],
     [
       "lastTimeMs",
       lastTimeMs,
-      (v) => isNumber(v) && v >= 0 && Number.isFinite(v),
+      v => isNumber(v) && v >= 0 && Number.isFinite(v),
       "must be a non-negative finite number",
     ],
     [
       "errorCount",
       errorCount,
-      (v) => isNumber(v) && v >= 0 && Number.isFinite(v),
+      v => isNumber(v) && v >= 0 && Number.isFinite(v),
       "must be a non-negative finite number",
     ],
-  ];
+  ]
   for (const [name, value, check, msg] of checks) {
-    if (!check(value)) throw new TypeError(`EventMetrics: ${name} ${msg}, got ${value}`);
+    if (!check(value)) throw new TypeError(`EventMetrics: ${name} ${msg}, got ${value}`)
   }
   if (slowestTimeMs !== undefined && (!Number.isFinite(slowestTimeMs) || slowestTimeMs < 0)) {
     throw new TypeError(
       `EventMetrics: slowestTimeMs must be a non-negative finite number, got ${slowestTimeMs}`,
-    );
+    )
   }
   if ((slowestListener === undefined) !== (slowestTimeMs === undefined)) {
     throw new TypeError(
       "EventMetrics: slowestListener and slowestTimeMs must both be defined or both be undefined",
-    );
+    )
   }
 }
