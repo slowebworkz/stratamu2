@@ -131,7 +131,7 @@ export function hasListener<EventName, Original, Wrapped>(
 export function createListenerMapWeak<
   EventName = string | symbol,
   Original extends object = object,
-  Wrapped = Function,
+  Wrapped = AnyListenerFn,
 >(): ListenerMapWeak<EventName, Original, Wrapped> {
   return new Map()
 }
@@ -198,9 +198,9 @@ function getOrCreateSubMap<
 }
 
 /** Common helper to check existence (Map or WeakMap) */
-function hasListenerCommon<Original, Wrapped>(
-  map: Map<any, AnyMapLike<Original, Wrapped>>,
-  event: any,
+function hasListenerCommon<EventName, Original, Wrapped>(
+  map: Map<EventName, AnyMapLike<Original, Wrapped>>,
+  event: EventName,
   original: unknown,
 ): boolean {
   const subMap = map.get(event)
@@ -229,6 +229,8 @@ function removeEntry<EventName, Original, Wrapped>(
 }
 
 /** Common clear helper */
-function clearAllCommon(map: Map<any, any>): void {
+function clearAllCommon<EventName, Original, Wrapped>(
+  map: Map<EventName, AnyMapLike<Original, Wrapped>>,
+): void {
   map.clear()
 }

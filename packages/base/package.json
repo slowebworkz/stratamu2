@@ -16,7 +16,7 @@
     "clean": "rm -rf dist",
     "lint": "pnpm exec biome check .",
     "lint:fix": "pnpm run lint --fix --unsafe",
-    "format": "pnpm exec biome format . --write --no-cache",
+    "format": "pnpm exec biome format . --write",
     "test": "vitest run --config ./tsconfig.test.json",
     "bench:build": "tsc --project tsconfig.json --outDir dist && mkdir -p dist/bench || true",
     "bench:run": "pnpm run bench:build && node ./dist/bench/run-bench.js",

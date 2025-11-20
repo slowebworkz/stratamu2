@@ -1,5 +1,5 @@
 import { performance } from "node:perf_hooks"
-import { getGlobalThis } from "../node/index.js"
+import { getGlobalThis } from "@/node"
 
 // Obtain a runtime-safe reference to the global object so we don't rely on the
 // presence of the global `globalThis` identifier at parse-time in all targets.

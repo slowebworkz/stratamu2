@@ -38,7 +38,7 @@ type ListenerList<EventMap, Name extends keyof EventMap> = LinkedList<
 /** Map of event keys to listener lists */
 type PriorityListenerMap<EventMap> = Map<
   EventKey<EventMap>,
-  LinkedList<PriorityListener<EventMap, any>>
+  LinkedList<PriorityListener<EventMap, keyof EventMap>>
 >
 
 /**
@@ -72,7 +72,7 @@ export abstract class FilteredPriorityEmitter<
     try {
       // TypeScript limitation: variadic tuple type for event args is not assignable to base emitter signature
       // This cast is safe because we control the event and its payload
-      await super.emit.call(this, event, ...(args as any))
+      await super.emit.call(this, event, ...args)
     } catch (err) {
       this.log?.error?.(
         await safeFormatPayload({ event: normalizeKey(event), error: serializeError(err) }),
@@ -115,10 +115,8 @@ export abstract class FilteredPriorityEmitter<
     callback: ListenerCallback<EventMap, EventName>,
     options?: PriorityListenerOptions<EventMap, EventName>,
   ): UnsubscribeFunction {
-    let unsubscribe: UnsubscribeFunction
     const wrapped = createOnceWrapper(callback, () => unsubscribe())
-    unsubscribe = this.onWithOptions(event, wrapped, options)
-    return unsubscribe
+    return this.onWithOptions(event, wrapped, options)
   }
 
   /**
@@ -142,11 +140,11 @@ export abstract class FilteredPriorityEmitter<
     })
 
     if (errors.length) {
-      await this._emitSuperSafe("error", ...(errors as any))
+      await this._emitSuperSafe("error", ...errors)
     }
 
     if (!options?.skipBaseListeners) {
-      await this._emitSuperSafe(event, ...(args as any))
+      await this._emitSuperSafe(event, ...args)
     }
   }
 
@@ -167,7 +165,7 @@ export abstract class FilteredPriorityEmitter<
   public removePriorityListeners<EventName extends keyof EventMap>(
     event?: LiteralUnion<EventName, string>,
   ): void {
-    clearListenersMap(this.priorityListenerMap, event as any)
+    clearListenersMap(this.priorityListenerMap, event as EventKey<EventMap>)
   }
 
   /**
@@ -178,8 +176,11 @@ export abstract class FilteredPriorityEmitter<
   public listenerCount<Name extends keyof EventMap>(
     eventName?: LiteralUnion<Name, string> | ReadonlyArray<Name>,
   ): number {
-    const priorityCount = countPriorityListeners(this.priorityListenerMap, eventName as any)
-    return priorityCount + super.listenerCount(eventName as any)
+    const priorityCount = countPriorityListeners(
+      this.priorityListenerMap,
+      eventName as EventKey<EventMap>,
+    )
+    return priorityCount + super.listenerCount(eventName as EventKey<EventMap>)
   }
 
   constructor() {
@@ -269,13 +270,19 @@ function createOrGetListenerList<EventMap, EventName extends keyof EventMap>(
   event: EventName,
 ): ListenerList<EventMap, EventName> {
   // now the map uses EventKey keys so we can do a typed get without odd casts
-  let list = lists.get(event as EventKey<EventMap>) as ListenerList<EventMap, EventName> | undefined
+  const list = lists.get(event as EventKey<EventMap>) as
+    | ListenerList<EventMap, EventName>
+    | undefined
 
   if (!list) {
-    list = new LinkedList<PriorityListener<EventMap, EventName>>(
+    const newList = new LinkedList<PriorityListener<EventMap, EventName>>(
       (a, b) => b.priority - a.priority || a.sequence - b.sequence,
     )
-    lists.set(event as EventKey<EventMap>, list as LinkedList<PriorityListener<EventMap, any>>)
+    lists.set(
+      event as EventKey<EventMap>,
+      newList as LinkedList<PriorityListener<EventMap, keyof EventMap>>,
+    )
+    return newList
   }
   return list
 }
@@ -294,14 +301,14 @@ function createPriorityListener<EventMap, EventName extends keyof EventMap>(
   return listener
 }
 
-function createOnceWrapper<T extends (...args: any[]) => any>(
+function createOnceWrapper<T extends (...args: unknown[]) => unknown>(
   callback: T,
   unsubscribe: () => void,
 ): (...args: Parameters<T>) => Promise<void> {
-  let called = false
+  const called = { value: false }
   return async (...args: Parameters<T>) => {
-    if (called) return
-    called = true
+    if (called.value) return
+    called.value = true
     unsubscribe()
     // await in case callback returns a promise
     await callback(...args)
@@ -321,8 +328,8 @@ async function executePriorityListeners<EventMap, EventName extends keyof EventM
   if (parallel) {
     const promises = Array.from(list).map(async listener => {
       try {
-        if (!listener.filter || listener.filter(...(args as any))) {
-          await listener.callback(...(args as any))
+        if (!listener.filter || listener.filter(...args)) {
+          await listener.callback(...args)
         }
       } catch (err) {
         errors.push(err)
@@ -336,8 +343,8 @@ async function executePriorityListeners<EventMap, EventName extends keyof EventM
   // serial (original)
   for (const listener of list) {
     try {
-      if (!listener.filter || listener.filter(...(args as any))) {
-        await listener.callback(...(args as any))
+      if (!listener.filter || listener.filter(...args)) {
+        await listener.callback(...args)
       }
     } catch (err) {
       errors.push(err)
@@ -356,7 +363,9 @@ function clearListenersMap<EventMap>(
     map.get(event)?.clear()
     map.delete(event)
   } else {
-    map.forEach(list => list.clear())
+    for (const list of map.values()) {
+      list.clear()
+    }
     map.clear()
   }
 }

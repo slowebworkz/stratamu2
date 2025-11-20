@@ -75,7 +75,7 @@ export abstract class BubblingEmitter<
     eventName: Name,
     ...args: Args<EventMap[Name]>
   ): Promise<void> {
-    await this.emitSafe(eventName, ...(args as any))
+    await this.emitSafe(eventName, ...args)
     if (this.isBubbling(eventName)) {
       await this.bubbleToParent(eventName, args)
     }
@@ -91,7 +91,7 @@ export abstract class BubblingEmitter<
     eventName: Name,
     ...args: Args<EventMap[Name]>
   ): Promise<void> {
-    await this.emitSafe(eventName, ...(args as any))
+    await this.emitSafe(eventName, ...args)
     if (!this.parent || !this.isBubbling(eventName)) return
     // Fire-and-forget: don't await parent bubbling
     this.bubbleToParent(eventName, args).catch(error => {
@@ -128,7 +128,7 @@ export abstract class BubblingEmitter<
   protected async bubbleToParent<Name extends keyof EventMap>(
     eventName: Name,
     args: Args<EventMap[Name]>,
-    visited: Set<BubblingEmitter<any>> = new Set(),
+    visited: Set<BubblingEmitter<ParentEventMap, unknown>> = new Set(),
   ): Promise<void> {
     const parent = this.parent
     if (!parent) return
@@ -141,9 +141,9 @@ export abstract class BubblingEmitter<
 
     // Type-safe bubbling using helper type to reduce casting
     const parentEventName = eventName as unknown as keyof ParentEventMap
-    const parentArgs = args as any // ArgsForParent removed, use any for compatibility
+    const parentArgs = args as Args<ParentEventMap[typeof parentEventName]>
 
-    await parent.emitSafe(parentEventName, ...(parentArgs as any))
+    await parent.emitSafe(parentEventName, ...parentArgs)
 
     // Only continue bubbling if the parent has bubbling enabled for this event
     if (parent.isBubbling(parentEventName)) {
@@ -154,9 +154,9 @@ export abstract class BubblingEmitter<
   /**
    * Traverse to the root emitter in the bubbling hierarchy.
    */
-  public getRoot(): BubblingEmitter<any> {
-    let node: BubblingEmitter<any> = this
-    while (node.parent) node = node.parent
+  public getRoot(): BubblingEmitter<EventMap, ParentEventMap> {
+    let node: BubblingEmitter<EventMap, ParentEventMap> = this
+    while (node.parent) node = node.parent as BubblingEmitter<EventMap, ParentEventMap>
     return node
   }
 }

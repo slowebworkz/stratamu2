@@ -325,7 +325,7 @@ function collectLogs<EventMap extends BaseEventMap<unknown[]>>(
  */
 export function resetCountsAndLogs<K extends string>(
   errorCounts: Map<K, number>,
-  safetyLogs: Map<K, RingBuffer<any>>,
+  safetyLogs: Map<K, RingBuffer<unknown>>,
   eventName?: PropertyKey,
 ): void {
   const key = normalizeEventKeyForMap(eventName) as K | undefined

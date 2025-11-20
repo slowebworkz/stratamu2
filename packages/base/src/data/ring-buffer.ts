@@ -1,4 +1,5 @@
 import { isNumber, isFiniteNumber, whenNotEmpty } from "@/utils"
+import { BaseError, DomainError } from "@/errors"
 import isPlainObject from "is-plain-object"
 import type { TypedArray } from "type-fest"
 
@@ -15,7 +16,7 @@ export class RingBuffer<T> {
   private readonly capacity: number
 
   constructor(capacity: number) {
-    if (capacity <= 0) throw new Error("RingBuffer capacity must be > 0")
+    if (capacity <= 0) throw new BaseError("RingBuffer capacity must be > 0")
     this.capacity = capacity
     this.buffer = new Array(capacity)
   }
@@ -361,8 +362,8 @@ function isArrayLike<T>(v: unknown): v is ArrayLike<T> | TypedArray | Buffer {
  */
 function wrapIndex(end: number, delta: number, capacity: number): number {
   if ([end, delta, capacity].some(n => !isFiniteNumber(n)))
-    throw new TypeError("wrapIndex: invalid number")
+    throw new DomainError("wrapIndex: invalid number")
   if (!Number.isInteger(capacity) || capacity <= 0)
-    throw new TypeError("wrapIndex: capacity must be a positive integer")
+    throw new DomainError("wrapIndex: capacity must be a positive integer")
   return normalizeIndex(end + delta, capacity)
 }

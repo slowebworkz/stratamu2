@@ -18,11 +18,18 @@ export class DestroyableEmitter<
   unsubscribeAll(): void {
     super.clearListeners()
     // Also clear priority listeners if this emitter has them
-    if (
-      "clearPriorityListeners" in this &&
-      typeof (this as any).clearPriorityListeners === "function"
-    ) {
-      ;(this as any).clearPriorityListeners()
+    if (hasClearPriorityListeners(this)) {
+      this.clearPriorityListeners()
+    }
+    // Type guard for objects with clearPriorityListeners method
+    function hasClearPriorityListeners(
+      obj: unknown,
+    ): obj is { clearPriorityListeners: () => void } {
+      return (
+        typeof obj === "object" &&
+        obj !== null &&
+        typeof (obj as { clearPriorityListeners?: unknown }).clearPriorityListeners === "function"
+      )
     }
   }
 

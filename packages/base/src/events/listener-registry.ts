@@ -49,7 +49,7 @@ export class ListenerRegistry<EventMap extends BaseEventMap<unknown[]>> {
 
   /** Remove all listeners that reference a given target object (useful for player/entity teardown) */
   public removeListenersByTarget(
-    predicate: (listener: ListenerFn<EventMap, any>) => boolean,
+    predicate: (listener: ListenerFn<EventMap, AllEventKeys<EventMap>>) => boolean,
   ): number {
     return removeListenersByTargetCore(this.listenerSets, this.listenerMaps, predicate)
   }
@@ -121,12 +121,15 @@ export class ListenerRegistry<EventMap extends BaseEventMap<unknown[]>> {
   /* ------------------- Private storage ------------------- */
 
   /** Map of event key to Set of original listeners (typed per event) */
-  private readonly listenerSets = new Map<AllEventKeys<EventMap>, Set<ListenerFn<EventMap, any>>>()
+  private readonly listenerSets = new Map<
+    AllEventKeys<EventMap>,
+    Set<ListenerFn<EventMap, AllEventKeys<EventMap>>>
+  >()
 
   /** Map of event key to Map of original listener to wrapped listener (typed per event) */
   private readonly listenerMaps = new Map<
     AllEventKeys<EventMap>,
-    Map<ListenerFn<EventMap, any>, ListenerFn<EventMap, any>>
+    Map<ListenerFn<EventMap, AllEventKeys<EventMap>>, ListenerFn<EventMap, AllEventKeys<EventMap>>>
   >()
 
   /** Set of event keys that have been seen (used for metrics, etc.) */
@@ -157,6 +160,101 @@ export class ListenerRegistry<EventMap extends BaseEventMap<unknown[]>> {
         onError(event, error, context)
       }
     }
+  }
+
+  /**
+   * Helper method to convert single-argument listener to ListenerFn format and create safe wrapper.
+   * Useful for 'once' methods that use different listener signatures.
+   */
+  public static createSafeOnceListener<
+    EventMap extends BaseEventMap<unknown[]>,
+    K extends AllEventKeys<EventMap>,
+    Ctx,
+  >(
+    event: K,
+    listener: (data: EventMap[K] extends unknown[] ? EventMap[K][0] : EventMap[K]) => Promise<void> | void,
+    onError: (event: K, error: unknown, context: Ctx) => void,
+    context: Ctx,
+  ): ListenerFn<EventMap, K> {
+    // Convert single-argument listener to spread-args ListenerFn format
+    const listenerAsListenerFn: ListenerFn<EventMap, K> = (...args: EventMap[K]) => {
+      // Convert spread args back to single argument for the original listener
+      const singleArg = args as EventMap[K] extends unknown[] ? EventMap[K][0] : EventMap[K]
+      return listener(singleArg)
+    }
+
+    // Return the safe wrapper
+    return this.createSafeListener(event, listenerAsListenerFn, onError, context)
+  }
+
+  /**
+   * Complete async handling for once listeners - creates promise, handles abort signals, and manages cleanup.
+   * This centralizes all the complex async logic for .once() methods.
+   */
+  public static createOncePromise<
+    T = unknown,
+    EventKey = string | number | symbol,
+    Ctx = unknown,
+  >(
+    originalPromise: Promise<T> & { off?: () => void },
+    listener: (data: T) => Promise<void> | void,
+    onError: (event: EventKey, error: unknown, context: Ctx) => void,
+    context: Ctx & { event: EventKey },
+    options?: { signal?: AbortSignal }
+  ): Promise<T> & { off?: () => void } {
+    // Handle abort signal upfront
+    const handleAbort = () => {
+      try {
+        originalPromise.off?.()
+      } catch {
+        // Ignore cleanup errors
+      }
+    }
+
+    if (options?.signal?.aborted) {
+      handleAbort()
+      return Promise.reject(new Error('Operation was aborted')) as Promise<T> & { off?: () => void }
+    }
+
+    // Create the wrapped promise with listener execution and error handling
+    const wrappedPromise = (async () => {
+      const data = await originalPromise
+      try {
+        await listener(data)
+      } catch (error) {
+        onError(context.event, error, context)
+      }
+      return data
+    })() as Promise<T> & { off?: () => void }
+
+    // Forward the .off method if available
+    if (typeof originalPromise.off === 'function') {
+      try {
+        wrappedPromise.off = originalPromise.off.bind(originalPromise)
+      } catch {
+        // Ignore binding errors
+      }
+    }
+
+    // Handle abort signal
+    if (options?.signal && !options.signal.aborted) {
+      const onAbort = () => handleAbort()
+
+      try {
+        options.signal.addEventListener('abort', onAbort)
+        wrappedPromise.finally(() => {
+          try {
+            options.signal?.removeEventListener('abort', onAbort)
+          } catch {
+            // Ignore cleanup errors
+          }
+        })
+      } catch {
+        // Ignore event listener errors
+      }
+    }
+
+    return wrappedPromise
   }
 }
 
@@ -203,10 +301,10 @@ export function getOrCreateMap<K, V>(root: Map<K, Map<V, V>>, key: K): Map<V, V>
  * @param {(listener: any) => boolean} predicate - Predicate to match listeners for removal
  * @returns {number} The number of listeners removed
  */
-export function removeListenersByTargetCore(
-  listenerSets: Map<unknown, Set<unknown>>,
-  listenerMaps: Map<unknown, Map<unknown, unknown>>,
-  predicate: (listener: any) => boolean,
+export function removeListenersByTargetCore<K, L>(
+  listenerSets: Map<K, Set<L>>,
+  listenerMaps: Map<K, Map<L, L>>,
+  predicate: (listener: L) => boolean,
 ): number {
   let removed = 0
 
@@ -231,8 +329,8 @@ export function removeListenersByTargetCore(
  * @param {any} [event] - Optional event key to count listeners for
  * @returns {number} The number of listeners
  */
-export function getListenerCountCore(sets: Map<any, Set<any>>, event?: any): number {
-  if (event) return sets.get(event)?.size ?? 0
+export function getListenerCountCore<K, L>(sets: Map<K, Set<L>>, event?: K): number {
+  if (event !== undefined) return sets.get(event)?.size ?? 0
   let total = 0
   for (const s of sets.values()) total += s.size
   return total
@@ -242,7 +340,10 @@ export function getListenerCountCore(sets: Map<any, Set<any>>, event?: any): num
  * Utility to tag a listener function with an arbitrary value (e.g., player, NPC, room, etc.).
  * The tag is stored as a non-enumerable property on the function.
  */
-export function tagListener<T extends Function>(listener: T, tag: any): T {
+export function tagListener<T extends (...args: unknown[]) => unknown, Tag = unknown>(
+  listener: T,
+  tag: Tag,
+): T {
   Object.defineProperty(listener, "__tag", {
     configurable: true,
     enumerable: false,
