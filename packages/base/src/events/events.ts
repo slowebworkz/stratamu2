@@ -38,7 +38,9 @@ export async function fireAndForgetGeneric(
     const wrapped =
       err instanceof BaseError
         ? err
-        : new BaseError(context ? `${context}: ${String(err)}` : String(err), { cause: err })
+        : new BaseError(context ? `${context}: ${String(err)}` : String(err), {
+            cause: err instanceof Error ? err : undefined,
+          })
 
     if (onError) onError(wrapped)
   }

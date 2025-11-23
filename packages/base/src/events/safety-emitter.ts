@@ -1,61 +1,65 @@
 import { RingBuffer } from "@/data"
 import type {
   EventKey,
+  LogQueryOptions,
   PerEventCap,
   PublicEventMap,
   SafetyEmitterOptions,
+  SafetyLogEntry,
   SanitizedError,
 } from "@/events"
-import { incrementCount, normalizeEventKeyForMap, sumMapValues } from "@/events"
+import {
+  DEFAULT_SAFETY_LOG_CAP,
+  incrementCount,
+  normalizeEventKeyForMap,
+  sumMapValues,
+} from "@/events"
 import { emitDiagnosticWarning } from "@/node"
 import type { BaseEventMap } from "@repo/types"
 import type Emittery from "emittery"
 import type { JsonValue } from "type-fest"
 
-/** Default maximum number of safety log entries to keep per event. */
-const DEFAULT_SAFETY_LOG_CAP = 100 as const
+export type MutableErrorCountsMap<EventMap extends BaseEventMap<unknown[]>> = Map<
+  EventKey<EventMap>,
+  number
+>
+
+export type ErrorCountsMap<EventMap extends BaseEventMap<unknown[]>> = ReadonlyMap<
+  EventKey<EventMap>,
+  number
+>
+
+export type SafetyLogsMap<EventMap extends BaseEventMap<unknown[]>> = Map<
+  EventKey<EventMap>,
+  RingBuffer<SafetyLogEntry>
+>
+
+export type SafetyControlEmitter<EventMap extends BaseEventMap<unknown[]>> = Emittery<
+  PublicEventMap<EventMap>
+>
+
+export type SafetyLogList = ReadonlyArray<SafetyLogEntry>
+
+export type SafetyLogIterator = IterableIterator<SafetyLogEntry>
 
 /**
  * SafetyEmitter: a standalone class that owns safety bookkeeping (error counts, safety logs).
  * This class is intended to be composed by `SafeEmitter` rather than inherited.
- */
-/**
- * Usage (composition):
  *
- * ```ts
- * import { SafeEmitter } from './safe-emitter.js'
- * // SafeEmitter composes the SafetyEmitter internally and exposes safety accessors
- * const e = new SafeEmitter()
- * e.setSafetyEnabled(true)
- *
- * // Advanced: construct the standalone manager for test harnesses or custom buses
- * import { SafetyEmitter } from './safety-emitter.js'
- * import { internalPublicBus } from './events-types.js'
- * const manager = new SafetyEmitter(internalPublicBus(myEmitter), { safetyLogCap: 50 })
- * ```
- */
-/**
- * SafetyEmitter: expects a specialized control emitter for control events only.
+ * Expects a specialized control emitter for control events only.
  * The emitter should be an instance of Emittery<PublicEventMap<EventMap>>.
  */
 export class SafetyEmitter<EventMap extends BaseEventMap<unknown[]>> {
-  private _errorCounts: Map<EventKey<EventMap>, number> = new Map()
-  private _safetyLogs: Map<
-    EventKey<EventMap>,
-    RingBuffer<{ timestamp: number; error: unknown; listener: string }>
-  > = new Map()
+  private _errorCounts: MutableErrorCountsMap<EventMap> = new Map()
+  private _safetyLogs: SafetyLogsMap<EventMap> = new Map()
 
   private readonly _safetyLogCap: number
   private readonly _perEventCaps?: PerEventCap<EventMap>
   private readonly _sanitizeErrors: boolean
   private _safetyEnabled = true
 
-  /**
-   * @param controlEmitter - A specialized emitter for control events (resetErrorCounts, clearSafetyLogs, enableSafeMode)
-   * @param opts - SafetyEmitter options
-   */
   constructor(
-    controlEmitter: Emittery<PublicEventMap<EventMap>>,
+    controlEmitter: SafetyControlEmitter<EventMap>,
     opts?: SafetyEmitterOptions<EventMap>,
   ) {
     this._safetyLogCap = opts?.safetyLogCap ?? DEFAULT_SAFETY_LOG_CAP
@@ -108,26 +112,23 @@ export class SafetyEmitter<EventMap extends BaseEventMap<unknown[]>> {
   // Public accessors (same API as the old SafetyEmitter)
   public getErrorCount(eventName?: PropertyKey): number {
     if (!eventName) return sumMapValues(this._errorCounts)
+
     const key = normalizeEventKeyForMap(eventName)
     if (!key) return 0
+
     return this._errorCounts.get(key as EventKey<EventMap>) ?? 0
   }
 
-  public getAllErrorCounts(): ReadonlyMap<EventKey<EventMap>, number> {
+  public getAllErrorCounts(): ErrorCountsMap<EventMap> {
     return new Map(this._errorCounts)
   }
 
-  public getSafetyLogs(
-    eventName?: PropertyKey,
-  ): ReadonlyArray<{ timestamp: number; error: unknown; listener: string }> {
+  public getSafetyLogs(eventName?: PropertyKey): SafetyLogList {
     const key = eventName ? normalizeEventKeyForMap(eventName) : undefined
     return this.getSafetyLogForEvent(key)
   }
 
-  public getSafetyLogForEvent(
-    eventName?: PropertyKey,
-    opts?: { limit?: number; newestFirst?: boolean },
-  ): ReadonlyArray<{ timestamp: number; error: unknown; listener: string }> {
+  public getSafetyLogForEvent(eventName?: PropertyKey, opts?: LogQueryOptions): SafetyLogList {
     const key = eventName ? normalizeEventKeyForMap(eventName) : undefined
     if (key) {
       const buf = this._safetyLogs.get(key as EventKey<EventMap>)
@@ -161,9 +162,7 @@ export class SafetyEmitter<EventMap extends BaseEventMap<unknown[]>> {
     return this._safetyLogCap
   }
 
-  public *getSafetyLogIterator(
-    eventName?: PropertyKey,
-  ): IterableIterator<{ timestamp: number; error: unknown; listener: string }> {
+  public *getSafetyLogIterator(eventName?: PropertyKey): SafetyLogIterator {
     if (eventName) {
       const key = normalizeEventKeyForMap(eventName)
       const buf = key ? this._safetyLogs.get(key as EventKey<EventMap>) : undefined
@@ -192,21 +191,15 @@ export class SafetyEmitter<EventMap extends BaseEventMap<unknown[]>> {
     this._safetyEnabled = enabled
   }
 
-  /**
-   * Reset all error counts and safety logs for all events.
-   */
   public reset(): void {
     resetCountsAndLogs(this._errorCounts, this._safetyLogs)
   }
 }
 
 export function recordListenerErrorEntry<EventMap extends BaseEventMap<unknown[]>>(
-  errorCounts: Map<EventKey<EventMap>, number>,
-  safetyLogs: Map<
-    EventKey<EventMap>,
-    RingBuffer<{ timestamp: number; error: unknown; listener: string }>
-  >,
-  perEventCaps: Partial<Record<EventKey<EventMap>, number>> | undefined,
+  errorCounts: MutableErrorCountsMap<EventMap>,
+  safetyLogs: SafetyLogsMap<EventMap>,
+  perEventCaps: PerEventCap<EventMap> | undefined,
   defaultCap: number,
   sanitizeErrors: boolean,
   eventName: PropertyKey,
@@ -264,10 +257,7 @@ function sanitizeError(e: unknown): SanitizedError {
 }
 
 function getBufferForEvent<EventMap extends BaseEventMap<unknown[]>>(
-  safetyLogs: Map<
-    EventKey<EventMap>,
-    RingBuffer<{ timestamp: number; error: unknown; listener: string }>
-  >,
+  safetyLogs: SafetyLogsMap<EventMap>,
   eventName?: PropertyKey,
 ) {
   if (!eventName) return undefined
@@ -277,13 +267,10 @@ function getBufferForEvent<EventMap extends BaseEventMap<unknown[]>>(
 }
 
 function collectLogs<EventMap extends BaseEventMap<unknown[]>>(
-  safetyLogs: Map<
-    EventKey<EventMap>,
-    RingBuffer<{ timestamp: number; error: unknown; listener: string }>
-  >,
+  safetyLogs: SafetyLogsMap<EventMap>,
   eventName?: PropertyKey,
-  opts?: { limit?: number; newestFirst?: boolean },
-): ReadonlyArray<{ timestamp: number; error: unknown; listener: string }> {
+  opts?: LogQueryOptions,
+): SafetyLogList {
   const limit =
     opts?.limit === undefined ? Number.POSITIVE_INFINITY : Math.max(0, Math.floor(opts.limit))
   const newestFirst = !!opts?.newestFirst
@@ -301,7 +288,7 @@ function collectLogs<EventMap extends BaseEventMap<unknown[]>>(
   }
 
   // Global collection
-  const all: { timestamp: number; error: unknown; listener: string }[] = []
+  const all: SafetyLogEntry[] = []
 
   // Flatten all buffers
   for (const buf of safetyLogs.values()) {
@@ -318,10 +305,6 @@ function collectLogs<EventMap extends BaseEventMap<unknown[]>>(
 
 /**
  * Reset error counts and safety logs for a specific event or all events.
- *
- * - If eventName is provided, only that event's counts and logs are cleared.
- * - If eventName is omitted or undefined, all counts and logs are cleared.
- * - Accepts any PropertyKey (string, number, symbol, or undefined) and normalizes internally.
  */
 export function resetCountsAndLogs<K extends string>(
   errorCounts: Map<K, number>,

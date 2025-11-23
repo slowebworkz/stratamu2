@@ -1,3 +1,5 @@
+import type { AnyListenerFn } from "@/events"
+
 //
 /**
  * Throws if the provided key is not valid for a WeakMap (not a function or plain object).
@@ -20,11 +22,6 @@ function assertValidWeakMapKey<Original, Wrapped>(
 function isValidWeakMapKey(value: unknown): value is object | AnyListenerFn {
   return (typeof value === "object" && value !== null) || typeof value === "function"
 }
-
-/**
- * Canonical type for any function signature (for event listeners, etc.)
- */
-export type AnyListenerFn = (...args: unknown[]) => unknown
 
 /**
  * Listener bookkeeping utilities for event systems.

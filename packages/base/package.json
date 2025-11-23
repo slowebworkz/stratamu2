@@ -25,16 +25,18 @@
   "devDependencies": {
     "@repo/types": "workspace:*",
     "@repo/vitest-config": "workspace:*",
-    "@types/node": "^24.5.2",
-    "type-fest": "^5.1.0",
+    "@types/node": "^24.10.1",
+    "type-fest": "^5.2.0",
     "typescript": "5.9.2",
     "vite-tsconfig-paths": "^5.1.4",
     "vitest": "^3.2.4"
   },
   "dependencies": {
+    "abort-controller-x": "^0.5.0",
     "emittery": "^1.2.0",
+    "exceptional-errors": "^0.4.4",
     "is-plain-object": "^2.0.4",
     "nanoid": "^5.1.6",
-    "pino": "^9.11.0"
+    "pino": "^9.14.0"
   }
 }

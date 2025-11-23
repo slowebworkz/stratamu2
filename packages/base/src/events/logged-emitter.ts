@@ -259,7 +259,7 @@ export function shouldThrow(level: ThrowLevel, args: PinoLogArgs): void {
   const throwConfigObj = obj as ThrowConfig
   if (!throwConfigObj?.shouldThrow) return
 
-  throw new BaseError(msg, { cause: obj })
+  throw new BaseError(msg, { cause: obj instanceof Error ? obj : undefined })
 }
 
 export function formatLogArgs(args: unknown[]): unknown[] {

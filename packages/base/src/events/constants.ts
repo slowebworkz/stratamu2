@@ -89,3 +89,6 @@ export const PERFORMANCE_THRESHOLDS: DeepReadonlyRecord<
   concern: efficiencyThreshold(3),
   outlier: efficiencyThreshold(5),
 } as const
+
+/** Default maximum number of safety log entries to keep per event. */
+export const DEFAULT_SAFETY_LOG_CAP = 100 as const

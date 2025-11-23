@@ -1,5 +1,17 @@
-import type { AnyListenerFn } from "@/events"
-import { ListenerRegistry } from "@/events"
+import type { AnyListenerFn, ListenerErrorContext, PublicEventMap } from "@/events"
+import {
+  ListenerRegistry,
+  isPublicEvent,
+  SafetyEmitter as SafetyManager,
+  INTERNAL_ON_EMIT_ERROR,
+  INTERNAL_ON_LISTENER_ERROR,
+  INTERNAL_ON_LISTENER_REMOVED,
+  INTERNAL_ON_REMOVE_WARN,
+  internalPublicBus,
+  isInternalEvent,
+} from "@/events"
+import { emitWithErrorHandling } from "@/utils"
+import { DEV_MODE } from "@/env"
 import Emittery from "emittery"
 
 import type {
@@ -17,8 +29,23 @@ export abstract class SafeEmitter<EventMap extends BaseEventMap<unknown[]>> {
 
   protected readonly _public: Emittery<AllEvents<EventMap>> = new Emittery<AllEvents<EventMap>>()
 
+  private readonly _safety: SafetyManager<EventMap>
+
+  protected get _safetyManager(): SafetyManager<EventMap> {
+    return this._safety
+  }
+
   constructor() {
     this._listenerRegistry = new ListenerRegistry<EventMap>()
+
+    // Compose the safety manager with hardcoded presets (no user config)
+    // Compose the safety manager with hardcoded presets (no user config)
+    const safetyManagerBus = new Emittery<PublicEventMap<EventMap>>()
+
+    this._safety = new SafetyManager<EventMap>(safetyManagerBus, {
+      sanitizeErrors: true,
+      safetyLogCap: 100,
+    })
   }
 
   public on<K extends AllEventKeys<EventMap>>(
@@ -53,10 +80,6 @@ export abstract class SafeEmitter<EventMap extends BaseEventMap<unknown[]>> {
     }
   }
 
-
-
-
-
   public once<K extends AllEventKeys<EventMap>>(
     event: K,
     listener: (data: AllEvents<EventMap>[K]) => Awaitable,
@@ -72,7 +95,7 @@ export abstract class SafeEmitter<EventMap extends BaseEventMap<unknown[]>> {
         this.onListenerError(eventKey, error, {
           type: "once",
           listener: listener as (...args: unknown[]) => Awaitable,
-          emitter: this
+          emitter: this,
         }),
       { event, type: "once" as const, listener, emitter: this } as {
         event: K
@@ -80,32 +103,137 @@ export abstract class SafeEmitter<EventMap extends BaseEventMap<unknown[]>> {
         listener: (data: AllEvents<EventMap>[K]) => Awaitable
         emitter: SafeEmitter<EventMap>
       },
-      options
+      options,
     ) as CancelablePromise<AllEvents<EventMap>[K]>
   }
 
+  public off<K extends AllEventKeys<EventMap>>(
+    event: K,
+    listener: ListenerFn<EventMap, K>,
+  ): boolean {
+    // Get the wrapped listener from the registry
+    const wrappedListener = this._listenerRegistry.getWrappedListener(event, listener)
 
+    if (!wrappedListener) {
+      // Listener not found - could emit a warning event in dev mode
+      return false
+    }
 
+    // Remove from registry first
+    const removed = this._listenerRegistry.removeListener(event, listener)
 
+    if (removed) {
+      // Remove from the underlying emitter
+      // The wrapped listener expects spread args, so we need to convert
+      this._public.off(event, (eventData: EventMap[K]) => wrappedListener(...eventData))
 
-  public off<K extends AllEventKeys<EventMap>>(event: K, listener: ListenerFn<EventMap, K>) { }
+      // Mark that we've seen this event
+      this._listenerRegistry.addSeenEvent(event)
 
-  public emit<K extends AllEventKeys<EventMap>>(event: K) { }
+      return true
+    }
+
+    return false
+  }
+
+  public async emit<K extends AllEventKeys<EventMap>>(
+    event: K,
+    ...args: AllEvents<EventMap>[K] extends undefined ? [] : [AllEvents<EventMap>[K]]
+  ): Promise<void> {
+    // Mark that we've seen this event
+    this._listenerRegistry.addSeenEvent(event)
+
+    // Use emitWithErrorHandling for consistent error handling and extensibility
+    const promises = emitWithErrorHandling(args, data =>
+      this._public.emit(event, data as AllEvents<EventMap>[K]),
+    )
+
+    // Handle all promises with allSettled to continue even if some fail
+    const results = await Promise.allSettled(promises)
+
+    // Report any errors through the dedicated emit error handler
+    for (const result of results) {
+      if (result.status === "rejected") {
+        this.onEmitError(event, result.reason, {
+          emitter: this,
+        })
+      }
+    }
+  }
+
+  public listenerCount(
+    eventName?: AllEventKeys<EventMap> | readonly AllEventKeys<EventMap>[],
+  ): number {
+    if (eventName === undefined) {
+      return this._listenerRegistry.getListenerCount()
+    }
+    if (Array.isArray(eventName)) {
+      let total = 0
+      for (const name of eventName) {
+        total += this._listenerRegistry.getListenerCount(name)
+      }
+      return total
+    }
+    return this._listenerRegistry.getListenerCount(eventName as AllEventKeys<EventMap>)
+  }
 
   protected onListenerError(
+    eventName: keyof AllEvents<EventMap>,
+    error: unknown,
+    context: ListenerErrorContext,
+  ) {
+    // Only emit internal error event for public events, not internal/private events
+    if (isPublicEvent(eventName)) {
+      // Delegate to internal safety manager if present; keep try/catch to
+      // avoid bookkeeping failures affecting the emitter.
+      try {
+        this._safety?.recordListenerErrorFor(String(eventName), error, context.listener?.name)
+      } catch {
+        // ignore errors in bookkeeping
+        void 0
+      }
+
+      if (DEV_MODE) {
+        // Emit internal event for development logging
+        this.emitInternal(INTERNAL_ON_LISTENER_ERROR, [eventName, error, context])
+      }
+    }
+  }
+
+  protected onEmitError(
     eventName: AllEventKeys<EventMap>,
     error: unknown,
-    context: {
-      type: "on" | "once"
-      listener?: AnyListenerFn
-      hasFilter?: boolean
-      emitter?: unknown
-    },
-  ) { }
+    context?: { emitter?: unknown },
+  ) {
+    if (isPublicEvent(eventName)) {
+      try {
+        this._safety?.recordListenerErrorFor(String(eventName), error)
+      } catch {
+        void 0
+      }
+
+      this.emitInternal(INTERNAL_ON_EMIT_ERROR, [
+        eventName,
+        error,
+        { ...(context || {}), emitter: this },
+      ])
+    }
+  }
+
+  protected emitInternal<K extends keyof InternalEventMap<EventMap>>(
+    key: K,
+    payload: InternalEventMap<EventMap>[K],
+  ): void {
+    // Fire and forget internal event emission
+    // Type assertion is safe because InternalEventMap<EventMap> is part of AllEvents<EventMap>
+    void (this._public.emit as (event: unknown, data: unknown) => Promise<void>)(
+      key,
+      payload,
+    ).catch(() => {
+      // Ignore internal event emission errors to avoid infinite loops
+    })
+  }
 }
-
-
-
 
 /**
  * Attach abort wiring to the original promise: if the provided signal aborts,
@@ -132,23 +260,19 @@ function wireAbortToPromise<T>(
   }
 
   try {
-    signal.addEventListener('abort', onAbort)
+    signal.addEventListener("abort", onAbort)
   } catch {
     void 0
   }
 
   return () => {
     try {
-      signal.removeEventListener('abort', onAbort)
+      signal.removeEventListener("abort", onAbort)
     } catch {
       void 0
     }
   }
 }
-
-
-
-
 
 /**
  * Await the original promise, invoke the listener and notify on listener errors.
@@ -169,9 +293,6 @@ function createListenerWrappedPromise<T>(
     return data
   })()
 }
-
-
-
 
 /** Compose the small helpers into a single cancelable once promise. */
 function createCancelableOnce<T>(
@@ -209,7 +330,7 @@ function attachOffForwarding<T>(
   originalPromise: WrappedCancelable<T>,
   wrapped: WrappedCancelable<T>,
 ): void {
-  if (typeof originalPromise.off === 'function') {
+  if (typeof originalPromise.off === "function") {
     try {
       wrapped.off = originalPromise.off.bind(originalPromise)
     } catch {

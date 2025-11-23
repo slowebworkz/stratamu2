@@ -360,3 +360,14 @@ export type SanitizedError =
   | { kind: "Error"; name: string; message: string; stackSnippet?: string }
   | { kind: "String"; value: string }
   | { kind: "Json"; value: JsonValue }
+
+export type SafetyLogEntry = {
+  timestamp: number
+  error: unknown
+  listener: string
+}
+
+export type LogQueryOptions = {
+  limit?: number
+  newestFirst?: boolean
+}

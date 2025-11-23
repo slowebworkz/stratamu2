@@ -172,7 +172,9 @@ export class ListenerRegistry<EventMap extends BaseEventMap<unknown[]>> {
     Ctx,
   >(
     event: K,
-    listener: (data: EventMap[K] extends unknown[] ? EventMap[K][0] : EventMap[K]) => Promise<void> | void,
+    listener: (
+      data: EventMap[K] extends unknown[] ? EventMap[K][0] : EventMap[K],
+    ) => Promise<void> | void,
     onError: (event: K, error: unknown, context: Ctx) => void,
     context: Ctx,
   ): ListenerFn<EventMap, K> {
@@ -191,16 +193,12 @@ export class ListenerRegistry<EventMap extends BaseEventMap<unknown[]>> {
    * Complete async handling for once listeners - creates promise, handles abort signals, and manages cleanup.
    * This centralizes all the complex async logic for .once() methods.
    */
-  public static createOncePromise<
-    T = unknown,
-    EventKey = string | number | symbol,
-    Ctx = unknown,
-  >(
+  public static createOncePromise<T = unknown, EventKey = string | number | symbol, Ctx = unknown>(
     originalPromise: Promise<T> & { off?: () => void },
     listener: (data: T) => Promise<void> | void,
     onError: (event: EventKey, error: unknown, context: Ctx) => void,
     context: Ctx & { event: EventKey },
-    options?: { signal?: AbortSignal }
+    options?: { signal?: AbortSignal },
   ): Promise<T> & { off?: () => void } {
     // Handle abort signal upfront
     const handleAbort = () => {
@@ -213,7 +211,7 @@ export class ListenerRegistry<EventMap extends BaseEventMap<unknown[]>> {
 
     if (options?.signal?.aborted) {
       handleAbort()
-      return Promise.reject(new Error('Operation was aborted')) as Promise<T> & { off?: () => void }
+      return Promise.reject(new Error("Operation was aborted")) as Promise<T> & { off?: () => void }
     }
 
     // Create the wrapped promise with listener execution and error handling
@@ -228,7 +226,7 @@ export class ListenerRegistry<EventMap extends BaseEventMap<unknown[]>> {
     })() as Promise<T> & { off?: () => void }
 
     // Forward the .off method if available
-    if (typeof originalPromise.off === 'function') {
+    if (typeof originalPromise.off === "function") {
       try {
         wrappedPromise.off = originalPromise.off.bind(originalPromise)
       } catch {
@@ -241,10 +239,10 @@ export class ListenerRegistry<EventMap extends BaseEventMap<unknown[]>> {
       const onAbort = () => handleAbort()
 
       try {
-        options.signal.addEventListener('abort', onAbort)
+        options.signal.addEventListener("abort", onAbort)
         wrappedPromise.finally(() => {
           try {
-            options.signal?.removeEventListener('abort', onAbort)
+            options.signal?.removeEventListener("abort", onAbort)
           } catch {
             // Ignore cleanup errors
           }
