@@ -1,19 +1,18 @@
 import { BaseError } from "@/errors"
 import type { BaseEventMap, LogLevel, LogLevelWithSilent } from "@repo/types"
-import isPlainObject from "is-plain-object"
 import type { LevelChangeEventListener, LevelMapping, Logger } from "pino"
 import pino from "pino"
 import type { JsonValue, Jsonify, SetRequired, Simplify } from "type-fest"
 
-import { isJsonValue, safeFormatPayload } from "@/utils"
-import { SafeEmitter } from "./safe-emitter.ts"
+import { SafeEmitter } from "@/events"
 import type {
   Bindings,
   ChildLoggerOptions,
   PinoLogArgs,
   SafeMergingObject,
   ThrowConfig,
-} from "./types.ts"
+} from "@/events"
+import { isJsonValue, isObject, safeFormatPayload } from "@/utils"
 
 type ToJSONReturn = Jsonify<{
   level: LogLevelWithSilent
@@ -220,11 +219,11 @@ export abstract class LoggedEmitter<
 export function isObjectFirstArgs(
   args: PinoLogArgs,
 ): args is [obj: SafeMergingObject, msg?: string, ...args: unknown[]] {
-  return args.length >= 1 && isPlainObject(args[0])
+  return args.length >= 1 && isObject(args[0])
 }
 
 export function hasThrowConfig(obj: SafeMergingObject): obj is SafeMergingObject & ThrowConfig {
-  return isPlainObject(obj) && "shouldThrow" in obj && (obj as ThrowConfig).shouldThrow === true
+  return isObject(obj) && "shouldThrow" in obj && (obj as ThrowConfig).shouldThrow === true
 }
 
 export function cleanupLevelChangeListeners(
@@ -252,7 +251,7 @@ export function wrapLevelChangeListener(
 }
 
 export function shouldThrow(level: ThrowLevel, args: PinoLogArgs): void {
-  if (!args.length || !isPlainObject(args[0])) return
+  if (!args.length || !isObject(args[0])) return
 
   const [obj, msg = "An error occurred"] = args
 

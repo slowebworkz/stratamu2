@@ -1,3 +1,4 @@
+import type { LinkedList } from "@/data"
 import type { Count } from "@/performance/types.js"
 import type {
   Args,
@@ -16,6 +17,7 @@ import type {
   Merge,
   Promisable,
   ReadonlyDeep,
+  SetOptional,
   Simplify,
   Tagged,
 } from "type-fest"
@@ -371,3 +373,58 @@ export type LogQueryOptions = {
   limit?: number
   newestFirst?: boolean
 }
+
+// ===============================
+// Filtered Priority Emitter Type Aliases
+// ===============================
+
+/** Emitter Event key type supporting string unions */
+export type EmitterEventKey<EventMap> = EventKey<EventMap>
+
+/** Linked list of listeners for an event */
+export type ListenerList<EventMap, Name extends keyof EventMap> = LinkedList<
+  PriorityListener<EventMap, Name>
+>
+
+/** Map of event keys to listener lists */
+export type PriorityListenerMap<EventMap> = Map<
+  EmitterEventKey<EventMap>,
+  LinkedList<PriorityListener<EventMap, keyof EventMap>>
+>
+
+/** Event argument tuple type */
+export type EventArgs<EventMap, Name extends keyof EventMap> = Args<EventMap[Name]>
+
+/** Error handler callback for listeners */
+export type ListenerErrorHandler<EventMap, Name extends keyof EventMap> = (
+  event: Name,
+  err: unknown,
+  name: string,
+) => void
+
+/** Emit options with optional skipBaseListeners flag */
+export type EmitOptions = SetOptional<{ skipBaseListeners: boolean }, "skipBaseListeners">
+
+/** Readonly deep copy of a priority listener for registration */
+export type RegisteredListener<EventMap, EventName extends keyof EventMap> = ReadonlyDeep<
+  PriorityListener<EventMap, EventName>
+>
+
+// ===============================
+// Priority Listener Types (from filtered-priority-emitter2)
+// ===============================
+
+export interface BasePriorityListener<
+  EventMap extends BaseEventMap,
+  EventName extends EmitterEventKey<EventMap>,
+> {
+  callback: (...args: Args<EventMap[EventName]>) => Promisable<void>
+  priority: Priority
+  sequence: number
+  filter?: (...args: Args<EventMap[EventName]>) => boolean
+}
+
+export type UnsafeListenerListCast<
+  EventMap extends BaseEventMap,
+  EventName extends EmitterEventKey<EventMap>,
+> = ListenerList<EventMap, EventName>

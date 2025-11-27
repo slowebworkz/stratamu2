@@ -1,6 +1,6 @@
 import type { Milliseconds } from "@/data"
 import { normalizeTimeout } from "@/data"
-import isPlainObject from "is-plain-object"
+import { isObject } from "@/utils"
 
 export interface CreateAbortOptions {
   /** Timeout duration in milliseconds before automatic abort. */
@@ -15,7 +15,7 @@ interface AbortResources {
 }
 
 function hasUnref(timer: unknown): timer is { unref: () => void } {
-  return isPlainObject(timer) && typeof (timer as { unref?: unknown }).unref === "function"
+  return isObject(timer) && typeof timer?.unref === "function"
 }
 
 /**

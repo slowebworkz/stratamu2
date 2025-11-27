@@ -1,6 +1,6 @@
-import { isNumber, isFiniteNumber, whenNotEmpty } from "@/utils"
 import { BaseError, DomainError } from "@/errors"
-import isPlainObject from "is-plain-object"
+import { isFiniteNumber, whenNotEmpty } from "@/utils"
+import { isObject } from "@/utils"
 import type { TypedArray } from "type-fest"
 
 export type ArraySource<T> =
@@ -152,7 +152,7 @@ export class RingBuffer<T> {
     }
     return arr.map(item => {
       if (Array.isArray(item)) return [...item] as T
-      if (item && isPlainObject(item) && Object.getPrototypeOf(item) === Object.prototype)
+      if (item && isObject(item) && Object.getPrototypeOf(item) === Object.prototype)
         return { ...item } as T
       return item
     })

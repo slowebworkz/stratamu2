@@ -1,5 +1,6 @@
 import type { AllEvents } from "@/events"
 import { FilteredPriorityEmitter } from "@/events"
+import { BaseError } from "@/errors"
 import type { Args, BaseEventMap } from "@repo/types"
 
 // Helper type for parent event map construction
@@ -66,7 +67,33 @@ export abstract class BubblingEmitter<
     this.bubbleEvents.delete(event)
   }
 
-  /**
+  private async _emitSafe<Name extends keyof EventMap>(
+    eventName: Name,
+    args: Args<EventMap[Name]>,
+  ): Promise<void> {
+    try {
+      // Use emitPriority from the parent FilteredPriorityEmitter
+      await this.emitPriority(eventName, ...(args as unknown[]))
+    } catch (err) {
+      const wrappedError =
+        err instanceof BaseError
+          ? err
+          : new BaseError("Failed to emit event", {
+              code: "EMIT_ERROR",
+              category: "internal",
+              cause: err instanceof Error ? err : undefined,
+              metadata: { eventName: String(eventName), emitterType: this.constructor.name },
+            })
+      this.log?.warn?.(
+        {
+          error: wrappedError.serialize(),
+          eventName: String(eventName),
+          emitterType: this.constructor.name,
+        },
+        "BubblingEmitter: Failed to emit event",
+      )
+    }
+  } /**
    * Emit an event and bubble it to the parent if enabled.
    * @param eventName The event name.
    * @param args Arguments for the event.
@@ -75,7 +102,7 @@ export abstract class BubblingEmitter<
     eventName: Name,
     ...args: Args<EventMap[Name]>
   ): Promise<void> {
-    await this.emitSafe(eventName, ...args)
+    await this._emitSafe(eventName, args)
     if (this.isBubbling(eventName)) {
       await this.bubbleToParent(eventName, args)
     }
@@ -91,12 +118,29 @@ export abstract class BubblingEmitter<
     eventName: Name,
     ...args: Args<EventMap[Name]>
   ): Promise<void> {
-    await this.emitSafe(eventName, ...args)
+    await this._emitSafe(eventName, args)
     if (!this.parent || !this.isBubbling(eventName)) return
     // Fire-and-forget: don't await parent bubbling
     this.bubbleToParent(eventName, args).catch(error => {
-      // Log error to console to prevent unhandled promise rejections
-      console.error("BubblingEmitter: Failed to bubble event to parent:", error)
+      // Use structured logging instead of console.error
+      const wrappedError =
+        error instanceof BaseError
+          ? error
+          : new BaseError("Failed to bubble event to parent", {
+              code: "BUBBLE_ERROR",
+              category: "internal",
+              cause: error instanceof Error ? error : undefined,
+              metadata: { eventName: String(eventName), emitterType: this.constructor.name },
+            })
+      this.log?.error?.(
+        {
+          error: wrappedError.serialize(),
+          eventName: String(eventName),
+          emitterType: this.constructor.name,
+          shouldThrow: true,
+        },
+        "BubblingEmitter: Failed to bubble event to parent",
+      )
     })
   }
 
@@ -128,7 +172,7 @@ export abstract class BubblingEmitter<
   protected async bubbleToParent<Name extends keyof EventMap>(
     eventName: Name,
     args: Args<EventMap[Name]>,
-    visited: Set<BubblingEmitter<ParentEventMap, unknown>> = new Set(),
+    visited: Set<BubblingEmitter<ParentEventMap, AllEvents<ParentEventMap>>> = new Set(),
   ): Promise<void> {
     const parent = this.parent
     if (!parent) return
@@ -141,9 +185,12 @@ export abstract class BubblingEmitter<
 
     // Type-safe bubbling using helper type to reduce casting
     const parentEventName = eventName as unknown as keyof ParentEventMap
-    const parentArgs = args as Args<ParentEventMap[typeof parentEventName]>
+    const parentArgs = args as unknown[]
 
-    await parent.emitSafe(parentEventName, ...parentArgs)
+    await (parent as { emit: (event: unknown, ...args: unknown[]) => Promise<void> }).emit(
+      parentEventName,
+      ...parentArgs,
+    )
 
     // Only continue bubbling if the parent has bubbling enabled for this event
     if (parent.isBubbling(parentEventName)) {
@@ -156,7 +203,7 @@ export abstract class BubblingEmitter<
    */
   public getRoot(): BubblingEmitter<EventMap, ParentEventMap> {
     let node: BubblingEmitter<EventMap, ParentEventMap> = this
-    while (node.parent) node = node.parent as BubblingEmitter<EventMap, ParentEventMap>
+    while (node.parent) node = node.parent as unknown as BubblingEmitter<EventMap, ParentEventMap>
     return node
   }
 }
@@ -171,6 +218,18 @@ async function fireAndForget(promise: Promise<void>, context: string): Promise<v
   try {
     await promise
   } catch (error) {
-    console.error(`${context}:`, error)
+    // Create structured error instead of using console.error
+    const wrappedError =
+      error instanceof BaseError
+        ? error
+        : new BaseError(`Fire-and-forget operation failed: ${context}`, {
+            code: "FIRE_AND_FORGET_ERROR",
+            category: "internal",
+            cause: error instanceof Error ? error : undefined,
+            metadata: { context },
+          })
+    // In this helper function we don't have access to a logger, so we still need console.error
+    // but with better error information
+    console.error(`Fire-and-forget error in ${context}:`, wrappedError.serialize())
   }
 }

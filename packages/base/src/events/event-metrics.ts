@@ -1,3 +1,4 @@
+import { BaseError } from "@/errors"
 import type {
   // EventNameString,
   EfficiencyRatio,
@@ -233,7 +234,11 @@ function formatNumber(value: number | null | undefined, digits = 2, fallback = "
  */
 function computeAverageTimeMs(count: Count, totalTimeMs: TimeInMs): TimeInMs {
   if (!isNumber(count) || !isNumber(totalTimeMs)) {
-    throw new TypeError("computeAverageTimeMs: count and totalTimeMs must be numbers")
+    throw new BaseError("computeAverageTimeMs: count and totalTimeMs must be numbers", {
+      code: "INVALID_METRICS_INPUT",
+      category: "validation",
+      metadata: { count, totalTimeMs, function: "computeAverageTimeMs" },
+    })
   }
   if (count <= 0) return 0 as TimeInMs
   const avg = totalTimeMs / count
@@ -262,7 +267,11 @@ function computeEfficiencyRatio(
  */
 function computeSuccessRate(count: Count, errorCount: ErrorCount): number {
   if (!isNumber(count) || !isNumber(errorCount)) {
-    throw new TypeError("computeSuccessRate: count and errorCount must be numbers")
+    throw new BaseError("computeSuccessRate: count and errorCount must be numbers", {
+      code: "INVALID_METRICS_INPUT",
+      category: "validation",
+      metadata: { count, errorCount, function: "computeSuccessRate" },
+    })
   }
   if (!Number.isFinite(count) || !Number.isFinite(errorCount) || count < 0 || errorCount < 0) {
     return 100
@@ -281,7 +290,11 @@ function computeSuccessRate(count: Count, errorCount: ErrorCount): number {
  */
 function computeErrorRate(count: Count, errorCount: ErrorCount): number {
   if (!isNumber(count) || !isNumber(errorCount)) {
-    throw new TypeError("computeErrorRate: count and errorCount must be numbers")
+    throw new BaseError("computeErrorRate: count and errorCount must be numbers", {
+      code: "INVALID_METRICS_INPUT",
+      category: "validation",
+      metadata: { count, errorCount, function: "computeErrorRate" },
+    })
   }
   if (!Number.isFinite(count) || !Number.isFinite(errorCount) || count < 0 || errorCount < 0) {
     return 0
@@ -435,16 +448,36 @@ function validateEventMetricsInput(params: {
     ],
   ]
   for (const [name, value, check, msg] of checks) {
-    if (!check(value)) throw new TypeError(`EventMetrics: ${name} ${msg}, got ${value}`)
+    if (!check(value)) {
+      throw new BaseError(`EventMetrics: ${name} ${msg}, got ${value}`, {
+        code: "INVALID_METRICS_INPUT",
+        category: "validation",
+        metadata: { field: name, value, message: msg, function: "validateEventMetricsInput" },
+      })
+    }
   }
   if (slowestTimeMs !== undefined && (!Number.isFinite(slowestTimeMs) || slowestTimeMs < 0)) {
-    throw new TypeError(
+    throw new BaseError(
       `EventMetrics: slowestTimeMs must be a non-negative finite number, got ${slowestTimeMs}`,
+      {
+        code: "INVALID_METRICS_INPUT",
+        category: "validation",
+        metadata: {
+          field: "slowestTimeMs",
+          value: slowestTimeMs,
+          function: "validateEventMetricsInput",
+        },
+      },
     )
   }
   if ((slowestListener === undefined) !== (slowestTimeMs === undefined)) {
-    throw new TypeError(
+    throw new BaseError(
       "EventMetrics: slowestListener and slowestTimeMs must both be defined or both be undefined",
+      {
+        code: "INVALID_METRICS_INPUT",
+        category: "validation",
+        metadata: { slowestListener, slowestTimeMs, function: "validateEventMetricsInput" },
+      },
     )
   }
 }

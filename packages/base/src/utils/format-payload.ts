@@ -1,4 +1,4 @@
-import isPlainObject from "is-plain-object"
+import { isObject } from "@/utils"
 import type { JsonValue, Jsonifiable, LiteralUnion, PartialDeep, Simplify } from "type-fest"
 
 /** Type for function label in _handleFunction */
@@ -58,7 +58,7 @@ function _formatPayloadInternal<
   const err = _isError(payload)
   if (err) return err
 
-  if (_isPlainObjectOrArray(payload)) return _tryStringify(payload as Jsonifiable)
+  if (_isObjectOrArray(payload)) return _tryStringify(payload as Jsonifiable)
 
   const bigOrSym = _handleBigIntOrSymbol(payload)
   if (bigOrSym) return bigOrSym
@@ -80,8 +80,8 @@ function _isError(payload: unknown): MaybeSerializedError {
   return serializeError(payload) ?? undefined
 }
 
-function _isPlainObjectOrArray(payload: unknown): payload is Record<string, unknown> | unknown[] {
-  return isPlainObject(payload) || Array.isArray(payload)
+function _isObjectOrArray(payload: unknown): payload is Record<string, unknown> | unknown[] {
+  return isObject(payload) || Array.isArray(payload)
 }
 
 function _tryStringify(payload: Jsonifiable): JsonValue {
