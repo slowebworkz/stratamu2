@@ -1,4 +1,5 @@
 import type { AllEventKeys, ListenerFn } from "@/events"
+import { BaseError } from "@/errors"
 import type { BaseEventMap } from "@repo/types"
 
 /**
@@ -211,7 +212,12 @@ export class ListenerRegistry<EventMap extends BaseEventMap<unknown[]>> {
 
     if (options?.signal?.aborted) {
       handleAbort()
-      return Promise.reject(new Error("Operation was aborted")) as Promise<T> & { off?: () => void }
+      return Promise.reject(
+        new BaseError("Operation was aborted", {
+          code: "OPERATION_ABORTED",
+          category: "timeout",
+        }),
+      ) as Promise<T> & { off?: () => void }
     }
 
     // Create the wrapped promise with listener execution and error handling

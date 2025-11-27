@@ -92,3 +92,9 @@ export const PERFORMANCE_THRESHOLDS: DeepReadonlyRecord<
 
 /** Default maximum number of safety log entries to keep per event. */
 export const DEFAULT_SAFETY_LOG_CAP = 100 as const
+
+/**
+ * Threshold for enabling listener count cache in FilteredPriorityEmitter.
+ * If the number of events exceeds this, caching is enabled for performance.
+ */
+export const LISTENER_COUNT_CACHE_THRESHOLD = 1000 as const

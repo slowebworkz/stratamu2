@@ -1,4 +1,4 @@
-import isPlainObject from "is-plain-object"
+import { isObject } from "@/utils"
 import type { JsonValue } from "type-fest"
 
 export function isJsonValue(value: unknown): value is JsonValue {
@@ -6,7 +6,6 @@ export function isJsonValue(value: unknown): value is JsonValue {
   if (typeof value === "string" || typeof value === "number" || typeof value === "boolean")
     return true
   if (Array.isArray(value)) return value.every(isJsonValue)
-  if (isPlainObject(value))
-    return Object.values(value as Record<string, unknown>).every(isJsonValue)
+  if (isObject(value)) return Object.values(value).every(isJsonValue)
   return false
 }

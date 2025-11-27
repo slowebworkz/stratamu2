@@ -1,6 +1,6 @@
 import { getGlobalThis } from "@/node"
 import { EError } from "exceptional-errors"
-import isPlainObject from "is-plain-object"
+import { isObject } from "@/utils"
 
 import type {
   BaseErrorOptions,
@@ -398,7 +398,7 @@ function captureErrorStackTrace(targetObject: object, constructorOpt?: ErrorCons
  * Helper function to copy metadata from BaseError instances or Error objects with attached properties
  */
 export function copyErrorMetadata(sourceError: unknown): BaseErrorMetadataCopy {
-  if (!sourceError || !isPlainObject(sourceError)) {
+  if (!sourceError || !isObject(sourceError)) {
     return {}
   }
 
