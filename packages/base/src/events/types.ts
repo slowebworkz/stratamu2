@@ -411,7 +411,7 @@ export type RegisteredListener<EventMap, EventName extends keyof EventMap> = Rea
 >
 
 // ===============================
-// Priority Listener Types (from filtered-priority-emitter2)
+// Priority Listener Types (from filtered-priority-emitter)
 // ===============================
 
 export interface BasePriorityListener<
