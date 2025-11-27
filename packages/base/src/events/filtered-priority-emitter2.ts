@@ -14,7 +14,7 @@ import type {
   RegisteredListener,
   UnsafeListenerListCast,
 } from "@/events"
-import { brandPriorityLinkedList, LISTENER_COUNT_CACHE_THRESHOLD, LoggedEmitter } from "@/events"
+import { LISTENER_COUNT_CACHE_THRESHOLD, LoggedEmitter, brandPriorityLinkedList } from "@/events"
 import { isObject, safeFormatPayload, serializeError } from "@/utils"
 import type { Args, BaseEventMap } from "@repo/types"
 import type { UnsubscribeFunction } from "emittery"
@@ -23,16 +23,6 @@ export type PLMap<EventMap extends BaseEventMap> = Map<
   EmitterEventKey<EventMap>,
   PriorityLinkedList<BasePriorityListener<EventMap, EmitterEventKey<EventMap>>>
 >
-
-
-
-
-
-
-
-
-
-
 
 /**
  * FilteredPriorityEmitter: An event emitter with priority-based listener execution and filtering.
@@ -129,12 +119,7 @@ export abstract class FilteredPriorityEmitter<
     this._resetListenerCountCache()
 
     // Memoize filter by event key for fast filtering
-    addListenerToFilterGroup(
-      listener.filter,
-      this.filterGroups,
-      event,
-      listener
-    )
+    addListenerToFilterGroup(listener.filter, this.filterGroups, event, listener)
 
     // Adaptive cache: enable if threshold exceeded
     if (
@@ -390,16 +375,6 @@ export abstract class FilteredPriorityEmitter<
   }
 }
 
-
-
-
-
-
-
-
-
-
-
 // Helper function to encapsulate the double-cast for branded listener lists
 function unsafeCastListenerList<M extends BaseEventMap, N extends EmitterEventKey<M>>(
   list: PriorityLinkedList<BasePriorityListener<M, EmitterEventKey<M>>>,
@@ -650,15 +625,12 @@ function countListItems<T>(list: LinkedList<T>): number {
  */
 function addListenerToFilterGroup<
   EventMap extends BaseEventMap,
-  EventName extends EmitterEventKey<EventMap>
+  EventName extends EmitterEventKey<EventMap>,
 >(
-  filter: RegisteredListener<EventMap, EventName>['filter'] | undefined,
-  filterGroups: Map<
-    EmitterEventKey<EventMap> | "*",
-    RegisteredListener<EventMap, EventName>[]
-  >,
+  filter: RegisteredListener<EventMap, EventName>["filter"] | undefined,
+  filterGroups: Map<EmitterEventKey<EventMap> | "*", RegisteredListener<EventMap, EventName>[]>,
   event: EventName,
-  listener: RegisteredListener<EventMap, EventName>
+  listener: RegisteredListener<EventMap, EventName>,
 ): void {
   if (!filter) return
 

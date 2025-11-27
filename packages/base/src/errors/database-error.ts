@@ -1,5 +1,5 @@
 import { BaseError } from "@/errors"
-import { register, RETRYABLE_SQL_CODES } from "@/errors"
+import { RETRYABLE_SQL_CODES, register } from "@/errors"
 import type {
   DatabaseErrorContext,
   DatabaseErrorOptions,

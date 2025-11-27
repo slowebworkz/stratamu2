@@ -1,13 +1,13 @@
 import { getGlobalThis } from "@/node"
-import { EError } from "exceptional-errors"
 import { isObject } from "@/utils"
+import { EError } from "exceptional-errors"
 
 import type {
+  BaseErrorMetadataCopy,
   BaseErrorOptions,
   ErrorCategory,
   ErrorCauseType,
   MetadataObject,
-  BaseErrorMetadataCopy,
   SerializedError,
 } from "@/errors"
 import { register } from "@/errors"

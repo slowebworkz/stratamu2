@@ -1,3 +1,4 @@
+import { BaseError } from "@/errors"
 import type {
   // EventNameString,
   EfficiencyRatio,
@@ -5,7 +6,6 @@ import type {
   PerformanceLevel,
 } from "@/events"
 import { PERFORMANCE_THRESHOLDS } from "@/events"
-import { BaseError } from "@/errors"
 import type { Count, ErrorCount, ListenerName, TimeInMs } from "@/performance"
 import { isFiniteNumber, isNumber } from "@/utils"
 import type { EventName } from "@repo/types"

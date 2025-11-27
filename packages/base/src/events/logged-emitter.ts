@@ -4,7 +4,6 @@ import type { LevelChangeEventListener, LevelMapping, Logger } from "pino"
 import pino from "pino"
 import type { JsonValue, Jsonify, SetRequired, Simplify } from "type-fest"
 
-import { isJsonValue, isObject, safeFormatPayload } from "@/utils"
 import { SafeEmitter } from "@/events"
 import type {
   Bindings,
@@ -13,6 +12,7 @@ import type {
   SafeMergingObject,
   ThrowConfig,
 } from "@/events"
+import { isJsonValue, isObject, safeFormatPayload } from "@/utils"
 
 type ToJSONReturn = Jsonify<{
   level: LogLevelWithSilent

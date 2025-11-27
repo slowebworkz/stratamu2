@@ -1,9 +1,9 @@
+import type { ERROR_CATEGORIES } from "@/errors"
+import type { BaseError } from "@/errors"
 // ============================================================================
 // IMPORTS
 // ============================================================================
 import type { JsonObject, LiteralUnion, Simplify } from "type-fest"
-import type { ERROR_CATEGORIES } from "@/errors"
-import type { BaseError } from "@/errors"
 
 // ============================================================================
 // CORE ERROR TYPES

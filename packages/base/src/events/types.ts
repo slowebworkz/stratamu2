@@ -1,5 +1,5 @@
-import type { Count } from "@/performance/types.js"
 import type { LinkedList } from "@/data"
+import type { Count } from "@/performance/types.js"
 import type {
   Args,
   Awaitable,

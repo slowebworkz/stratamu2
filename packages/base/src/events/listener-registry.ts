@@ -1,5 +1,5 @@
-import type { AllEventKeys, ListenerFn } from "@/events"
 import { BaseError } from "@/errors"
+import type { AllEventKeys, ListenerFn } from "@/events"
 import type { BaseEventMap } from "@repo/types"
 
 /**

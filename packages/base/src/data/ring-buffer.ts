@@ -1,5 +1,5 @@
-import { isFiniteNumber, whenNotEmpty } from "@/utils"
 import { BaseError, DomainError } from "@/errors"
+import { isFiniteNumber, whenNotEmpty } from "@/utils"
 import { isObject } from "@/utils"
 import type { TypedArray } from "type-fest"
 

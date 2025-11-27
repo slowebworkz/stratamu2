@@ -1,9 +1,9 @@
 import { BaseError } from "@/errors"
 import type {
   BaseErrorOptions,
-  SerializedError,
-  MetadataObject,
   ErrorCauseType,
+  MetadataObject,
+  SerializedError,
   UnresolvedSerializedCause,
 } from "@/errors"
 
