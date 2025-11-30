@@ -1,6 +1,5 @@
 import { RingBuffer } from "@/data"
 import type {
-  EventKey,
   LogQueryOptions,
   PerEventCap,
   PublicEventMap,
@@ -15,7 +14,7 @@ import {
   sumMapValues,
 } from "@/events"
 import { emitDiagnosticWarning } from "@/node"
-import type { BaseEventMap } from "@repo/types"
+import type { BaseEventMap, EventKey } from "@repo/types"
 import type Emittery from "emittery"
 import type { JsonValue } from "type-fest"
 

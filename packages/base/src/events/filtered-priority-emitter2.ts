@@ -5,7 +5,6 @@ import type {
   AllEventKeys,
   AllEvents,
   BasePriorityListener,
-  EmitterEventKey,
   ListenerCallback,
   ListenerList,
   Priority,
@@ -15,7 +14,7 @@ import type {
 } from "@/events"
 import { LISTENER_COUNT_CACHE_THRESHOLD, LoggedEmitter } from "@/events"
 import { isObject, safeFormatPayload, serializeError } from "@/utils"
-import type { Args, BaseEventMap } from "@repo/types"
+import type { Args, BaseEventMap, EmitterEventKey, } from "@repo/types"
 import type { Jsonifiable } from "type-fest"
 import type { UnsubscribeFunction } from "emittery"
 

@@ -1,5 +1,6 @@
 import { DEV_MODE } from "@/env"
-import type { AnyListenerFn, ListenerErrorContext, PublicEventMap } from "@/events"
+import type { PublicEventMap } from "@/events"
+import type { AnyListenerFn, ListenerErrorContext } from "@repo/types"
 import {
   INTERNAL_ON_EMIT_ERROR,
   INTERNAL_ON_LISTENER_ERROR,

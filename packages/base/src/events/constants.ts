@@ -1,4 +1,5 @@
-import type { DeepReadonlyRecord, EfficiencyThreshold } from "@/events"
+import type { EfficiencyThreshold } from "@/events"
+import type { DeepReadonlyRecord } from "@repo/types"
 import type { LiteralUnion, ReadonlyDeep } from "type-fest"
 
 // -----------------------------------------------------------------------------

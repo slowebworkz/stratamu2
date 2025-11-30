@@ -1,6 +1,6 @@
 import { BaseError } from "@/errors"
-import type { AllEventKeys, ListenerFn } from "@/events"
-import type { BaseEventMap } from "@repo/types"
+import type { AllEventKeys } from "@/events"
+import type { BaseEventMap, ListenerFn } from "@repo/types"
 
 /**
  * ListenerRegistry centralizes listener bookkeeping for event emitters.

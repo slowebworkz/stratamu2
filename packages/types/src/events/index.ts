@@ -1,6 +1,7 @@
 export * from "./any-listener.ts"
 export * from "./base-event-map.ts"
 export * from "./emit-result.ts"
+export * from "./emitter-event-key.ts"
 export * from "./event-key.ts"
 export * from "./event-listener-fn.ts"
 export * from "./event-listener.ts"
