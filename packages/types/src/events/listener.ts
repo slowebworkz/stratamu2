@@ -9,5 +9,5 @@ import type { BaseEventMap, EventKey, ListenerFn } from "./index.ts"
  */
 export type Listener<
   EventMap extends BaseEventMap = BaseEventMap,
-  Name extends EventKey<EventMap> = EventKey<EventMap>
+  Name extends EventKey<EventMap> = EventKey<EventMap>,
 > = ListenerFn<{ [K in Name]: [EventMap[K]] }, Name>

@@ -9,5 +9,5 @@ import type { Awaitable } from "../base/index.ts"
  */
 export type ListenerFn<
   EventMap extends BaseEventMap = BaseEventMap,
-  EventKey extends keyof EventMap = keyof EventMap
+  EventKey extends keyof EventMap = keyof EventMap,
 > = (...args: EventMap[EventKey]) => Awaitable<unknown>

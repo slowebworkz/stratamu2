@@ -11,7 +11,5 @@ import type { BaseEventMap, EventKey, EventListenerFn } from "./index.ts"
  */
 export type EventListener<
   EventMap extends BaseEventMap = BaseEventMap,
-  Name extends EventKey<EventMap> = EventKey<EventMap>
-> = EventListenerFn<
-  EventMap[Name]
->
+  Name extends EventKey<EventMap> = EventKey<EventMap>,
+> = EventListenerFn<EventMap[Name]>

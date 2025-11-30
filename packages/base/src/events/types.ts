@@ -7,10 +7,9 @@ import type {
   EventKey,
   EventKeyType,
   EventName,
-  FullListener,
-  FullEventMap,
-  Listener,
-} from "@repo/types";
+  ListenerErrorContext,
+  ListenerErrorLogEntry,
+} from "@repo/types"
 import type { OmnipresentEventData, UnsubscribeFunction } from "emittery"
 import type { Level, Logger } from "pino"
 import type {
@@ -87,16 +86,6 @@ export type ReadonlyEventMetrics<EventMap extends BaseEventMap = BaseEventMap> =
 >
 
 /**
- * Utility type: If EventName<EventMap> is a string, use it; otherwise, fall back to string.
- */
-export type EventNameString<
-  EventMap extends Record<string, unknown[]>
-> =
-  EventName<EventMap> extends string
-  ? EventName<EventMap>
-  : string
-
-/**
  * Performance level classification for event metrics.
  */
 export type PerformanceLevel = "excellent" | "good" | "concerning" | "poor"
@@ -105,7 +94,7 @@ export type PerformanceLevel = "excellent" | "good" | "concerning" | "poor"
 // Default Internal Event Map
 // ===============================
 
-export type DefaultInternalEventMap = InternalEventMap<Record<string, unknown[]>>
+export type DefaultInternalEventMap = InternalEventMap<BaseEventMap>
 
 // ===============================
 // LoggedEmitter Types
@@ -196,13 +185,6 @@ export type ChildLoggerOptions = Record<string, unknown>
 // Additional Types from types.ts
 // ===============================
 
-/**
- * Utility type to extract the payload type from a tuple.
- *
- * @template T extends any[]
- */
-export type ExtractPayload<T> = T extends [infer U] ? U : never
-
 /** Developer-friendly helper: the public (string-named) events map simplified for IDEs. */
 export type PublicEventMap<EventMap extends BaseEventMap> = Simplify<
   Pick<AllEvents<EventMap>, Extract<keyof AllEvents<EventMap>, string>> & {
@@ -214,19 +196,6 @@ export type PublicEventMap<EventMap extends BaseEventMap> = Simplify<
 
 /** Developer-friendly union type for public event names (string literals + arbitrary strings). */
 export type PublicEventName<E> = LiteralUnion<Extract<keyof E, string>, string>
-
-export type ListenerErrorContext<Emitter = unknown> = {
-  type: "on" | "once"
-  listener?: AnyListenerFn
-  hasFilter?: boolean
-  emitter?: Emitter
-}
-
-export type ListenerErrorLogEntry = ReadonlyDeep<{
-  timestamp: number
-  error: unknown
-  listener: string
-}>
 
 export type EfficiencyRatio = Tagged<number, "EfficiencyRatio">
 
