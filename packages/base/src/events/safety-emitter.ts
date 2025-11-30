@@ -19,24 +19,16 @@ import type { BaseEventMap } from "@repo/types"
 import type Emittery from "emittery"
 import type { JsonValue } from "type-fest"
 
-export type MutableErrorCountsMap<EventMap extends BaseEventMap<unknown[]>> = Map<
-  EventKey<EventMap>,
-  number
->
+export type MutableErrorCountsMap<EventMap extends BaseEventMap> = Map<EventKey<EventMap>, number>
 
-export type ErrorCountsMap<EventMap extends BaseEventMap<unknown[]>> = ReadonlyMap<
-  EventKey<EventMap>,
-  number
->
+export type ErrorCountsMap<EventMap extends BaseEventMap> = ReadonlyMap<EventKey<EventMap>, number>
 
-export type SafetyLogsMap<EventMap extends BaseEventMap<unknown[]>> = Map<
+export type SafetyLogsMap<EventMap extends BaseEventMap> = Map<
   EventKey<EventMap>,
   RingBuffer<SafetyLogEntry>
 >
 
-export type SafetyControlEmitter<EventMap extends BaseEventMap<unknown[]>> = Emittery<
-  PublicEventMap<EventMap>
->
+export type SafetyControlEmitter<EventMap extends BaseEventMap> = Emittery<PublicEventMap<EventMap>>
 
 export type SafetyLogList = ReadonlyArray<SafetyLogEntry>
 
@@ -49,7 +41,7 @@ export type SafetyLogIterator = IterableIterator<SafetyLogEntry>
  * Expects a specialized control emitter for control events only.
  * The emitter should be an instance of Emittery<PublicEventMap<EventMap>>.
  */
-export class SafetyEmitter<EventMap extends BaseEventMap<unknown[]>> {
+export class SafetyEmitter<EventMap extends BaseEventMap> {
   private _errorCounts: MutableErrorCountsMap<EventMap> = new Map()
   private _safetyLogs: SafetyLogsMap<EventMap> = new Map()
 
@@ -196,7 +188,7 @@ export class SafetyEmitter<EventMap extends BaseEventMap<unknown[]>> {
   }
 }
 
-export function recordListenerErrorEntry<EventMap extends BaseEventMap<unknown[]>>(
+export function recordListenerErrorEntry<EventMap extends BaseEventMap>(
   errorCounts: MutableErrorCountsMap<EventMap>,
   safetyLogs: SafetyLogsMap<EventMap>,
   perEventCaps: PerEventCap<EventMap> | undefined,
@@ -256,7 +248,7 @@ function sanitizeError(e: unknown): SanitizedError {
   }
 }
 
-function getBufferForEvent<EventMap extends BaseEventMap<unknown[]>>(
+function getBufferForEvent<EventMap extends BaseEventMap>(
   safetyLogs: SafetyLogsMap<EventMap>,
   eventName?: PropertyKey,
 ) {
@@ -266,7 +258,7 @@ function getBufferForEvent<EventMap extends BaseEventMap<unknown[]>>(
   return safetyLogs.get(key)
 }
 
-function collectLogs<EventMap extends BaseEventMap<unknown[]>>(
+function collectLogs<EventMap extends BaseEventMap>(
   safetyLogs: SafetyLogsMap<EventMap>,
   eventName?: PropertyKey,
   opts?: LogQueryOptions,

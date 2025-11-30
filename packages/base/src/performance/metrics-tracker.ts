@@ -29,7 +29,7 @@ const CONTROL_EVENT_SET: ReadonlySet<EventKey<ControlEvents>> = new Set(CONTROL_
  * MetricsTracker: Composes with any event emitter to track performance metrics
  * for all events without mutating the emitter's methods.
  */
-export class MetricsTracker<EventMap extends BaseEventMap<unknown[]>> {
+export class MetricsTracker<EventMap extends BaseEventMap> {
   private readonly emitter: {
     on: <K extends keyof EventMap>(event: K, listener: ListenerForEvent<EventMap, K>) => void
     off: <K extends keyof EventMap>(event: K, listener: ListenerForEvent<EventMap, K>) => void

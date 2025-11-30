@@ -11,7 +11,7 @@ const ERROR_MSG = "BaseClass cannot be instantiated directly"
  * safe emission, event bubbling, and lifecycle management.
  */
 export abstract class BaseClass<
-  EventMap extends BaseEventMap<unknown[]> = BaseEventMap<unknown[]>,
+  EventMap extends BaseEventMap = BaseEventMap,
 > extends BubblingEmitter<EventMap> {
   constructor() {
     super()

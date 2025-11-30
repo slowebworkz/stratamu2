@@ -340,7 +340,7 @@ export abstract class FilteredPriorityEmitter<
     const errors: unknown[] = []
     // Batch filter evaluation for all listeners
     const filterResults = await Promise.all(
-      listeners.map(l => l.filter ? l.filter(...args) : true)
+      listeners.map(l => (l.filter ? l.filter(...args) : true)),
     )
     for (let i = 0; i < listeners.length; i++) {
       const listener = listeners[i]
@@ -407,7 +407,6 @@ export abstract class FilteredPriorityEmitter<
   }
 }
 
-
 /**
  * Remove a listener from filterGroups for a specific event.
  * Ensures no stale listeners remain after unsubscribe.
@@ -465,7 +464,7 @@ async function createEmitErrorContext(event: string | symbol, errors: unknown | 
           for (const key of Object.keys(serialized)) {
             const value = (serialized as Record<string, unknown>)[key]
             if (isObject(value)) {
-              (serialized as Record<string, unknown>)[key] = deepSerializeError(value)
+              ;(serialized as Record<string, unknown>)[key] = deepSerializeError(value)
             }
           }
         }
@@ -496,7 +495,7 @@ async function createEmitErrorContext(event: string | symbol, errors: unknown | 
  * Centralizes the complex listener execution logic with proper error handling.
  */
 async function executePriorityListeners<
-  EventMap extends BaseEventMap<unknown[]>,
+  EventMap extends BaseEventMap,
   EventName extends keyof EventMap,
 >(list: ListenerList<EventMap, EventName>, args: Args<EventMap[EventName]>): Promise<unknown[]> {
   const errors: unknown[] = []
@@ -560,7 +559,7 @@ function hasSequence(obj: unknown): obj is { sequence: number } {
 function createSafeUnsubscribe<
   T extends { sequence?: number },
   EventMap extends BaseEventMap = BaseEventMap,
-  EventName extends EmitterEventKey<EventMap> = EmitterEventKey<EventMap>
+  EventName extends EmitterEventKey<EventMap> = EmitterEventKey<EventMap>,
 >(
   list: LinkedList<T>,
   listener: T,
@@ -585,13 +584,19 @@ function createSafeUnsubscribe<
       if (filterGroups && filterGroupKey) {
         try {
           removeListenerFromFilterGroups(
-            filterGroups as Map<EmitterEventKey<EventMap> | "*", RegisteredListener<EventMap, EventName>[]>,
+            filterGroups as Map<
+              EmitterEventKey<EventMap> | "*",
+              RegisteredListener<EventMap, EventName>[]
+            >,
             filterGroupKey as EmitterEventKey<EventMap>,
-            listener as unknown as RegisteredListener<EventMap, EventName>
+            listener as unknown as RegisteredListener<EventMap, EventName>,
           )
         } catch (e) {
           // don't let filter cleanup blow up unsubscribe
-          warnLogger?.({ event: eventName, error: e }, "Failed to remove listener from filterGroups")
+          warnLogger?.(
+            { event: eventName, error: e },
+            "Failed to remove listener from filterGroups",
+          )
         }
       }
     } catch (error) {

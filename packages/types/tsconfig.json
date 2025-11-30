@@ -2,7 +2,8 @@
   "extends": "./tsconfig.paths.json",
   "compilerOptions": {
     "outDir": "dist",
-    "baseUrl": "."
+    "baseUrl": ".",
+    "skipLibCheck": false
   },
   "include": ["src/index.ts", "src/**/*.ts"],
   "exclude": ["node_modules"]

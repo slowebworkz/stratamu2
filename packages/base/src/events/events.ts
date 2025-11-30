@@ -54,7 +54,7 @@ export async function fireAndForgetGeneric(
  * Returns a typed view of the emitter’s *public* event bus.
  * Ensures internal symbol event keys do not leak into external API surfaces.
  */
-export function internalPublicBus<EventMap extends BaseEventMap<unknown[]>>(self: {
+export function internalPublicBus<EventMap extends BaseEventMap>(self: {
   _public: Emittery<PublicEventMap<EventMap>>
 }): Emittery<PublicEventMap<EventMap>> {
   return self._public

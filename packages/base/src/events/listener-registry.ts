@@ -7,7 +7,7 @@ import type { BaseEventMap } from "@repo/types"
  * It manages mappings between original and wrapped listeners, listener sets, and seen events.
  */
 
-export class ListenerRegistry<EventMap extends BaseEventMap<unknown[]>> {
+export class ListenerRegistry<EventMap extends BaseEventMap> {
   /* ------------------- Public API ------------------- */
 
   /**
@@ -145,7 +145,7 @@ export class ListenerRegistry<EventMap extends BaseEventMap<unknown[]>> {
    * @param onError The error handler to call on error.
    */
   public static createSafeListener<
-    EventMap extends BaseEventMap<unknown[]>,
+    EventMap extends BaseEventMap,
     K extends AllEventKeys<EventMap>,
     Ctx,
   >(
@@ -168,7 +168,7 @@ export class ListenerRegistry<EventMap extends BaseEventMap<unknown[]>> {
    * Useful for 'once' methods that use different listener signatures.
    */
   public static createSafeOnceListener<
-    EventMap extends BaseEventMap<unknown[]>,
+    EventMap extends BaseEventMap,
     K extends AllEventKeys<EventMap>,
     Ctx,
   >(
@@ -362,7 +362,7 @@ export function tagListener<T extends (...args: unknown[]) => unknown, Tag = unk
  * This is a convenience for ergonomic/functional usage.
  */
 export function addListenerToRegistry<
-  EventMap extends BaseEventMap<unknown[]>,
+  EventMap extends BaseEventMap,
   E extends AllEventKeys<EventMap>,
 >(
   registry: ListenerRegistry<EventMap>,

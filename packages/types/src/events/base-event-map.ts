@@ -1,8 +1,10 @@
 // Canonical event map type for event emitters in the base package.
 // Extend or override in specific modules as needed.
 
+import type { EventKeyType } from "./index.ts"
+
 // BaseEventMap allows string or symbol keys for event names
-export type BaseEventMap<T = unknown[]> = Record<string | symbol, T>
+export type BaseEventMap = Record<EventKeyType, unknown[]>
 
 /** testing type */
 

@@ -24,7 +24,7 @@ import type {
 } from "@/events"
 import type { Awaitable, BaseEventMap } from "@repo/types"
 
-export abstract class SafeEmitter<EventMap extends BaseEventMap<unknown[]>> {
+export abstract class SafeEmitter<EventMap extends BaseEventMap> {
   private readonly _listenerRegistry: ListenerRegistry<EventMap>
 
   protected readonly _public: Emittery<AllEvents<EventMap>> = new Emittery<AllEvents<EventMap>>()
