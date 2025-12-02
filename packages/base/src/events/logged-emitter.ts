@@ -116,7 +116,7 @@ export abstract class LoggedEmitter<EventMap extends BaseEventMap> extends SafeE
   createChildLogger(bindingsOrOptions: Bindings | ChildLoggerOptions): LoggedEmitter<EventMap> {
     // Always bind the child logger to the same EventMap as the parent
     const childLogger = this._logger.child(bindingsOrOptions as Bindings)
-    const ctor = this.constructor as { new(logger?: Logger): LoggedEmitter<EventMap> }
+    const ctor = this.constructor as { new (logger?: Logger): LoggedEmitter<EventMap> }
     const childEmitter = new ctor(childLogger)
     this._childLoggers.add(childEmitter)
     return childEmitter
@@ -269,7 +269,7 @@ export function logWithFormat<L extends LogLevel>(
   args: L extends ThrowLevel ? ThrowLogArgs : NormalLogArgs,
 ): void {
   const formatted = formatLogArgs(args)
-    // Use index signature to access the method safely
-    ; (logger[level] as (...a: unknown[]) => void)(...formatted)
+  // Use index signature to access the method safely
+  ;(logger[level] as (...a: unknown[]) => void)(...formatted)
   shouldThrow(level as ThrowLevel, args as ThrowLogArgs)
 }

@@ -1,4 +1,4 @@
-import type { AnyListenerFn } from "@/events"
+import type { AnyListenerFn } from "@repo/types"
 
 //
 /**
