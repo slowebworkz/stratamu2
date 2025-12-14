@@ -1,16 +1,28 @@
 import type { LinkedList } from "@/data"
-import type { Count, PerformanceLevel } from "@/performance"
+import type {
+  ENTITY_STATES,
+  ENTITY_TYPES,
+  EVENT_PRIORITIES,
+  INTERNAL_ON_CHILD_ERROR,
+  INTERNAL_ON_DESTROY,
+  INTERNAL_ON_DESTROY_ERROR,
+  INTERNAL_ON_EMIT_ERROR,
+  INTERNAL_ON_LISTENER_ERROR,
+  INTERNAL_ON_LISTENER_REMOVED,
+  INTERNAL_ON_REMOVE_WARN,
+  LISTENER_STATES,
+} from "@/events"
+import type { Count } from "@/performance"
 import type {
   AnyListenerFn,
   Args,
   BaseEventMap,
   EmitterEventKey,
-  EventKey,
   EventKeyType,
   EventName,
   ListenerErrorContext,
 } from "@repo/types"
-import type { OmnipresentEventData, UnsubscribeFunction } from "emittery"
+import type { EmitteryOncePromise, OmnipresentEventData, UnsubscribeFunction } from "emittery"
 import type { Level, Logger } from "pino"
 import type {
   IntRange,
@@ -23,16 +35,6 @@ import type {
   Simplify,
   Tagged,
 } from "type-fest"
-import {
-  INTERNAL_ON_CHILD_ERROR,
-  INTERNAL_ON_DESTROY,
-  INTERNAL_ON_DESTROY_ERROR,
-  INTERNAL_ON_EMIT_ERROR,
-  INTERNAL_ON_LISTENER_ERROR,
-  INTERNAL_ON_LISTENER_REMOVED,
-  INTERNAL_ON_REMOVE_WARN,
-  type LISTENER_STATES,
-} from "./constants.ts"
 
 // ===============================
 // DRY utility for count-like records
@@ -50,10 +52,36 @@ export type ErrorCounts<T> = CountsMap<EmitterEventKey<T>>
 export type LogSizes<T> = CountsMap<EmitterEventKey<T>, "__total">
 
 // ===============================
-// Promise-like types for once() with cancellation
+// Function Types for Cleanup/Disposal
 // ===============================
 
+/**
+ * Function that disposes/cleans up resources (listeners, subscriptions, etc.).
+ * Returned by `.on()`, `.once()`, and other registration methods.
+ */
+export type DisposerFn = () => void
+
+/**
+ * Function that cancels an in-flight async operation.
+ * Used by cancelable promises to abort before completion.
+ */
 export type CancelFn = () => void
+
+/**
+ * Options for listener subscription methods (`.on()`, `.once()`).
+ * Supports aborting the subscription via AbortSignal.
+ */
+export type SubscriptionOptions = {
+  signal?: AbortSignal
+  /** Register as one-shot: auto-dispose after first call */
+  once?: boolean
+  /** Optional listener priority (used by priority-aware emitters) */
+  priority?: Priority
+}
+
+// ===============================
+// Promise-like types for once() with cancellation
+// ===============================
 
 /**
  * Promise that may expose an optional `.off()` cancellation method.
@@ -69,10 +97,12 @@ export type WrappedCancelable<T> = Promise<T> & {
   off?: CancelFn
 }
 
-export type EmitteryOncePromise<T> = Omit<Promise<T>, "finally"> & {
-  off(): void
-  finally: Promise<T>["finally"]
-}
+export type SafeOncePromise<
+  EventMap extends BaseEventMap,
+  K extends AllEventKeys<EventMap>,
+> = EmitteryOncePromise<(AllEvents<EventMap> & OmnipresentEventData)[K]>
+
+export type EmitArgs<EventMap, K extends keyof EventMap> = Tuplefy<EventMap[K]>
 
 // ===============================
 // SafeEmitter Types
@@ -91,6 +121,12 @@ export type EventMetrics<EventMap extends BaseEventMap = BaseEventMap> = {
 export type ReadonlyEventMetrics<EventMap extends BaseEventMap = BaseEventMap> = ReadonlyDeep<
   EventMetrics<EventMap>
 >
+
+export type Tuplefy<T> = T extends undefined
+  ? readonly []
+  : T extends readonly [...unknown[]] // preserve tuple / readonly tuple
+    ? T
+    : readonly [T]
 
 // ===============================
 // Default Internal Event Map
@@ -142,6 +178,11 @@ type EventListenerTuple<EventMap extends BaseEventMap> = [
 type InternalEventMapListener = AnyListenerFn
 
 type InternalEventMapContext = Partial<Record<"emitter", unknown>>
+
+/* export type InternalEventMap<EventMap extends BaseEventMap> = {
+  [K in keyof InternalEventMapShape<EventMap>]:
+    InternalEventMapShape<EventMap>[K]
+} */
 
 export type InternalEventMap<EventMap extends BaseEventMap> = Simplify<{
   [INTERNAL_ON_LISTENER_ERROR]: [
@@ -221,6 +262,12 @@ export type EstimatedBytes = Tagged<number, "Bytes">
 
 export type Priority = Tagged<number, "Priority">
 
+/** Type for event priority keys (for use in APIs, etc.) */
+export type EventPriorityKey = LiteralUnion<keyof typeof EVENT_PRIORITIES, string>
+
+export type EntityTypeKey = LiteralUnion<(typeof ENTITY_TYPES)[number], string>
+export type EntityStateKey = LiteralUnion<(typeof ENTITY_STATES)[number], string>
+
 export type ListenerId = Tagged<string, "ListenerId">
 
 export type SchemaVersion = Tagged<string, "SchemaVersion">
@@ -229,8 +276,8 @@ export type EfficiencyThreshold = IntRange<1, 10>
 
 export type DatalessEventNames<EventMap extends BaseEventMap> = {
   [K in EmitterEventKey<EventMap>]: Extract<Args<EventMap[K]>, [] | readonly []> extends never
-  ? never
-  : K
+    ? never
+    : K
 }[EmitterEventKey<EventMap>]
 
 export type EventNamesExcludedByNever<EventMap extends BaseEventMap> = {
@@ -305,6 +352,11 @@ export type RegisteredListener<
   EventName extends EmitterEventKey<EventMap>,
 > = ReadonlyDeep<PriorityListener<EventMap, EventName>>
 
+/**
+ * Extract the first argument type from an EventMap entry
+ */
+export type FirstEventArg<T> = T extends readonly [infer First, ...unknown[]] ? First : T
+
 // ===============================
 // SafetyEmitter Types
 // ===============================
@@ -330,11 +382,11 @@ export type SafetyEmitterOptions<EventMap extends BaseEventMap = BaseEventMap> =
  */
 export type SanitizedError =
   | Readonly<{
-    kind: "Error"
-    name: string
-    message: string
-    stackSnippet?: string
-  }>
+      kind: "Error"
+      name: string
+      message: string
+      stackSnippet?: string
+    }>
   | Readonly<{ kind: "String"; value: string }>
   | Readonly<{ kind: "Json"; value: Exclude<JsonValue, undefined> }>
 
