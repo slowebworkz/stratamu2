@@ -1,4 +1,10 @@
-import type { Awaitable } from "../base/index.ts"
+import type { BaseEventMap, EmitteryOnListener } from "@/events"
 
-// Generic listener function type for any event signature (for internal/error use only)
-export type AnyListenerFn = (...args: unknown[]) => Awaitable
+/**
+ * Generic Emittery-compatible listener for any event.
+ *
+ * - single argument (event payload)
+ * - payload may be anything (including tuples)
+ * - return type matches Emittery expectations
+ */
+export type AnyListenerFn = EmitteryOnListener<BaseEventMap>

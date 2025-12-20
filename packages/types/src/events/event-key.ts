@@ -1,5 +1,4 @@
-import type { LiteralUnion } from "type-fest"
-
+// Emittery uses PropertyKey (string | symbol | number) for event names
 export type EventKeyType = string | symbol
 
 /**
@@ -7,4 +6,5 @@ export type EventKeyType = string | symbol
  */
 export type KnownEventKey<EventMap> = Extract<keyof EventMap, EventKeyType>
 
-export type EventKey<T> = LiteralUnion<KnownEventKey<T>, string>
+// EventKey: all known string and symbol keys, plus any string
+export type EventKey<T> = Extract<keyof T, string | symbol> | string

@@ -1,5 +1,5 @@
-import type { BaseEventMap } from "./index.ts"
-import type { Awaitable } from "../base/index.ts"
+import type { Awaitable } from "@/base"
+import type { BaseEventMap } from "@/events"
 
 /**
  * Strongly-typed listener function for a given event.
