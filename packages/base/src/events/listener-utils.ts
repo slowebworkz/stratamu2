@@ -1,4 +1,5 @@
-import type { CancelablePromise } from "@/events"
+import type { AllEvents, AllEventKeys, CancelablePromise } from "@/events"
+import type { BaseEventMap, ListenerFn, EventListener, EventKey } from "@repo/types"
 
 /**
  * Unwraps single-element tuples to their value, otherwise returns the full tuple.
@@ -53,4 +54,46 @@ export function wrapCancelablePromise<T extends Promise<unknown>>(
   off?: () => void,
 ): CancelablePromise<Awaited<T>> {
   return Object.assign(promise, { off: off ?? (() => void 0) }) as CancelablePromise<Awaited<T>>
+}
+
+export function convertToEmitteryListener<EventMap extends BaseEventMap, K extends keyof EventMap>(
+  listener: ListenerFn<EventMap, K>,
+): (eventData: AllEvents<EventMap>[K]) => Promise<void> {
+  return async (eventData: AllEvents<EventMap>[K]) => {
+    const args = emitteryArgToTuple(eventData) as EventMap[K]
+    await listener(...args)
+  }
+}
+
+/**
+ * Normalizes event key and listener for registry compatibility.
+ * Ensures types are correct for ListenerRegistry methods.
+ */
+export function toRegistryKeyAndListener<EventMap extends BaseEventMap, K extends keyof EventMap>(
+  event: K,
+  listener: ListenerFn<EventMap, K>,
+): [K, ListenerFn<EventMap, K>] {
+  // This function is mostly for type inference and future-proofing.
+  // If runtime normalization is needed, add it here.
+  return [event, listener]
+}
+
+/* export function adaptListenerForRegistry<
+  EventMap extends BaseEventMap,
+  K extends AllEventKeys<EventMap>
+>(
+  listener: ListenerFn<EventMap, K>
+): EventListener<EventMap, EventKey<EventMap>> {
+  return ((...args: unknown[]) => listener(...(args as EventMap[K]))) as EventListener<EventMap, EventKey<EventMap>>
+}
+ */
+
+export function adaptListenerForRegistry<
+  EventMap extends BaseEventMap,
+  K extends EventKey<EventMap>,
+>(event: K, listener: ListenerFn<EventMap, K>): [K, EventListener<EventMap, K>] {
+  return [
+    event,
+    ((...args: unknown[]) => listener(...(args as EventMap[K]))) as EventListener<EventMap, K>,
+  ]
 }
