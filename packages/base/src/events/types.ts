@@ -12,14 +12,17 @@ import type {
   INTERNAL_ON_REMOVE_WARN,
   LISTENER_STATES,
 } from "@/events"
+import type { INTERNAL_EVENT_KEYS } from "@/events"
 import type { Count } from "@/performance"
 import type {
   AnyListenerFn,
   Args,
+  Awaitable,
   BaseEventMap,
   EmitterEventKey,
   EventKeyType,
   EventName,
+  EventListenerFn,
   ListenerErrorContext,
 } from "@repo/types"
 import type { EmitteryOncePromise, OmnipresentEventData, UnsubscribeFunction } from "emittery"
@@ -29,7 +32,6 @@ import type {
   JsonValue,
   LiteralUnion,
   Merge,
-  Promisable,
   ReadonlyDeep,
   SetOptional,
   Simplify,
@@ -163,7 +165,7 @@ export type LoggedEmitterListener<
     Name,
     keyof LoggedEmitterEventMap<EventMap, true>
   >],
-) => Promisable<void>
+) => Awaitable<void>
 
 // ===============================
 // Private events
@@ -241,6 +243,8 @@ type StringKeys<T> = Extract<keyof T, string>
 
 type OptionalArg<T = unknown> = [arg?: T]
 
+export type InternalEventKey = typeof INTERNAL_EVENT_KEYS extends ReadonlySet<infer T> ? T : never
+
 /** Developer-friendly helper: the public (string-named) events map simplified for IDEs. */
 export type PublicEventMap<EventMap extends BaseEventMap> = Simplify<
   Pick<AllEvents<EventMap>, StringKeys<AllEvents<EventMap>>> & {
@@ -298,7 +302,7 @@ export type ListenerPerformanceRecord = Simplify<
 export type ListenerCallback<
   EventMap extends BaseEventMap,
   EventName extends EmitterEventKey<EventMap>,
-> = (...args: Args<EventMap[EventName]>) => Promisable<void>
+> = (...args: Args<EventMap[EventName]>) => Awaitable<void>
 
 export type ListenerFilter<
   EventMap extends BaseEventMap,
@@ -324,6 +328,11 @@ export type PriorityListener<
 }>
 
 export type ListenerState = (typeof LISTENER_STATES)[number]
+
+export type WrappedListener<
+  EventMap extends BaseEventMap,
+  K extends Extract<AllEventKeys<EventMap>, string>,
+> = (eventData: (AllEvents<EventMap> & OmnipresentEventData)[K]) => Awaitable<void>
 
 export type UnsubscribeMeta = {
   readonly state: ListenerState

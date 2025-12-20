@@ -1,6 +1,6 @@
 import { BaseError } from "@/errors"
-import type { PublicEventMap } from "@/events"
-import { INTERNAL_EVENT_KEYS, type InternalEvent } from "@/events"
+import { INTERNAL_EVENT_KEYS } from "@/events"
+import type { InternalEventKey, PublicEventMap } from "@/events"
 import type { BaseEventMap } from "@repo/types"
 import type Emittery from "emittery"
 
@@ -11,8 +11,8 @@ import type Emittery from "emittery"
 /**
  * True if the given symbol is one of our internal/private event symbols.
  */
-export function isInternalEvent(event: unknown): event is InternalEvent {
-  return typeof event === "symbol" && INTERNAL_EVENT_KEYS.has(event as InternalEvent)
+export function isInternalEvent(event: unknown): event is InternalEventKey {
+  return typeof event === "symbol" && INTERNAL_EVENT_KEYS.has(event as InternalEventKey)
 }
 
 /**
