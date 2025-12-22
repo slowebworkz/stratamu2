@@ -11,3 +11,11 @@ export type ListenerFn<
   EventMap extends BaseEventMap = BaseEventMap,
   EventKey extends keyof EventMap = keyof EventMap,
 > = (...args: EventMap[EventKey]) => Awaitable<unknown>
+
+/**
+ * A listener that receives a single argument (the event payload).
+ */
+export type SingleArgListener<
+  EventMap extends BaseEventMap = BaseEventMap,
+  EventKey extends keyof EventMap = keyof EventMap,
+> = (data: EventMap[EventKey]) => Awaitable
