@@ -1,4 +1,4 @@
-import type { BaseEventMap } from "@/events"
+import type { BaseEventMap } from "../events/index.ts"
 import type { Merge, ReadonlyDeep } from "type-fest"
 
 /**

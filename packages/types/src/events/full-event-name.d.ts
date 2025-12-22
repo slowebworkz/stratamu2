@@ -1,4 +1,4 @@
-import type { BaseEventMap, EventKey, EventName, FullEventMap } from "./index.ts"
+import type { BaseEventMap, EventKey, FullEventMap } from "./index.ts";
 
 /**
  * Extracts all valid event names from the merged event map.

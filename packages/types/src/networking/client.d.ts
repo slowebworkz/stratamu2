@@ -1,4 +1,4 @@
-import type { ClientCapabilities } from "@/special"
+import type { ClientCapabilities } from "../special/index.ts"
 
 export interface BaseClient {
   clientId: string

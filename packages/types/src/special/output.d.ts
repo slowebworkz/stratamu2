@@ -1,4 +1,4 @@
-import type { BaseClient } from "@/networking"
+import type { BaseClient } from "../networking/index.ts"
 import type { Promisable, ValueOf } from "type-fest"
 import type { FilterName } from "./index.ts"
 

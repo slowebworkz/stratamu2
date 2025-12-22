@@ -1,4 +1,4 @@
-import type { BaseEventMap, EventListenerFn, EventKeyType, KnownEventKey } from "./index.ts"
+import type { BaseEventMap, EventListenerFn, KnownEventKey } from "./index.ts";
 
 /**
  * Array of listener functions for a single event payload (single-arg shape)

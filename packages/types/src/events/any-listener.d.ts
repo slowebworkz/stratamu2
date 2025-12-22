@@ -1,4 +1,4 @@
-import type { BaseEventMap, EmitteryOnListener } from "@/events"
+import type { BaseEventMap, EmitteryOnListener } from "../events/index.ts"
 
 /**
  * Generic Emittery-compatible listener for any event.

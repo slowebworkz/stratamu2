@@ -1,4 +1,4 @@
-import type { EventListenerFn } from "@/events"
+import type { EventListenerFn } from "../../events/index.ts"
 
 // The return type of an event listener function
 export type ListenerReturnType<T extends unknown[]> = ReturnType<EventListenerFn<T>>

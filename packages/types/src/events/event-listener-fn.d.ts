@@ -1,4 +1,4 @@
-import type { Awaitable } from "@/base"
+import type { Awaitable } from "../base/index.ts"
 
 // Base event listener function type (single-argument payload, Emittery-compatible)
 export type EventListenerFn<T> = (eventData: T) => Awaitable<void>
