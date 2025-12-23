@@ -1,11 +1,23 @@
 import { BaseError } from "@/errors"
 
+/**
+ * Checks if a property is a blocked mutating Set method.
+ * @param prop - The property to check
+ * @returns True if the property is a blocked method name
+ */
 const BLOCKED_METHODS = new Set(["add", "delete", "clear"])
 
-function isBlockedMethod(prop: string) {
-  return BLOCKED_METHODS.has(prop)
+function isBlockedMethod(prop: unknown): prop is string {
+  return typeof prop === "string" && BLOCKED_METHODS.has(prop)
 }
 
+/**
+ * Creates a BaseError for attempted mutation of a readonly Set.
+ * @param method - The mutating method name
+ * @param args - Arguments passed to the method
+ * @param set - The Set being mutated
+ * @returns A BaseError describing the mutation attempt
+ */
 function createReadonlySetError<T>(method: string, args: unknown[], set: Set<T>) {
   return new BaseError(`Attempted to call mutating method '${method}' on a readonly Set.`, {
     code: "READONLY_SET_MUTATION_ATTEMPT",
@@ -62,7 +74,7 @@ function createReadonlySetError<T>(method: string, args: unknown[], set: Set<T>)
 export function makeReadonlySet<T>(set: Set<T>): ReadonlySet<T> {
   return new Proxy(set, {
     get(target, prop, receiver) {
-      if (typeof prop === "string" && isBlockedMethod(prop)) {
+      if (isBlockedMethod(prop)) {
         return (...args: unknown[]) => {
           throw createReadonlySetError(prop, args, target)
         }

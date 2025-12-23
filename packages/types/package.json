@@ -13,21 +13,8 @@
     "node": ">=22.19.0",
     "pnpm": ">=9.0.0"
   },
-  "files": [
-    "src",
-    "README.md",
-    "LICENSE"
-  ],
-  "keywords": [
-    "typescript",
-    "types",
-    "utility",
-    "event",
-    "game",
-    "engine",
-    "shared",
-    "monorepo"
-  ],
+  "files": ["src", "README.md", "LICENSE"],
+  "keywords": ["typescript", "types", "utility", "event", "game", "engine", "shared", "monorepo"],
   "exports": {
     ".": {
       "types": "./index.d.ts"

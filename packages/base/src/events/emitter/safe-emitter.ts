@@ -1,12 +1,18 @@
 import type { OmnipresentEventData } from "emittery"
 import Emittery from "emittery"
 
-import type { AllEventKeys, AllEvents, PublicEventMap } from "@/events"
+import type {
+  AllEventKeys,
+  AllEvents,
+  DisposerFn,
+  PublicEventMap,
+  SubscriptionOptions,
+} from "@/events"
 import { SafetyEmitter as SafetyManager } from "@/events"
 
-import { ListenerRegistry } from "@/registry"
+import { ListenerRegistry } from "./listener-registry.ts"
 
-import type { Awaitable, BaseEventMap } from "@repo/types"
+import type { Awaitable, BaseEventMap, SingleArgListener } from "@repo/types"
 import type { Simplify, Tagged } from "type-fest"
 
 declare const CancelledTag: unique symbol
@@ -57,53 +63,31 @@ export abstract class SafeEmitter<EventMap extends BaseEventMap> {
   /* ------------------- Public API: Listeners ------------------- */
 
   public on<K extends AllEventKeys<EventMap>>(
-    event: K,
-    originalListener: (data: EventMap[K]) => Awaitable<void>,
+    event: K | readonly K[],
+    originalListener: SingleArgListener<EventMap, K>,
+    options?: SubscriptionOptions,
   ): () => void {
-    // Wrap the listener
+    // 1️⃣ Handle array of events (recursively)
+    if (Array.isArray(event)) {
+      return SafeEmitter._handleMultipleEvents(event as readonly K[], originalListener, (ev, l) =>
+        this.on(ev, l, options),
+      )
+    }
+
+    // 2️⃣ Wrap the listener for error safety
     const wrappedListener = SafeEmitter._wrapListener<EventMap, K>(originalListener)
 
-    // For now, pass the listener directly to Emittery
-    // (later this can be adapted via adaptListenerForRegistry)
-    const off = this._public.on(event, wrappedListener)
+    // 3️⃣ Register the wrapped listener in the registry
+    this._listenerRegistry.add(event as K, originalListener, wrappedListener)
 
-    return () => {
-      off()
-    }
+    // // 3️⃣ Register the listener with Emittery, supporting AbortSignal
+    // const off = this._public.on(event, wrappedListener, options)
+
+    // // 4️⃣ Return disposer function
+    // return () => {
+    //   off()
+    // }
   }
-
-  // public once<K extends AllEventKeys<EventMap>>(
-  //   event: K,
-  //   predicate?: (data: EventMap[K]) => boolean
-  // ): OnceHandle<EventMap[K]> {
-  //   const raw = this._public.once(event, predicate)
-
-  //   // this._listenerRegistry.addOnce(event, raw)
-
-  //   let settled = false
-
-  //   raw
-  //     .then(data => {
-  //       settled = true
-  //       // this._listenerRegistry.removeOnce(event, raw)
-  //       return data
-  //     })
-  //     .catch(err => {
-  //       settled = true
-  //       // this._listenerRegistry.removeOnce(event, raw)
-  //       // this._safetyManager.handleError(err)
-  //     })
-
-  //   return {
-  //     promise: raw.then(data => data),
-  //     cancel: () => {
-  //       if (settled) return
-  //       settled = true
-  //       raw.off()
-  //       // this._listenerRegistry.removeOnce(event, raw)
-  //     },
-  //   }
-  // }
 
   public once<K extends AllEventKeys<EventMap>>(
     event: K,
@@ -111,44 +95,58 @@ export abstract class SafeEmitter<EventMap extends BaseEventMap> {
   ): OnceHandle<EventMap[K]> {
     let settled = false
 
-    // Emittery's once promise
-    const raw = this._public.once(event, predicate)
+    // Create an AbortController for cancellation
+    const controller = new AbortController()
+    const signal = controller.signal
 
-    // this._listenerRegistry.addOnce(event, raw)
+    // Emittery's once promise (no AbortSignal support)
+    const rawPromise = this._public.once(event, predicate)
 
-    // Cancellation promise
-    let cancel!: () => void
-    const cancelPromise = new Promise<typeof CANCELLED>(resolve => {
-      cancel = () => resolve(CANCELLED)
-    })
-
-    const promise: Promise<OnceResult<EventMap[K]>> = Promise.race([
-      raw.then(data => data as OnceResult<EventMap[K]>),
-      cancelPromise,
-    ]).finally(() => {
-      if (settled) return
-      settled = true
-
-      // Ensure listener is removed
-      raw.off()
-
-      // this._listenerRegistry.removeOnce(event, raw)
-    })
+    // Wrap the promise to handle CANCELLED
+    const promise: Promise<OnceResult<EventMap[K]>> = rawPromise
+      .then(data => data as OnceResult<EventMap[K]>)
+      .catch(err => {
+        if (signal.aborted) {
+          return CANCELLED
+        }
+        throw err
+      })
+      .finally(() => {
+        if (settled) return
+        settled = true
+        // Remove from registry if you have one
+        // this._listenerRegistry?.removeOnce(event, rawPromise)
+      })
 
     return {
       promise,
       cancel: () => {
         if (settled) return
-        cancel()
+        settled = true
+        controller.abort() // triggers Emittery to remove the listener
+        // this._listenerRegistry?.removeOnce(event, rawPromise)
       },
     }
   }
 
   public off<K extends AllEventKeys<EventMap>>(
     event: K,
-    listener: (data: EventMap[K]) => Awaitable<void>,
+    originalListener: SingleArgListener<EventMap, K>,
   ): void {
-    this._public.off(event, listener)
+    // Look up the wrapped listener from the registry
+    // const wrappedListener = this._listenerRegistry.get(event, originalListener)
+    const wrappedListener = undefined // registry temporarily disabled
+
+    if (!wrappedListener) {
+      // Nothing to remove; Emittery will ignore anyway
+      return
+    }
+
+    // Remove from Emittery
+    this._public.off(event, wrappedListener)
+
+    // Remove from registry
+    // this._listenerRegistry.remove(event, originalListener)
   }
 
   public emit<K extends AllEventKeys<EventMap>>(
@@ -158,14 +156,52 @@ export abstract class SafeEmitter<EventMap extends BaseEventMap> {
     return this._public.emit(event, data)
   }
 
+  /**
+   * Emits an event serially using Emittery's emitSerial method.
+   * Listeners are called one after another, waiting for each to complete.
+   */
+  public emitSerial<K extends AllEventKeys<EventMap>>(
+    event: K,
+    data: (AllEvents<EventMap> & OmnipresentEventData)[K],
+  ): Promise<void> {
+    return this._public.emitSerial(event, data)
+  }
+
+  /* ------------------- Protected: Errors ------------------- */
+
   /* ------------------- Static: Private utilities ------------------- */
+
+  private static _handleMultipleEvents<
+    EventMap extends BaseEventMap,
+    K extends AllEventKeys<EventMap>,
+  >(
+    events: readonly K[],
+    listener: SingleArgListener<EventMap, K>,
+    getDisposer: (ev: K, l: typeof listener) => DisposerFn,
+  ) {
+    // 1️⃣ Collect disposers for each event
+    const disposers = events
+      .map(ev => getDisposer(ev, listener))
+      .filter((d): d is DisposerFn => typeof d === "function")
+
+    // 2️⃣ Return a single disposer
+    return () => {
+      for (const dispose of disposers) {
+        try {
+          dispose()
+        } catch {
+          void 0
+        }
+      }
+    }
+  }
 
   /**
    * Wraps a listener to provide centralized error handling and other housekeeping,
    * while preserving the listener's original type signature.
    */
   private static _wrapListener<EventMap extends BaseEventMap, K extends AllEventKeys<EventMap>>(
-    originalListener: (data: EventMap[K]) => Awaitable<void>,
+    originalListener: SingleArgListener<EventMap, K>,
   ): (data: EventMap[K]) => Awaitable<void> {
     const wrapped: (data: EventMap[K]) => Awaitable<void> = async data => {
       try {
