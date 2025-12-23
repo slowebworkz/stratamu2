@@ -42,7 +42,7 @@ export abstract class RegistryBase {
     }
   }
 
-  protected memoizeCache<K, V>(key: K, cache: Map<K, V>, compute: () => V): V {
+  protected memoize<K, V>(key: K, cache: Map<K, V>, compute: () => V): V {
     const existing = cache.get(key) as V | undefined
     if (existing !== undefined) return existing as V
 
@@ -68,8 +68,6 @@ export abstract class RegistryBase {
     return this.cachedTotalCount
   }
 
-  protected getMap<K, V, T>(map: Map<K, V>, key: K): V | undefined {
-    return map.get(key)
-  }
+
 
 }

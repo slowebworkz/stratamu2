@@ -1,7 +1,8 @@
 import type { AllEventKeys } from "@/events"
 import type { BaseEventMap, SingleArgListener } from "@repo/types"
-import type { CachedOriginalListeners, ListenerEventCache, PerEventCache, WrapperMapFor } from "@/registry"
+import type { AnyEventListener, CachedOriginalListeners, ListenerEventCache, PerEventCache, WrapperMapFor } from "@/registry"
 import { RegistryBase } from "./registry-base.ts"
+import { BaseError } from "@/errors"
 
 /* -------------------------------------------------------------------------- */
 /*                        Listener Wrapper Registry                           */
@@ -24,6 +25,11 @@ export class ListenerWrapperRegistry<
     RegistryKey
   >,
 > extends RegistryBase {
+  /* --------------- Static/Shared Constants --------------- */
+  /** Shared empty array to avoid repeated allocations for empty results */
+  private static readonly EMPTY_ARRAY: ReadonlyArray<never> = []
+
+
   /* ------------------- Private Storage ------------------- */
 
   private readonly registry = new Map<
@@ -40,7 +46,8 @@ export class ListenerWrapperRegistry<
   /** Cached wrapped listeners per original listener per event (WeakMap avoids memory leaks) */
   private getCache: ListenerEventCache<EventMap, WrappedListener> = new WeakMap()
 
-  /* ------- Private Methods for Cache & Dirty Tracking ------- */
+
+  /* --------- Protected Methods for Cache --------- */
 
   /** Invalidate the readonly Set cache for a specific event */
   protected invalidateCache<E extends RegistryKey>(event?: E): void {
@@ -55,25 +62,6 @@ export class ListenerWrapperRegistry<
     }
   }
 
-  /* ------------------- Public Accessors ------------------- */
-
-  /** Retrieve the wrapped listener for a given original listener (cached per event) */
-  public get<E extends RegistryKey>(
-    event: E,
-    original: SingleArgListener<EventMap, E>,
-  ): WrappedListener | undefined {
-    // Cast original listener to the broader type for WeakMap
-    const originalKey = original as unknown as SingleArgListener<EventMap, AllEventKeys<EventMap>>
-    const perEventCache = this.getPerEventCache(originalKey)
-
-    return this.memoizeCache(event, perEventCache, () => {
-      const map = this.getMapIfExists(event)
-      return map?.get(original)
-    })
-  }
-
-
-
   protected computeTotalCount(): number {
     let count = 0
     for (const map of this.registry.values()) {
@@ -82,11 +70,36 @@ export class ListenerWrapperRegistry<
     return count
   }
 
+  /* ------------------- Public Accessors ------------------- */
+
+  /** Retrieve the wrapped listener for a given original listener (cached per event) */
+  public get<E extends RegistryKey>(
+    event: E,
+    original: SingleArgListener<EventMap, E>,
+  ): WrappedListener | undefined {
+    const perEventCache = this.getPerEventCache(original as AnyEventListener<EventMap>)
+    return this.memoize(event, perEventCache, () => {
+      const map = this.getMapIfExists(event)
+      return map?.get(original)
+    })
+  }
+
+  /** Retrieve all wrapped listeners for a given event (cached) */
+  public getAll<E extends RegistryKey>(
+    event: E
+  ): ReadonlyArray<WrappedListener> {
+    return this.memoize(event, this.wrappedCache, () => {
+      const map = this.getMapForEvent(event)
+      return map ? Array.from(map.values()) as ReadonlyArray<WrappedListener> : []
+    })
+  }
+
+
   /* ------------------- Private helpers ------------------- */
 
   /** Get or create per-event cache for a listener */
   private getPerEventCache(
-    original: SingleArgListener<EventMap, AllEventKeys<EventMap>>,
+    original: AnyEventListener<EventMap>,
   ): PerEventCache<EventMap, WrappedListener> {
     let cache = this.getCache.get(original)
     if (!cache) {
@@ -97,13 +110,79 @@ export class ListenerWrapperRegistry<
   }
 
 
-
-
-
-  private getMapIfExists<E extends RegistryKey>(event: E) {
-    return this.getMap(this.registry, event) as WrapperMapFor<EventMap, E, WrappedListener> | undefined
+  /**
+ * Get the internal map of original → wrapped listeners for a given event.
+ * Returns `undefined` if no listeners are registered for that event.
+ */
+  private getMapForEvent(
+    event: RegistryKey,
+  ): Map<SingleArgListener<EventMap, RegistryKey>, WrappedListener> | undefined {
+    return this.registry.get(event)
   }
 
+  /**
+   * Retrieve the map if it exists, typed as `WrapperMapFor` for convenience.
+   */
+  private getMapIfExists<E extends RegistryKey>(
+    event: E,
+  ): WrapperMapFor<EventMap, E, WrappedListener> | undefined {
+    return this.getMapForEvent(event) as WrapperMapFor<EventMap, E, WrappedListener> | undefined
+  }
 
+  /* ---------------- Private static helpers ---------------- */
 
+  private static emptyIterable<T>(): Iterable<T> {
+    return []
+  }
+
+  private static arrayFromIterator<T>(iter?: Iterable<T>): ReadonlyArray<T> {
+    return iter
+      ? (Array.from(iter) as ReadonlyArray<T>)
+      : (ListenerWrapperRegistry.EMPTY_ARRAY as ReadonlyArray<T>)
+  }
+
+  private static valuesArray<K, V>(map?: Map<K, V>): ReadonlyArray<V> {
+    return ListenerWrapperRegistry.arrayFromIterator(map?.values())
+  }
+
+  private static keysArray<K>(map?: Map<K, unknown>): ReadonlyArray<K> {
+    return ListenerWrapperRegistry.arrayFromIterator(map?.keys())
+  }
+
+  /** Get an existing map or create a new one if it doesn't exist */
+  // private static ensureMap<EventMap extends BaseEventMap, WrappedListener>(
+  //   registry: ListenerWrapperRegistry<EventMap, WrappedListener>,
+  //   event: AllEventKeys<EventMap>,
+  // ): WrapperMapFor<
+  //   EventMap,
+  //   AllEventKeys<EventMap>,
+  //   WrappedListener,
+  //   SingleArgListener<EventMap, AllEventKeys<EventMap>>
+  // > {
+  //   let map = registry.registry.get(event)
+  //   if (!map) {
+  //     map = new Map() as WrapperMapFor<
+  //       EventMap,
+  //       AllEventKeys<EventMap>,
+  //       WrappedListener,
+  //       SingleArgListener<EventMap, AllEventKeys<EventMap>>
+  //     >
+  //     registry.registry.set(event, map)
+  //   }
+  //   return map
+  // }
+
+  /** Unified error throwing helper */
+  private static throwError<EventMap extends BaseEventMap>(
+    message: string,
+    code: string,
+    event: AllEventKeys<EventMap>,
+    listener?: unknown,
+  ): never {
+    throw new BaseError(message, {
+      code,
+      category: "internal",
+      metadata: { event: String(event), listener: listener?.toString() },
+    })
+  }
 }
