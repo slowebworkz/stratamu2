@@ -27,7 +27,7 @@ export class ListenerSetRegistry<
   /* ------------------- Private Storage ------------------- */
 
   /** Map of event → Set of wrapped listeners (erased event type internally) */
-  private readonly sets = new Map<RegistryKey, ListenerSet<EventMap, RegistryKey>>()
+  private readonly registry = new Map<RegistryKey, ListenerSet<EventMap, RegistryKey>>()
 
   /** Cached ReadonlySet views for public consumption */
   private readonly readonlyCache = new Map<
@@ -76,7 +76,7 @@ export class ListenerSetRegistry<
   public require<E extends RegistryKey>(
     event: E,
   ): ReadonlySet<SingleArgListener<EventMap, E>> | undefined {
-    return this.sets.get(event)
+    return this.registry.get(event)
   }
 
   /* ------------------- Public Mutators ------------------- */
@@ -90,7 +90,7 @@ export class ListenerSetRegistry<
   public add<E extends RegistryKey>(event: E, listener: SingleArgListener<EventMap, E>): void {
     const set = this.getOrCreateSet(event)
     set.add(listener)
-    this.touch(event)
+    this.didMutate(event)
   }
 
   /** Add many listeners in a single batch and invalidate once */
@@ -101,7 +101,7 @@ export class ListenerSetRegistry<
     if (listeners.length === 0) return
     const set = this.getOrCreateSet(event)
     for (const listener of listeners) set.add(listener)
-    this.touch(event)
+    this.didMutate(event)
   }
 
   /** Remove a listener from the given event */
@@ -109,12 +109,12 @@ export class ListenerSetRegistry<
     event: E,
     listener: SingleArgListener<EventMap, E>,
   ): boolean {
-    const set = this.sets.get(event) as ListenerSet<EventMap, E> | undefined
+    const set = this.registry.get(event) as ListenerSet<EventMap, E> | undefined
     if (!set) return false
 
     const removed = set.delete(listener)
     if (removed) {
-      this.touch(event)
+      this.didMutate(event)
     }
     return removed
   }
@@ -126,23 +126,23 @@ export class ListenerSetRegistry<
     let removed = false
 
     if (listeners.length === 0) return removed
-    const set = this.sets.get(event) as ListenerSet<EventMap, E> | undefined
+    const set = this.registry.get(event) as ListenerSet<EventMap, E> | undefined
     if (!set) return removed
 
     for (const listener of listeners) {
       if (set.delete(listener) && !removed) removed = true
     }
 
-    if (removed) this.touch(event)
+    if (removed) this.didMutate(event)
 
     return removed
   }
 
   /** Clears all listeners for an event */
   public clear<E extends RegistryKey>(event: E): void {
-    const hadSet = this.sets.delete(event)
+    const hadSet = this.registry.delete(event)
     if (hadSet) {
-      this.touch(event)
+      this.didMutate(event)
     }
   }
 
@@ -150,13 +150,13 @@ export class ListenerSetRegistry<
 
   /** Get the number of listeners for a specific event */
   public getCount<E extends RegistryKey>(event: E): number {
-    const set = this.sets.get(event) as ListenerSet<EventMap, E> | undefined
+    const set = this.registry.get(event) as ListenerSet<EventMap, E> | undefined
     return set ? set.size : 0
   }
 
   protected computeTotalCount(): number {
     let count = 0
-    for (const set of this.sets.values()) {
+    for (const set of this.registry.values()) {
       count += set.size
     }
     return count
@@ -171,7 +171,7 @@ export class ListenerSetRegistry<
   }
 
   private createReadonlySnapshot<E extends RegistryKey>(event: E) {
-    let set = this.sets.get(event) as Set<SingleArgListener<EventMap, E>> | undefined
+    let set = this.registry.get(event) as Set<SingleArgListener<EventMap, E>> | undefined
 
     if (!set) {
       set = new Set<SingleArgListener<EventMap, E>>()
@@ -182,11 +182,11 @@ export class ListenerSetRegistry<
 
   /** Internal: returns the mutable set for adding/removing listeners */
   private getOrCreateSet<E extends RegistryKey>(event: E): ListenerSet<EventMap, E> {
-    let set = this.sets.get(event) as ListenerSet<EventMap, RegistryKey> | undefined
+    let set = this.registry.get(event) as ListenerSet<EventMap, RegistryKey> | undefined
     if (!set) {
       set = new Set()
-      this.sets.set(event, set)
-      this.touch(event)
+      this.registry.set(event, set)
+      this.didMutate(event)
     }
     return set as ListenerSet<EventMap, E>
   }

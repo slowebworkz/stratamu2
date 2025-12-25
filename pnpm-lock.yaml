@@ -21,7 +21,7 @@ importers:
         specifier: ^2.7.1
         version: 2.7.1
       type-fest:
-        specifier: ^5.2.0
+        specifier: ^5.3.1
         version: 5.3.1
       typescript:
         specifier: 5.9.2
@@ -58,7 +58,7 @@ importers:
         specifier: ^24.10.1
         version: 24.10.4
       type-fest:
-        specifier: ^5.2.0
+        specifier: ^5.3.1
         version: 5.3.1
       typescript:
         specifier: 5.9.2
@@ -80,7 +80,7 @@ importers:
         specifier: ^24.10.1
         version: 24.10.4
       type-fest:
-        specifier: ^5.2.0
+        specifier: ^5.3.1
         version: 5.3.1
       typescript:
         specifier: 5.9.2

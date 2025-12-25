@@ -1,3 +1,7 @@
+import type { AllEventKeys } from "@/events"
+import type { BaseEventMap } from "@repo/types"
+import { NumberAbsolute } from "node_modules/type-fest/source/internal/numeric.js"
+
 export abstract class RegistryBase {
   /* ------------------- Private Storage ------------------- */
 
@@ -51,6 +55,10 @@ export abstract class RegistryBase {
     return value
   }
 
+  protected didMutate(event?: unknown): void {
+    this.invalidateCache(event)
+    this.markTotalDirty()
+  }
 
   /* ------------------- Public Queries ------------------- */
 
@@ -67,7 +75,4 @@ export abstract class RegistryBase {
     this.totalCountDirty = false
     return this.cachedTotalCount
   }
-
-
-
 }
