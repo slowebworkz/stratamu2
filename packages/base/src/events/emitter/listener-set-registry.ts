@@ -27,7 +27,7 @@ export class ListenerSetRegistry<
   /* ------------------- Private Storage ------------------- */
 
   /** Map of event → Set of wrapped listeners (erased event type internally) */
-  private readonly registry = new Map<RegistryKey, ListenerSet<EventMap, RegistryKey>>()
+  protected readonly registry = new Map<RegistryKey, ListenerSet<EventMap, RegistryKey>>()
 
   /** Cached ReadonlySet views for public consumption */
   private readonly readonlyCache = new Map<
@@ -151,7 +151,7 @@ export class ListenerSetRegistry<
   /** Get the number of listeners for a specific event */
   public getCount<E extends RegistryKey>(event: E): number {
     const set = this.registry.get(event) as ListenerSet<EventMap, E> | undefined
-    return set ? set.size : 0
+    return set?.size ?? 0
   }
 
   protected computeTotalCount(): number {

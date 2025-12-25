@@ -37,7 +37,7 @@ export class ListenerWrapperRegistry<
 
   /* ------------------- Private Storage ------------------- */
 
-  private readonly registry = new Map<
+  protected readonly registry = new Map<
     RegistryKey,
     Map<SingleArgListener<EventMap, RegistryKey>, WrappedListener>
   >()
@@ -81,19 +81,19 @@ export class ListenerWrapperRegistry<
   /* ------------------- Public Accessors ------------------- */
 
   /** Retrieve the wrapped listener for a given original listener (cached per event) */
-  public get<E extends RegistryKey>(
-    event: E,
-    original: SingleArgListener<EventMap, E>,
+  public get(
+    event: RegistryKey,
+    original: SingleArgListener<EventMap, RegistryKey>,
   ): WrappedListener | undefined {
-    const perEventCache = this.getPerEventCache<E>(original)
+    const perEventCache = this.getPerEventCache(original)
     return this.memoize(event, perEventCache, () => {
-      const map = this.getMapIfExists(event)
+      const map = this.getMapForEvent(event)
       return map?.get(original)
     })
   }
 
   /** Retrieve all wrapped listeners for a given event (cached) */
-  public getAll<E extends RegistryKey>(event: E): ReadonlyArray<WrappedListener> {
+  public getAll(event: RegistryKey): ReadonlyArray<WrappedListener> {
     return this.memoize(event, this.wrappedCache, () => {
       const map = this.getMapForEvent(event)
       return ListenerWrapperRegistry.valuesArray(map) as ReadonlyArray<WrappedListener>
@@ -101,13 +101,13 @@ export class ListenerWrapperRegistry<
   }
 
   /** Iterables: iterate wrapped listeners without allocating an array */
-  public *getAllIterable<E extends RegistryKey>(event: E): Iterable<WrappedListener> {
-    const map = this.getMapIfExists(event)
+  public *getAllIterable(event: RegistryKey): Iterable<WrappedListener> {
+    const map = this.getMapForEvent(event)
     if (map) yield* map.values()
   }
 
   /** Retrieve all original listeners for a given event (cached) */
-  public keys<E extends RegistryKey>(event: E): ReadonlyArray<SingleArgListener<EventMap, E>> {
+  public keys(event: RegistryKey): ReadonlyArray<SingleArgListener<EventMap, RegistryKey>> {
     return this.memoize(
       event,
       this.keysCache,
@@ -119,24 +119,24 @@ export class ListenerWrapperRegistry<
   }
 
   /** Iterate all original listeners for a given event */
-  public *keysIterable<E extends RegistryKey>(event: E): Iterable<SingleArgListener<EventMap, E>> {
-    const map = this.getMapIfExists(event)
+  public *keysIterable(event: RegistryKey): Iterable<SingleArgListener<EventMap, RegistryKey>> {
+    const map = this.getMapForEvent(event)
     if (map) yield* map.keys()
   }
 
   /** Check if a wrapped listener exists for an original listener */
-  public has<E extends RegistryKey>(event: E, original: SingleArgListener<EventMap, E>): boolean {
-    const map = this.getMapIfExists(event)
+  public has(event: RegistryKey, original: SingleArgListener<EventMap, RegistryKey>): boolean {
+    const map = this.getMapForEvent(event)
     return map?.has(original) ?? false
   }
 
   /** Retrieve the wrapped listener or throw if not found */
-  public getOrThrow<E extends RegistryKey>(
-    event: E,
-    original: SingleArgListener<EventMap, E>,
+  public getOrThrow(
+    event: RegistryKey,
+    original: SingleArgListener<EventMap, RegistryKey>,
   ): WrappedListener {
     const map = this.registry.get(event) as
-      | Map<SingleArgListener<EventMap, E>, WrappedListener>
+      | Map<SingleArgListener<EventMap, RegistryKey>, WrappedListener>
       | undefined
     if (!map || !map.has(original)) {
       ListenerWrapperRegistry.throwError(
@@ -164,25 +164,147 @@ export class ListenerWrapperRegistry<
   public add(
     event: RegistryKey,
     original: SingleArgListener<EventMap, RegistryKey>,
-    wrapped: WrappedListener
+    wrapped: WrappedListener,
   ): void {
     const map = this.ensureMap(event)
     map.set(original, wrapped)
     this.invalidateCache(event)
   }
 
+  /** Add many mappings in a single batch and invalidate cache once */
+  public addAll(
+    event: RegistryKey,
+    listeners: Array<[SingleArgListener<EventMap, RegistryKey>, WrappedListener]>,
+  ): void {
+    if (listeners.length === 0) return
+
+    const map = this.ensureMap(event)
+    for (const [original, wrapped] of listeners) {
+      map.set(original, wrapped)
+    }
+
+    this.invalidateCache(event)
+  }
+
+  /** Remove a listener mapping; returns true if removed */
+  public delete(event: RegistryKey, original: SingleArgListener<EventMap, RegistryKey>): boolean {
+    return this.removeListener(event, original, false)
+  }
+
+  /** Remove many mappings in a single batch and invalidate once */
+  public deleteAll(
+    event: RegistryKey,
+    originals: Array<SingleArgListener<EventMap, RegistryKey>>,
+  ): number {
+    if (originals.length === 0) return 0
+
+    const map = this.getMapForEvent(event)
+    if (!map) return 0
+
+    let removedCount = 0
+    for (const original of originals) {
+      if (map.delete(original)) {
+        removedCount++
+      }
+    }
+
+    // Cleanup empty map
+    if (map.size === 0) {
+      this.registry.delete(event)
+    }
+
+    // Invalidate all caches once
+    if (removedCount > 0) {
+      this.invalidateCache(event)
+    }
+
+    return removedCount
+  }
+
+  /** Remove a listener mapping with validation; throws if not found */
+  public deleteOrThrow(
+    event: RegistryKey,
+    original: SingleArgListener<EventMap, RegistryKey>,
+  ): void {
+    this.removeListener(event, original, true)
+  }
+
+  /** Clear all mappings */
+  public clear(): void {
+    this.registry.clear()
+    this.getCache = new WeakMap()
+    this.markTotalDirty()
+  }
+
+  /* ------------------- Public Queries ------------------- */
+
+  /** Get the number of listeners for a specific event */
+  public getCount(event: RegistryKey): number {
+    return this.registry.get(event)?.size ?? 0
+  }
+
+  /** Iterate over all original→wrapped listener pairs for a given event */
+  public forEach(
+    event: RegistryKey,
+    callback: (
+      original: SingleArgListener<EventMap, RegistryKey>,
+      wrapped: WrappedListener,
+    ) => void,
+  ): void {
+    const map = this.registry.get(event)
+    if (!map) return
+
+    map.forEach((wrapped, original) => {
+      callback(original, wrapped)
+    })
+  }
+
+  /** Iterate over all listeners across all events */
+  public forEachAll(
+    callback: <E extends RegistryKey>(
+      event: E,
+      original: SingleArgListener<EventMap, E>,
+      wrapped: WrappedListener,
+    ) => void,
+  ): void {
+    for (const [event, map] of this.registry) {
+      // Type-safe iteration: the map's key type matches the event
+      this.forEachInMap(event, map, callback)
+    }
+  }
+
+  /** Type-safe helper for iterating a map with correct event typing */
+  private forEachInMap(
+    event: RegistryKey,
+    map: WrapperMapFor<EventMap, E, WrappedListener, SingleArgListener<EventMap, RegistryKey>>,
+    callback: <K extends RegistryKey>(
+      evt: K,
+      original: SingleArgListener<EventMap, K>,
+      wrapped: WrappedListener,
+    ) => void,
+  ): void {
+    map.forEach((wrapped, original) => {
+      callback(event, original, wrapped)
+    })
+  }
 
   /* ------------------- Private helpers ------------------- */
 
+  /** Utility to cast a listener to the WeakMap key type */
+  private asListenerKey(
+    listener: SingleArgListener<EventMap, RegistryKey>,
+  ): AnyEventListener<EventMap> {
+    return listener as unknown as AnyEventListener<EventMap>
+  }
+
   /** Get or create per-event cache for a listener (generic for type safety) */
-  private getPerEventCache<E extends RegistryKey>(
-    original: SingleArgListener<EventMap, E>,
+  private getPerEventCache(
+    original: SingleArgListener<EventMap, RegistryKey>,
   ): PerEventCache<EventMap, WrappedListener> {
-    // Isolate the cast to this method only
-    let cache = this.getCache.get(original as unknown as AnyEventListener<EventMap>)
+    let cache = this.getCache.get(this.asListenerKey(original))
     if (!cache) {
       cache = new Map()
-      this.getCache.set(original as unknown as AnyEventListener<EventMap>, cache)
+      this.getCache.set(this.asListenerKey(original), cache)
     }
     return cache
   }
@@ -197,24 +319,50 @@ export class ListenerWrapperRegistry<
     return this.registry.get(event)
   }
 
-  /**
-   * Retrieve the map if it exists, typed as `WrapperMapFor` for convenience.
-   */
-  private getMapIfExists<E extends RegistryKey>(
-    event: E,
-  ): WrapperMapFor<EventMap, E, WrappedListener> | undefined {
-    return this.getMapForEvent(event) as WrapperMapFor<EventMap, E, WrappedListener> | undefined
-  }
-
   /** Get keys iterable for an event, with empty fallback */
-  private getKeysIterable<E extends RegistryKey>(
-    event: E,
-  ): Iterable<SingleArgListener<EventMap, E>> {
+  private getKeysIterable(event: RegistryKey): Iterable<SingleArgListener<EventMap, RegistryKey>> {
     return (
-      (this.getMapIfExists(event)?.keys() as
-        | Iterable<SingleArgListener<EventMap, E>>
+      (this.getMapForEvent(event)?.keys() as
+        | Iterable<SingleArgListener<EventMap, RegistryKey>>
         | undefined) ?? ListenerWrapperRegistry.emptyIterable()
     )
+  }
+
+  /** Private helper to remove a listener and handle cleanup/invalidation */
+  private removeListener(
+    event: RegistryKey,
+    original: SingleArgListener<EventMap, RegistryKey>,
+    throwIfMissing = false,
+  ): boolean {
+    const map = this.getMapForEvent(event)
+    if (!map) {
+      if (throwIfMissing) {
+        ListenerWrapperRegistry.throwError(
+          "Cannot delete listener; mapping does not exist",
+          "LISTENER_MAPPING_NOT_FOUND",
+          event,
+          original,
+        )
+      }
+      return false
+    }
+    const existed = map.has(original)
+    const removed = map.delete(original)
+    if (existed && map.size === 0) {
+      this.registry.delete(event)
+    }
+    if (removed) {
+      this.invalidateCache(event)
+    }
+    if (throwIfMissing && !existed) {
+      ListenerWrapperRegistry.throwError(
+        "Cannot delete listener; mapping does not exist",
+        "LISTENER_MAPPING_NOT_FOUND",
+        event,
+        original,
+      )
+    }
+    return removed
   }
 
   /* ---------------- Private static helpers ---------------- */
@@ -237,13 +385,10 @@ export class ListenerWrapperRegistry<
     return ListenerWrapperRegistry.arrayFromIterator(map?.keys())
   }
 
-
-
   /** Get an existing map or create a new one if it doesn't exist */
-
-
-  /** Get an existing map or create a new one if it doesn't exist */
-  private ensureMap(event: RegistryKey): Map<SingleArgListener<EventMap, RegistryKey>, WrappedListener> {
+  private ensureMap(
+    event: RegistryKey,
+  ): Map<SingleArgListener<EventMap, RegistryKey>, WrappedListener> {
     let map = this.registry.get(event)
     if (!map) {
       map = new Map<SingleArgListener<EventMap, RegistryKey>, WrappedListener>()
@@ -251,11 +396,6 @@ export class ListenerWrapperRegistry<
     }
     return map
   }
-
-
-
-
-
 
   /** Unified error throwing helper */
   private static throwError(

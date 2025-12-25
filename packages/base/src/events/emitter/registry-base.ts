@@ -5,6 +5,8 @@ import { NumberAbsolute } from "node_modules/type-fest/source/internal/numeric.j
 export abstract class RegistryBase {
   /* ------------------- Private Storage ------------------- */
 
+  protected abstract readonly registry: Map<unknown, unknown>
+
   /** Cached total listener count */
   protected cachedTotalCount?: number
 
@@ -61,9 +63,6 @@ export abstract class RegistryBase {
   }
 
   /* ------------------- Public Queries ------------------- */
-
-  /** Subclass must implement how to compute total listeners */
-  protected abstract computeTotalCount(): number
 
   /** Get total number of listeners across all events */
   public get totalCount(): number {
