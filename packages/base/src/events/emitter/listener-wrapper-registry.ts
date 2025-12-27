@@ -10,9 +10,9 @@ import type {
 import { RegistryBase } from "./registry-base.ts"
 import { BaseError } from "@/errors"
 
-/* -------------------------------------------------------------------------- */
-/*                        Listener Wrapper Registry                           */
-/* -------------------------------------------------------------------------- */
+/* ------------------------------------------------------ */
+/*              Listener Wrapper Registry                 */
+/* ------------------------------------------------------ */
 
 /**
  * Registry for managing original → wrapped listener mappings with caching.
@@ -57,7 +57,7 @@ export class ListenerWrapperRegistry<
   /* --------- Protected Methods for Cache --------- */
 
   /** Invalidate the readonly Set cache for a specific event */
-  protected invalidateCache<E extends RegistryKey>(event?: E): void {
+  protected invalidateCache(event?: RegistryKey): void {
     if (event !== undefined) {
       this.deleteFromCache(event, this.wrappedCache)
       this.deleteFromCache(event, this.keysCache)
@@ -113,7 +113,7 @@ export class ListenerWrapperRegistry<
       this.keysCache,
       () =>
         ListenerWrapperRegistry.keysArray(this.registry.get(event)) as ReadonlyArray<
-          SingleArgListener<EventMap, E>
+          SingleArgListener<EventMap, RegistryKey>
         >,
     )
   }
@@ -276,7 +276,12 @@ export class ListenerWrapperRegistry<
   /** Type-safe helper for iterating a map with correct event typing */
   private forEachInMap(
     event: RegistryKey,
-    map: WrapperMapFor<EventMap, E, WrappedListener, SingleArgListener<EventMap, RegistryKey>>,
+    map: WrapperMapFor<
+      EventMap,
+      RegistryKey,
+      WrappedListener,
+      SingleArgListener<EventMap, RegistryKey>
+    >,
     callback: <K extends RegistryKey>(
       evt: K,
       original: SingleArgListener<EventMap, K>,

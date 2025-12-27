@@ -1,14 +1,15 @@
-import { BaseError } from "@/errors"
-import type { BaseEventMap, EventKey } from "@repo/types"
+import type { AllEventKeys } from "@/events"
+import type { BaseEventMap, SingleArgListener } from "@repo/types"
+import { makeReadonlySet } from "@/utils"
+import { RegistryBase } from "./registry-base.ts"
 
-/* ------------------- Internal Types ------------------- */
+type ListenerSet<EventMap extends BaseEventMap, K extends keyof EventMap = keyof EventMap> = Set<
+  SingleArgListener<EventMap, K>
+>
 
-/** Set of wrapped listeners for a single event (internal storage) */
-type EventListenerSetInternal<EventMap extends BaseEventMap, WrappedListener> = Set<WrappedListener>
-
-/* -------------------------------------------------------------------------- */
-/*                        Listener Set Registry                        */
-/* -------------------------------------------------------------------------- */
+/* ------------------------------------------------------ */
+/*                Listener Set Registry                   */
+/* ------------------------------------------------------ */
 
 /**
  * Registry for managing event listener sets with readonly public API and safe mutation helpers.
@@ -19,215 +20,159 @@ type EventListenerSetInternal<EventMap extends BaseEventMap, WrappedListener> = 
  * - All mutations go through helper methods (add, delete, clear)
  * - Cache invalidation and dirty tracking ensure consistency in high-frequency game loops
  */
-export class ListenerSetRegistry<EventMap extends BaseEventMap, WrappedListener> {
-  /* =================== Private Storage =================== */
+export class ListenerSetRegistry<
+  EventMap extends BaseEventMap,
+  RegistryKey extends AllEventKeys<EventMap> = AllEventKeys<EventMap>,
+> extends RegistryBase {
+  /* ------------------- Private Storage ------------------- */
 
-  /** Map of event → Set of wrapped listeners */
-  private readonly sets = new Map<
-    EventKey<EventMap>,
-    EventListenerSetInternal<EventMap, WrappedListener>
-  >()
+  /** Map of event → Set of wrapped listeners (typed by event key) */
+  protected readonly registry = new Map<RegistryKey, ListenerSet<EventMap>>()
 
   /** Cached ReadonlySet views for public consumption */
-  private readonly readonlyCache = new Map<EventKey<EventMap>, ReadonlySet<WrappedListener>>()
+  private readonly readonlyCache = new Map<
+    RegistryKey,
+    ReadonlySet<SingleArgListener<EventMap, RegistryKey>>
+  >()
 
-  /** Cached total listener count */
-  private _cachedTotalCount?: number
-  private _totalCountDirty = true
+  /* ------- Private Methods for Cache & Dirty Tracking ------- */
 
-  /* =================== Public Accessors =================== */
+  /** Invalidate the readonly Set cache for a specific event */
+  // protected invalidateCache<E extends RegistryKey>(event: E): void {
+  //   this.readonlyCache.delete(event)
+  // }
+
+  protected invalidateCache<E extends RegistryKey>(event: E): void {
+    this.deleteFromCache(event, this.readonlyCache)
+  }
+
+  /* ------------------- Public Accessors ------------------- */
 
   /**
    * Get a readonly view of listeners for the given event.
-   * Lazily creates a new set if none exists.
+   * Get a readonly snapshot of listeners for the given event.
    */
-  public get(event: EventKey<EventMap>): ReadonlySet<WrappedListener> {
-    return ListenerSetRegistry.getReadonlySet(this, event)
+  public get(event: RegistryKey): ReadonlySet<SingleArgListener<EventMap, RegistryKey>> {
+    // Return cached readonly set if available
+    let cached = this.getCachedReadonlySet(event)
+    if (cached) return cached
+
+    // Use existing set if it exists, otherwise return empty readonly set
+    // Note: empty sets are snapshots; they will not update if listeners are later added
+    cached = this.createReadonlySnapshot(event)
+
+    this.readonlyCache.set(event, cached as ReadonlySet<SingleArgListener<EventMap, RegistryKey>>)
+    return cached
   }
 
   /**
    * Require a readonly view of listeners for the given event.
-   * Throws if no listeners exist for this event.
    */
-  public require(event: EventKey<EventMap>): ReadonlySet<WrappedListener> {
-    return this.requireSet(event) as ReadonlySet<WrappedListener>
+  public require<E extends RegistryKey>(
+    event: E,
+  ): ReadonlySet<SingleArgListener<EventMap, E>> | undefined {
+    const set = this.registry.get(event)
+    return set ? makeReadonlySet(set) : undefined
   }
 
-  /* =================== Public Mutators =================== */
+  /* ------------------- Public Mutators ------------------- */
 
+  /**
+   * Note: We always invalidate the cache and mark total count dirty in add/addAll,
+   * even if the set is unchanged. This avoids extra branching and keeps the hot path simple.
+   * Set.add does not signal if the value was already present.
+   */
   /** Add a listener to the given event */
-  public add(event: EventKey<EventMap>, listener: WrappedListener): void {
-    const set = ListenerSetRegistry.getOrCreateSet(this, event)
+  public add<E extends RegistryKey>(event: E, listener: SingleArgListener<EventMap, E>): void {
+    const set = this.getOrCreateSet<E>(event)
     set.add(listener)
-    ListenerSetRegistry.touch(this, event)
+    this.didMutate(event)
   }
 
   /** Add many listeners in a single batch and invalidate once */
-  public addAll(event: EventKey<EventMap>, listeners: ReadonlyArray<WrappedListener>): void {
+  public addAll<E extends RegistryKey>(
+    event: E,
+    ...listeners: SingleArgListener<EventMap, E>[]
+  ): void {
     if (listeners.length === 0) return
-    const set = ListenerSetRegistry.getOrCreateSet(this, event)
-    for (const listener of listeners) {
-      set.add(listener)
-    }
-    ListenerSetRegistry.touch(this, event)
+    const set = this.getOrCreateSet<E>(event)
+    for (const listener of listeners) set.add(listener)
+    this.didMutate(event)
   }
 
   /** Remove a listener from the given event */
-  public delete(event: EventKey<EventMap>, listener: WrappedListener): boolean {
-    const set = this.sets.get(event)
-    if (!set) {
-      ListenerSetRegistry.throwListenerError(
-        "Cannot delete listener; event has no listeners",
-        "EVENT_NOT_FOUND",
-        event,
-      )
-    }
-
-    if (!set.has(listener)) {
-      ListenerSetRegistry.throwListenerError(
-        "Listener not found in set",
-        "LISTENER_NOT_FOUND",
-        event,
-        listener,
-      )
-    }
+  public delete<E extends RegistryKey>(
+    event: E,
+    listener: SingleArgListener<EventMap, E>,
+  ): boolean {
+    const set = this.registry.get(event) as Set<SingleArgListener<EventMap, E>> | undefined
+    if (!set) return false
 
     const removed = set.delete(listener)
     if (removed) {
-      ListenerSetRegistry.touch(this, event)
+      this.didMutate(event)
     }
     return removed
   }
 
-  /** Remove many listeners in a single batch and invalidate once */
-  public deleteAll(event: EventKey<EventMap>, listeners: ReadonlyArray<WrappedListener>): number {
-    if (listeners.length === 0) return 0
-
-    const set = this.sets.get(event)
-    if (!set) {
-      ListenerSetRegistry.throwListenerError(
-        "Cannot delete listeners; event has no listeners",
-        "EVENT_NOT_FOUND",
-        event,
-      )
-    }
-
-    let removed = 0
+  public deleteAll<E extends RegistryKey>(
+    event: E,
+    ...listeners: SingleArgListener<EventMap, E>[]
+  ): boolean {
+    let removed = false
+    if (listeners.length === 0) return removed
+    const set = this.registry.get(event) as Set<SingleArgListener<EventMap, E>> | undefined
+    if (!set) return removed
     for (const listener of listeners) {
-      if (set.has(listener) && set.delete(listener)) {
-        removed++
-      }
+      if (set.delete(listener) && !removed) removed = true
     }
-
-    if (removed > 0) {
-      ListenerSetRegistry.touch(this, event)
-    }
+    if (removed) this.didMutate(event)
     return removed
   }
 
-  /** Clear all listener sets and caches */
-  public clear(): void {
-    this.sets.clear()
-    this.readonlyCache.clear()
-    this.markDirty()
+  /** Clears all listeners for an event */
+  public clear(event: RegistryKey): void {
+    const hadSet = this.registry.delete(event)
+    if (hadSet) {
+      this.didMutate(event)
+    }
   }
 
-  /* =================== Public Queries =================== */
+  /* ------------------- Public Queries ------------------- */
 
-  /** Get listener count for a specific event */
-  public getCount(event: EventKey<EventMap>): number {
-    return this.sets.get(event)?.size ?? 0
+  /** Get the number of listeners for a specific event */
+  public getCount(event: RegistryKey): number {
+    const set = this.registry.get(event)
+    return set?.size ?? 0
   }
 
-  /** Get total number of listeners across all events */
-  public totalCount(): number {
-    if (!this._totalCountDirty && this._cachedTotalCount !== undefined) {
-      return this._cachedTotalCount
+  /* ------------------- Private Methods ------------------- */
+
+  private getCachedReadonlySet(
+    event: RegistryKey,
+  ): ReadonlySet<SingleArgListener<EventMap, RegistryKey>> | undefined {
+    return this.readonlyCache.get(event) as
+      | ReadonlySet<SingleArgListener<EventMap, RegistryKey>>
+      | undefined
+  }
+
+  private createReadonlySnapshot<E extends RegistryKey>(event: E) {
+    let set = this.registry.get(event) as Set<SingleArgListener<EventMap, E>> | undefined
+
+    if (!set) {
+      set = new Set<SingleArgListener<EventMap, E>>()
     }
 
-    let total = 0
-    for (const set of this.sets.values()) total += set.size
-    this._cachedTotalCount = total
-    this._totalCountDirty = false
-    return total
+    return makeReadonlySet(set)
   }
 
-  /* =================== Private Instance Methods =================== */
-
-  /** Require that a set exists for a given event, otherwise throw */
-  private requireSet(
-    event: EventKey<EventMap>,
-  ): EventListenerSetInternal<EventMap, WrappedListener> {
-    const set = this.sets.get(event)
+  /** Internal: returns the mutable set for adding/removing listeners */
+  private getOrCreateSet<E extends RegistryKey>(event: E): Set<SingleArgListener<EventMap, E>> {
+    let set = this.registry.get(event) as Set<SingleArgListener<EventMap, E>> | undefined
     if (!set) {
-      ListenerSetRegistry.throwListenerError(
-        "No listeners registered for event",
-        "NO_LISTENERS",
-        event,
-      )
+      set = new Set<SingleArgListener<EventMap, E>>()
+      this.registry.set(event, set as ListenerSet<EventMap>)
     }
     return set
-  }
-
-  /** Mark the total count cache as dirty */
-  private markDirty(): void {
-    this._totalCountDirty = true
-  }
-
-  /** Invalidate readonly cache for a specific event */
-  private invalidateReadonlyCache(event: EventKey<EventMap>): void {
-    this.readonlyCache.delete(event)
-  }
-
-  /* =================== Private Static Helpers =================== */
-
-  /** Get a cached readonly view or create one */
-  private static getReadonlySet<EventMap extends BaseEventMap, WrappedListener>(
-    registry: ListenerSetRegistry<EventMap, WrappedListener>,
-    event: EventKey<EventMap>,
-  ): ReadonlySet<WrappedListener> {
-    const cached = registry.readonlyCache.get(event)
-    if (cached) return cached
-    const set = ListenerSetRegistry.getOrCreateSet(registry, event)
-    const readonlySet = set as ReadonlySet<WrappedListener>
-    registry.readonlyCache.set(event, readonlySet)
-    return readonlySet
-  }
-
-  /** Get an existing set, or create a new one if it doesn't exist */
-  private static getOrCreateSet<EventMap extends BaseEventMap, WrappedListener>(
-    registry: ListenerSetRegistry<EventMap, WrappedListener>,
-    event: EventKey<EventMap>,
-  ): Set<WrappedListener> {
-    let set = registry.sets.get(event)
-    if (!set) {
-      set = new Set<WrappedListener>()
-      registry.sets.set(event, set)
-      ListenerSetRegistry.touch(registry, event)
-    }
-    return set
-  }
-
-  /** Unified cache invalidation helper */
-  private static touch<EventMap extends BaseEventMap, WrappedListener>(
-    registry: ListenerSetRegistry<EventMap, WrappedListener>,
-    event?: EventKey<EventMap>,
-  ): void {
-    if (event) registry.invalidateReadonlyCache(event)
-    registry.markDirty()
-  }
-
-  /** Unified error throwing helper */
-  private static throwListenerError<EventMap extends BaseEventMap>(
-    message: string,
-    code: string,
-    event: EventKey<EventMap>,
-    listener?: unknown,
-  ): never {
-    throw new BaseError(message, {
-      code,
-      category: "internal",
-      metadata: { event: String(event), listener: listener?.toString() },
-    })
   }
 }

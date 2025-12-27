@@ -3,13 +3,13 @@ import type { BaseEventMap, SingleArgListener } from "@repo/types"
 import { makeReadonlySet } from "@/utils"
 import { RegistryBase } from "./registry-base.ts"
 
-type ListenerSet<EventMap extends BaseEventMap, E extends AllEventKeys<EventMap>> = Set<
-  SingleArgListener<EventMap, E>
+type ListenerSet<EventMap extends BaseEventMap, K extends keyof EventMap = keyof EventMap> = Set<
+  SingleArgListener<EventMap, K>
 >
 
-/* -------------------------------------------------------------------------- */
-/*                        Listener Set Registry                        */
-/* -------------------------------------------------------------------------- */
+/* ------------------------------------------------------ */
+/*                Listener Set Registry                   */
+/* ------------------------------------------------------ */
 
 /**
  * Registry for managing event listener sets with readonly public API and safe mutation helpers.
@@ -26,8 +26,8 @@ export class ListenerSetRegistry<
 > extends RegistryBase {
   /* ------------------- Private Storage ------------------- */
 
-  /** Map of event → Set of wrapped listeners (erased event type internally) */
-  protected readonly registry = new Map<RegistryKey, ListenerSet<EventMap, RegistryKey>>()
+  /** Map of event → Set of wrapped listeners (typed by event key) */
+  protected readonly registry = new Map<RegistryKey, ListenerSet<EventMap>>()
 
   /** Cached ReadonlySet views for public consumption */
   private readonly readonlyCache = new Map<
@@ -46,18 +46,13 @@ export class ListenerSetRegistry<
     this.deleteFromCache(event, this.readonlyCache)
   }
 
-  /** Mark the total listener count as dirty */
-  private markDirty(): void {
-    super.markTotalDirty()
-  }
-
   /* ------------------- Public Accessors ------------------- */
 
   /**
    * Get a readonly view of listeners for the given event.
    * Get a readonly snapshot of listeners for the given event.
    */
-  public get<E extends RegistryKey>(event: E): ReadonlySet<SingleArgListener<EventMap, E>> {
+  public get(event: RegistryKey): ReadonlySet<SingleArgListener<EventMap, RegistryKey>> {
     // Return cached readonly set if available
     let cached = this.getCachedReadonlySet(event)
     if (cached) return cached
@@ -76,7 +71,8 @@ export class ListenerSetRegistry<
   public require<E extends RegistryKey>(
     event: E,
   ): ReadonlySet<SingleArgListener<EventMap, E>> | undefined {
-    return this.registry.get(event)
+    const set = this.registry.get(event)
+    return set ? makeReadonlySet(set) : undefined
   }
 
   /* ------------------- Public Mutators ------------------- */
@@ -88,7 +84,7 @@ export class ListenerSetRegistry<
    */
   /** Add a listener to the given event */
   public add<E extends RegistryKey>(event: E, listener: SingleArgListener<EventMap, E>): void {
-    const set = this.getOrCreateSet(event)
+    const set = this.getOrCreateSet<E>(event)
     set.add(listener)
     this.didMutate(event)
   }
@@ -99,7 +95,7 @@ export class ListenerSetRegistry<
     ...listeners: SingleArgListener<EventMap, E>[]
   ): void {
     if (listeners.length === 0) return
-    const set = this.getOrCreateSet(event)
+    const set = this.getOrCreateSet<E>(event)
     for (const listener of listeners) set.add(listener)
     this.didMutate(event)
   }
@@ -109,7 +105,7 @@ export class ListenerSetRegistry<
     event: E,
     listener: SingleArgListener<EventMap, E>,
   ): boolean {
-    const set = this.registry.get(event) as ListenerSet<EventMap, E> | undefined
+    const set = this.registry.get(event) as Set<SingleArgListener<EventMap, E>> | undefined
     if (!set) return false
 
     const removed = set.delete(listener)
@@ -124,22 +120,18 @@ export class ListenerSetRegistry<
     ...listeners: SingleArgListener<EventMap, E>[]
   ): boolean {
     let removed = false
-
     if (listeners.length === 0) return removed
-    const set = this.registry.get(event) as ListenerSet<EventMap, E> | undefined
+    const set = this.registry.get(event) as Set<SingleArgListener<EventMap, E>> | undefined
     if (!set) return removed
-
     for (const listener of listeners) {
       if (set.delete(listener) && !removed) removed = true
     }
-
     if (removed) this.didMutate(event)
-
     return removed
   }
 
   /** Clears all listeners for an event */
-  public clear<E extends RegistryKey>(event: E): void {
+  public clear(event: RegistryKey): void {
     const hadSet = this.registry.delete(event)
     if (hadSet) {
       this.didMutate(event)
@@ -149,25 +141,19 @@ export class ListenerSetRegistry<
   /* ------------------- Public Queries ------------------- */
 
   /** Get the number of listeners for a specific event */
-  public getCount<E extends RegistryKey>(event: E): number {
-    const set = this.registry.get(event) as ListenerSet<EventMap, E> | undefined
+  public getCount(event: RegistryKey): number {
+    const set = this.registry.get(event)
     return set?.size ?? 0
-  }
-
-  protected computeTotalCount(): number {
-    let count = 0
-    for (const set of this.registry.values()) {
-      count += set.size
-    }
-    return count
   }
 
   /* ------------------- Private Methods ------------------- */
 
-  private getCachedReadonlySet<E extends RegistryKey>(
-    event: E,
-  ): ReadonlySet<SingleArgListener<EventMap, E>> | undefined {
-    return this.readonlyCache.get(event) as ReadonlySet<SingleArgListener<EventMap, E>> | undefined
+  private getCachedReadonlySet(
+    event: RegistryKey,
+  ): ReadonlySet<SingleArgListener<EventMap, RegistryKey>> | undefined {
+    return this.readonlyCache.get(event) as
+      | ReadonlySet<SingleArgListener<EventMap, RegistryKey>>
+      | undefined
   }
 
   private createReadonlySnapshot<E extends RegistryKey>(event: E) {
@@ -181,13 +167,12 @@ export class ListenerSetRegistry<
   }
 
   /** Internal: returns the mutable set for adding/removing listeners */
-  private getOrCreateSet<E extends RegistryKey>(event: E): ListenerSet<EventMap, E> {
-    let set = this.registry.get(event) as ListenerSet<EventMap, RegistryKey> | undefined
+  private getOrCreateSet<E extends RegistryKey>(event: E): Set<SingleArgListener<EventMap, E>> {
+    let set = this.registry.get(event) as Set<SingleArgListener<EventMap, E>> | undefined
     if (!set) {
-      set = new Set()
-      this.registry.set(event, set)
-      this.didMutate(event)
+      set = new Set<SingleArgListener<EventMap, E>>()
+      this.registry.set(event, set as ListenerSet<EventMap>)
     }
-    return set as ListenerSet<EventMap, E>
+    return set
   }
 }

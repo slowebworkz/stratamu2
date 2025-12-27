@@ -1,17 +1,21 @@
 import { BaseError } from "@/errors"
-import type { BaseEventMap, EventKey } from "@repo/types"
+import type { AllEventKeys } from "@/events"
 import { makeReadonlySet } from "@/utils"
+import type { BaseEventMap } from "@repo/types"
 
 /**
  * Registry for tracking events that have been observed/emitted.
  * Provides cached read-only access and optional runtime validation.
  */
-export class SeenEventRegistry<EventMap extends BaseEventMap> {
+export class SeenEventRegistry<
+  EventMap extends BaseEventMap,
+  RegistryKey extends AllEventKeys<EventMap> = AllEventKeys<EventMap>,
+> {
   /** Internal storage of seen events */
-  private readonly seen = new Set<EventKey<EventMap>>()
+  private readonly seen = new Set<RegistryKey>()
 
   /** Cached readonly set for efficient repeated queries */
-  private cached?: ReadonlySet<EventKey<EventMap>>
+  private cached?: ReadonlySet<RegistryKey>
 
   /** Marks the cache as dirty when mutations occur */
   private dirty = false
@@ -20,7 +24,7 @@ export class SeenEventRegistry<EventMap extends BaseEventMap> {
    * Add a new event to the registry.
    * Throws if the event is invalid (null/undefined).
    */
-  public add(event: EventKey<EventMap>): void {
+  public add(event: RegistryKey): void {
     if (event == null) {
       throw new BaseError("Cannot add null or undefined as a seen event", {
         code: "INVALID_EVENT_KEY",
@@ -36,7 +40,7 @@ export class SeenEventRegistry<EventMap extends BaseEventMap> {
   }
 
   /** Check if an event has been seen */
-  public has(event: EventKey<EventMap>): boolean {
+  public has(event: RegistryKey): boolean {
     return this.seen.has(event)
   }
 
@@ -44,7 +48,7 @@ export class SeenEventRegistry<EventMap extends BaseEventMap> {
    * Retrieve all seen events as a cached, read-only set.
    * Cache is automatically refreshed on mutations.
    */
-  public getAll(): ReadonlySet<EventKey<EventMap>> {
+  public getAll(): ReadonlySet<RegistryKey> {
     if (!this.cached || this.dirty) {
       this.cached = makeReadonlySet(this.seen)
       this.dirty = false
@@ -56,7 +60,7 @@ export class SeenEventRegistry<EventMap extends BaseEventMap> {
    * Remove a specific event from the registry.
    * Throws if the event was never added.
    */
-  public remove(event: EventKey<EventMap>): void {
+  public remove(event: RegistryKey): void {
     if (!this.seen.has(event)) {
       throw new BaseError("Cannot remove unseen event", {
         code: "EVENT_NOT_FOUND",
