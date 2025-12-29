@@ -1,5 +1,5 @@
-import { BubblingEmitter } from "@/events"
 import type { BaseEventMap } from "@repo/types"
+import { BubblingEmitter } from "@/events"
 
 const ERROR_MSG = "BaseClass cannot be instantiated directly"
 
