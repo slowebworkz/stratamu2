@@ -1,5 +1,6 @@
-import type { AllEventKeys } from "@/events"
 import type { BaseEventMap, SingleArgListener } from "@repo/types"
+import { BaseError } from "@/errors"
+import type { AllEventKeys } from "@/events"
 import type {
   AnyEventListener,
   CachedOriginalListeners,
@@ -7,14 +8,13 @@ import type {
   PerEventCache,
   WrapperMapFor,
 } from "@/registry"
-import { RegistryBase } from "./registry-base.ts"
-import { BaseError } from "@/errors"
 import {
   ListenerGetCache,
   ListenerKeysCache,
   ListenerWrappedCache,
   ListenerWrapperMemo,
 } from "./cache/index.ts"
+import { RegistryBase } from "./registry-base.ts"
 
 /* ------------------------------------------------------ */
 /*              Listener Wrapper Registry                 */

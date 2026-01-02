@@ -1,5 +1,5 @@
-import type { AllEventKeys } from "@/events"
 import type { BaseEventMap, SingleArgListener } from "@repo/types"
+import type { AllEventKeys } from "@/events"
 import { makeReadonlySet } from "@/utils"
 import { RegistryBase } from "./registry-base.ts"
 

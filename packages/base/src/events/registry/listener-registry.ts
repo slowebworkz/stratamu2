@@ -1,9 +1,7 @@
-import type { AllEventKeys } from "@/events"
-import { SeenEventRegistry } from "./seen-event-registry.ts"
-import { ListenerSetRegistry } from "./listener-set-registry.ts"
-import { ListenerWrapperRegistry } from "./listener-wrapper-registry.ts"
-import type { Awaitable, BaseEventMap, EventKey, SingleArgListener } from "@repo/types"
 import { BaseError } from "@/errors"
+import type { AllEventKeys } from "@/events"
+import { ListenerSetRegistry, ListenerWrapperRegistry, SeenEventRegistry } from "@/registry"
+import type { BaseEventMap, EventKey, SingleArgListener } from "@repo/types"
 
 export class ListenerRegistry<
   EventMap extends BaseEventMap,

@@ -1,6 +1,6 @@
+import type { BaseEventMap, SingleArgListener } from "@repo/types"
 import type { AllEventKeys } from "@/events"
 import type { PerEventCache } from "@/registry"
-import type { BaseEventMap, SingleArgListener } from "@repo/types"
 
 export class ListenerGetCache<
   EventMap extends BaseEventMap,

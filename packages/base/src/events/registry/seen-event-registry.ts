@@ -1,17 +1,16 @@
+import type { BaseErrorOptions } from "@/errors"
 import { BaseError } from "@/errors"
 import type { AllEventKeys } from "@/events"
 import { makeReadonlySet } from "@/utils"
 import type { BaseEventMap } from "@repo/types"
 
-/**
- * Registry for tracking events that have been observed/emitted.
- * Provides cached read-only access and optional runtime validation.
- */
 export class SeenEventRegistry<
   EventMap extends BaseEventMap,
   RegistryKey extends AllEventKeys<EventMap> = AllEventKeys<EventMap>,
 > {
-  /** Internal storage of seen events */
+  /* ------------------- Private Storage ------------------- */
+
+  /** Internal storage */
   private readonly seen = new Set<RegistryKey>()
 
   /** Cached readonly set for efficient repeated queries */
@@ -20,24 +19,49 @@ export class SeenEventRegistry<
   /** Marks the cache as dirty when mutations occur */
   private dirty = false
 
+  /* ------------------- Public Mutators ------------------- */
+
   /**
    * Add a new event to the registry.
    * Throws if the event is invalid (null/undefined).
    */
   public add(event: RegistryKey): void {
+    // Defensive runtime guard: This should be impossible in TypeScript unless using `as any` or calling from JS.
+    // Included for extra safety at runtime boundaries; not a normal execution path.
     if (event == null) {
-      throw new BaseError("Cannot add null or undefined as a seen event", {
+      SeenEventRegistry.throwError("Cannot add null or undefined as a seen event", {
         code: "INVALID_EVENT_KEY",
         category: "usage",
         metadata: { event },
       })
     }
 
-    if (!this.seen.has(event)) {
-      this.seen.add(event)
-      this.dirty = true
-    }
+    this.mutateIf(!this.seen.has(event), () => this.seen.add(event))
   }
+
+  /**
+   * Remove a specific event from the registry.
+   * Throws if the event was never added.
+   */
+  public remove(event: RegistryKey): void {
+    if (!this.seen.has(event)) {
+      SeenEventRegistry.throwError("Cannot remove unseen event", {
+        code: "EVENT_NOT_FOUND",
+        category: "usage",
+        metadata: { event },
+      })
+    }
+
+    this.seen.delete(event)
+    this.dirty = true
+  }
+
+  /** Clear all seen events */
+  public clear(): void {
+    this.mutateIf(this.seen.size > 0, () => this.seen.clear())
+  }
+
+  /* ------------------- Public Accessors ------------------- */
 
   /** Check if an event has been seen */
   public has(event: RegistryKey): boolean {
@@ -56,28 +80,35 @@ export class SeenEventRegistry<
     return this.cached
   }
 
-  /**
-   * Remove a specific event from the registry.
-   * Throws if the event was never added.
-   */
-  public remove(event: RegistryKey): void {
-    if (!this.seen.has(event)) {
-      throw new BaseError("Cannot remove unseen event", {
-        code: "EVENT_NOT_FOUND",
-        category: "usage",
-        metadata: { event },
-      })
-    }
+  /* ---------------- Private mutation helper ---------------- */
 
-    this.seen.delete(event)
+  private mutateIf(condition: boolean, mutate: () => void): void {
+    if (!condition) return
+
+    mutate()
     this.dirty = true
   }
 
-  /** Clear all seen events */
-  public clear(): void {
-    if (this.seen.size > 0) {
-      this.seen.clear()
-      this.dirty = true
+  /* ---------------- Private static helpers ---------------- */
+
+  /** Unified error throwing helper */
+  private static throwError(
+    message: string,
+    options: BaseErrorOptions,
+    event?: PropertyKey,
+    listener?: unknown,
+  ): never {
+    const baseMetadata = { ...(options.metadata ?? {}) }
+    if (event !== undefined && baseMetadata.event === undefined) {
+      baseMetadata.event = String(event)
     }
+    baseMetadata.listener =
+      typeof listener === "function" ? listener.name || "[anonymous listener]" : String(listener)
+
+    const errorOptions: BaseErrorOptions = {
+      ...options,
+      metadata: baseMetadata,
+    }
+    throw new BaseError(message, errorOptions)
   }
 }

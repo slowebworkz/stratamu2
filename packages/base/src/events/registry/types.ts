@@ -1,5 +1,5 @@
-import type { AllEventKeys } from "@/events"
 import type { BaseEventMap, ListenerFn, SingleArgListener } from "@repo/types"
+import type { AllEventKeys } from "@/events"
 
 /* =================== External Types (Public API) =================== */
 
