@@ -22,6 +22,7 @@ e.on('hello', async (name) => {
 })
 await e.emitSafe('hello', 'world')
 console.log(e.getErrorCount('hello'))
+// Calling `getErrorCount()` with no argument returns the total across all events.
 ```
 
 Advanced / test harness

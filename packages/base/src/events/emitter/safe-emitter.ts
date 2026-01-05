@@ -8,32 +8,19 @@ import type {
   PublicEventMap,
   //   SubscriptionOptions,
 } from "@/events"
-import { SafetyEmitter as SafetyManager } from "@/events"
+import { SafetyManager } from "@/events/safety/index.ts"
 
 import { ListenerRegistry } from "@/registry"
 
 import type { Awaitable, BaseEventMap, SingleArgListener } from "@repo/types"
-// import type { Simplify, Tagged } from "type-fest"
 
-// declare const CancelledTag: unique symbol
-// export type Cancelled = Tagged<symbol, typeof CancelledTag>
-
-// export const CANCELLED = Symbol("SafeEmitter.once.cancelled") as Cancelled
-
-// type OnceResult<T> = T | Cancelled
-
-// type OnceHandle<T> = Simplify<{
-//   promise: Promise<OnceResult<T>>
-//   cancel(): void
-// }>
-
-export abstract class SafeEmitter<
-  EventMap extends BaseEventMap
-> {
-
+export abstract class SafeEmitter<EventMap extends BaseEventMap> {
   /* ------------------- Private Storage ------------------- */
 
-  private readonly _listenerRegistry = new ListenerRegistry<EventMap, SingleArgListener<EventMap, AllEventKeys<EventMap>>>()
+  private readonly _listenerRegistry = new ListenerRegistry<
+    EventMap,
+    SingleArgListener<EventMap, AllEventKeys<EventMap>>
+  >()
 
   private readonly _safety!: SafetyManager<EventMap>
 

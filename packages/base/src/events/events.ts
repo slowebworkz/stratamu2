@@ -61,23 +61,29 @@ export function internalPublicBus<EventMap extends BaseEventMap>(self: {
 }
 
 /**
- * Normalize a PropertyKey into a string key suitable for Map lookups.
- * - For string/number: returns as string.
- * - For symbol: returns a unique string with a prefix to avoid collisions.
- * - For undefined/null: returns undefined.
+ * Normalize a PropertyKey for map lookups.
+ * - Undefined/null → undefined
+ * - Global symbols → string tag (stable across realms)
+ * - Local symbols → preserved as-is
+ * - Numbers/strings → preserved as-is
  */
-export function normalizeEventKeyForMap(key?: PropertyKey): string | undefined {
+export function normalizeEventKeyForMap(key?: PropertyKey): PropertyKey | undefined {
   if (key == null) return undefined
+
   if (typeof key === "symbol") {
     const globalKey = Symbol.keyFor(key)
     if (globalKey) return `@@symbol:${globalKey}`
-    const desc = key.description ?? ""
-    return `@@symbol:${desc || key.toString()}`
+    return key
   }
-  return String(key)
+
+  return key
 }
 
-export function incrementCount<K extends string>(map: Map<K, number>, key: K, delta = 1): number {
+export function incrementCount<K extends PropertyKey>(
+  map: Map<K, number>,
+  key: K,
+  delta = 1,
+): number {
   const next = (map.get(key) ?? 0) + delta
   map.set(key, next)
   return next
