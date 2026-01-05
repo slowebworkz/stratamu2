@@ -13,17 +13,14 @@ VALID_AREAS=("packages" "apps")
 # Source utility scripts
 source "$SCRIPT_DIR/lib/_validation.sh"
 source "$SCRIPT_DIR/lib/_templates.sh"
+source "$SCRIPT_DIR/lib/_cli.sh"
 
 ###############################################################################
 # MAIN
 ###############################################################################
 
 main() {
-  validate_args "$@"
-
-  local package_name="$1"
-  local target_area="$2"
-  local target_namespace="$3"
+  parse_args "$@"
 
   validate_area "$target_area"
 
@@ -37,11 +34,16 @@ main() {
   touch "$pkg_dir/index.ts"
 
   create_tsconfig_json "$pkg_dir"
-  create_package_json "$pkg_dir" "$pkg_id"
+  create_package_json "$pkg_dir" "$pkg_id" "$run_build"
   create_readme "$pkg_dir" "$pkg_id"
   create_test_dir_if_needed "$pkg_dir" "$pkg_id"
   create_vite_config_if_needed "$pkg_dir" "$pkg_id"
 
+  if [[ "$run_build" == "true" ]]; then
+    echo "Workspace/package configured with build step (outputs to dist/)."
+  else
+    echo "Workspace/package configured without build (points to src/)."
+  fi
   echo "Workspace/package creation completed successfully."
 }
 
