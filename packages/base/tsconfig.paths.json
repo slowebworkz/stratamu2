@@ -2,23 +2,7 @@
   "extends": "../typescript-config/no-emit.json",
   "compilerOptions": {
     "paths": {
-      "@/*": ["./src/*"],
-      "@/data": ["./src/data/index.ts"],
-      "@/data/*": ["./src/data/*"],
-      "@/env": ["./src/env/index.ts"],
-      "@/env/*": ["./src/env/*"],
-      "@/errors": ["./src/errors/index.ts"],
-      "@/errors/*": ["./src/errors/*"],
-      "@/events": ["./src/events/index.ts"],
-      "@/events/*": ["./src/events/*"],
-      "@/performance": ["./src/performance/index.ts"],
-      "@/performance/*": ["./src/performance/*"],
-      "@/registry": ["./src/events/registry/index.ts"],
-      "@/registry/*": ["./src/events/registry/*"],
-      "@/node": ["./src/node/index.ts"],
-      "@/node/*": ["./src/node/*"],
-      "@/utils": ["./src/utils/index.ts"],
-      "@/utils/*": ["./src/utils/*"]
+      "@/*": ["./src/*"]
     }
   }
 }
