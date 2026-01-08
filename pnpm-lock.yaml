@@ -29,6 +29,9 @@ importers:
 
   packages/base:
     dependencies:
+      '@repo/capabilities':
+        specifier: workspace:*
+        version: link:../capabilities
       abort-controller-x:
         specifier: ^0.5.0
         version: 0.5.0
@@ -75,6 +78,40 @@ importers:
       '@biomejs/biome':
         specifier: ^1.9.4
         version: 1.9.4
+
+  packages/capabilities:
+    devDependencies:
+      type-fest:
+        specifier: ^5.3.1
+        version: 5.3.1
+      typescript:
+        specifier: 5.9.2
+        version: 5.9.2
+      vitest:
+        specifier: ^3.2.4
+        version: 3.2.4(@types/node@24.10.4)
+
+  packages/events:
+    dependencies:
+      '@repo/base':
+        specifier: workspace:*
+        version: link:../base
+      emittery:
+        specifier: ^1.2.0
+        version: 1.2.0
+    devDependencies:
+      '@repo/types':
+        specifier: workspace:*
+        version: link:../types
+      type-fest:
+        specifier: ^5.3.1
+        version: 5.3.1
+      typescript:
+        specifier: 5.9.2
+        version: 5.9.2
+      vitest:
+        specifier: ^3.2.4
+        version: 3.2.4(@types/node@24.10.4)
 
   packages/types:
     dependencies:
