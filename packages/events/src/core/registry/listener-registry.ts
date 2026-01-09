@@ -23,7 +23,7 @@ export class ListenerRegistry<
   public add<E extends AllEventKeys<EventMap>>(
     event: E,
     originalListener: SingleArgListener<EventMap, E>,
-    wrappedListener: RegistryKey,
+    wrappedListener: SingleArgListener<EventMap, E>,
   ): void {
     this.listenerSetRegistry.add(event, wrappedListener)
     this.listenerWrapperRegistry.add(

@@ -1,9 +1,9 @@
+import { emitDiagnosticWarning, RingBuffer } from "@repo/base"
 import type { BaseEventMap, EventKey } from "@repo/types"
 import Emittery from "emittery"
-import { SafetyManagerErrorCounts } from "./index.ts"
 import type { JsonValue, Simplify } from "type-fest"
 import { DEFAULT_SAFETY_LOG_CAP, ENABLE_SAFE_MODE } from "../../constants/index.ts"
-import { RingBuffer } from "@repo/base"
+import { SafetyManagerErrorCounts } from "./index.ts"
 
 export type PerEventCap<EventMap extends BaseEventMap = BaseEventMap> = Simplify<
   Partial<Record<EventKey<EventMap>, number>>
@@ -29,18 +29,28 @@ export type SafetyLogEntry = {
   listener: string
 }
 
+export type NormalizedEventKey<T> =
+  | EventKey<T> // string or symbol keys
+  | `@@symbol:${string}` // global symbols turned into strings
+
 /**
  * Sanitized error shapes. Either a trimmed Error-like shape, a stringified representation, or any JSON-friendly value.
  */
 export type SanitizedError =
   | Readonly<{
-    kind: "Error"
-    name: string
-    message: string
-    stackSnippet?: string
-  }>
-  | Readonly<{ kind: "String"; value: string }>
-  | Readonly<{ kind: "Json"; value: Exclude<JsonValue, undefined> }>
+      readonly kind: "Error"
+      readonly name: string
+      readonly message: string
+      readonly stackSnippet?: string
+    }>
+  | Readonly<{
+      readonly kind: "String"
+      readonly value: string
+    }>
+  | Readonly<{
+      readonly kind: "Json"
+      readonly value: Exclude<JsonValue, undefined>
+    }>
 
 export class SafetyManager<
   EventMap extends BaseEventMap,
@@ -85,7 +95,6 @@ export class SafetyManager<
 
   /* -------------- 📤 Public Accessors --------------------- */
 
-
   public recordListenerErrorFor<E extends SafetyKey>(
     event: E,
     error: unknown,
@@ -100,6 +109,14 @@ export class SafetyManager<
     }
   }
 
+  public getErrorCount<E extends SafetyKey>(event: E): number {
+    const key = SafetyManager.normalizeEventKeyForMap(event) as SafetyKey | undefined
+    return !key ? 0 : this._errorCounts.get(key)
+  }
+
+  public getAllErrorCounts(): ReadonlyMap<SafetyKey, number> {
+    return this._errorCounts.getAll()
+  }
 
   /* -------------- 🧩 Private Helpers ---------------------- */
 
@@ -119,7 +136,7 @@ export class SafetyManager<
       listener: listenerName ?? "unknown",
     }
 
-    const cap = this._perEventCaps?.[key] ?? this._safetyLogCap
+    const cap = this._getCapFor(key)
     let buf = this._safetyLogs.get(key)
 
     if (!buf) {
@@ -130,9 +147,16 @@ export class SafetyManager<
     buf.push(entry)
   }
 
+  /** Returns the cap for a given event, using per-event or global cap. */
+  private _getCapFor(event: SafetyKey): number {
+    return this._perEventCaps?.[event] ?? this._safetyLogCap
+  }
+
   /* -------------- ⚠️ Protected: Errors -------------------- */
 
-  protected get emitter(): Emittery<SafetyManagerEventMap<EventMap>> { return this._emitter }
+  protected get emitter(): Emittery<SafetyManagerEventMap<EventMap>> {
+    return this._emitter
+  }
 
   /* -------------- 🔧 Static: Private utilities ------------ */
 
@@ -143,32 +167,41 @@ export class SafetyManager<
    * - Local symbols → preserved as-is
    * - Numbers/strings → preserved as-is
    */
-  private static normalizeEventKeyForMap(key?: PropertyKey): PropertyKey | undefined {
+  private static normalizeEventKeyForMap<
+    T extends BaseEventMap,
+    K extends EventKey<T> = EventKey<T>,
+  >(key?: K): NormalizedEventKey<T> | undefined {
     if (key == null) return undefined
 
     if (typeof key === "symbol") {
       const globalKey = Symbol.keyFor(key)
-      if (globalKey) return `@@symbol:${globalKey}`
-      return key
+      return globalKey ? `@@symbol:${globalKey}` : key
     }
 
     return key
   }
 
   private static sanitizeError(e: unknown): SanitizedError {
+    // Default shape: String
+    const out: any = {
+      kind: "String",
+      value: String(e),
+    }
+
     if (e instanceof Error) {
-      const { name, message, stack } = e
-      return {
-        kind: "Error",
-        name,
-        message,
-        stackSnippet: stack?.split("\n").slice(0, 3).join("\n"),
+      out.kind = "Error"
+      out.name = e.name
+      out.message = e.message
+      out.stackSnippet = e.stack?.split("\n").slice(0, 3).join("\n")
+    } else {
+      try {
+        out.kind = "Json"
+        out.value = JSON.parse(JSON.stringify(e)) as Exclude<JsonValue, undefined>
+      } catch {
+        // fallback already String
       }
     }
-    try {
-      return { kind: "Json", value: JSON.parse(JSON.stringify(e)) as JsonValue }
-    } catch {
-      return { kind: "String", value: String(e) }
-    }
+
+    return Object.freeze(out) as SanitizedError
   }
 }
