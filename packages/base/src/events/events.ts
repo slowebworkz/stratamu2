@@ -1,6 +1,6 @@
 import { BaseError } from "@/errors"
-import type { PublicEventMap } from "@/events"
-import { INTERNAL_EVENT_KEYS, type InternalEvent } from "@/events"
+import { INTERNAL_EVENT_KEYS } from "@/events"
+import type { InternalEventKey, PublicEventMap } from "@/events"
 import type { BaseEventMap } from "@repo/types"
 import type Emittery from "emittery"
 
@@ -11,8 +11,8 @@ import type Emittery from "emittery"
 /**
  * True if the given symbol is one of our internal/private event symbols.
  */
-export function isInternalEvent(event: unknown): event is InternalEvent {
-  return typeof event === "symbol" && INTERNAL_EVENT_KEYS.has(event as InternalEvent)
+export function isInternalEvent(event: unknown): event is InternalEventKey {
+  return typeof event === "symbol" && INTERNAL_EVENT_KEYS.has(event as InternalEventKey)
 }
 
 /**
@@ -54,30 +54,36 @@ export async function fireAndForgetGeneric(
  * Returns a typed view of the emitter’s *public* event bus.
  * Ensures internal symbol event keys do not leak into external API surfaces.
  */
-export function internalPublicBus<EventMap extends BaseEventMap<unknown[]>>(self: {
+export function internalPublicBus<EventMap extends BaseEventMap>(self: {
   _public: Emittery<PublicEventMap<EventMap>>
 }): Emittery<PublicEventMap<EventMap>> {
   return self._public
 }
 
 /**
- * Normalize a PropertyKey into a string key suitable for Map lookups.
- * - For string/number: returns as string.
- * - For symbol: returns a unique string with a prefix to avoid collisions.
- * - For undefined/null: returns undefined.
+ * Normalize a PropertyKey for map lookups.
+ * - Undefined/null → undefined
+ * - Global symbols → string tag (stable across realms)
+ * - Local symbols → preserved as-is
+ * - Numbers/strings → preserved as-is
  */
-export function normalizeEventKeyForMap(key?: PropertyKey): string | undefined {
+export function normalizeEventKeyForMap(key?: PropertyKey): PropertyKey | undefined {
   if (key == null) return undefined
+
   if (typeof key === "symbol") {
     const globalKey = Symbol.keyFor(key)
     if (globalKey) return `@@symbol:${globalKey}`
-    const desc = key.description ?? ""
-    return `@@symbol:${desc || key.toString()}`
+    return key
   }
-  return String(key)
+
+  return key
 }
 
-export function incrementCount<K extends string>(map: Map<K, number>, key: K, delta = 1): number {
+export function incrementCount<K extends PropertyKey>(
+  map: Map<K, number>,
+  key: K,
+  delta = 1,
+): number {
   const next = (map.get(key) ?? 0) + delta
   map.set(key, next)
   return next

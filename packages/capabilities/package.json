@@ -1,0 +1,28 @@
+{
+  "name": "@repo/capabilities",
+  "version": "0.1.0",
+  "type": "module",
+  "main": "./index.js",
+  "types": "./index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./index.js",
+      "default": "./index.js",
+      "types": "./index.d.ts"
+    }
+  },
+  "scripts": {
+    "lint": "pnpm exec biome check . --config-path ../biome-config/biome.json",
+    "lint:fix": "pnpm exec biome check . --config-path ../biome-config/biome.json --apply",
+    "format": "pnpm exec biome format . --config-path ../biome-config/biome.json --write",
+    "test": "vitest run --config ./tsconfig.test.json",
+    "bench:build": "tsc --project tsconfig.json --outDir dist && mkdir -p dist/bench || true",
+    "bench:run": "pnpm run bench:build && node ./dist/bench/run-bench.js",
+    "bench:check": "pnpm run bench:build && node ./dist/bench/check-regression.js"
+  },
+  "devDependencies": {
+    "typescript": "5.9.2",
+    "type-fest": "^5.3.1",
+    "vitest": "^3.2.4"
+  }
+}

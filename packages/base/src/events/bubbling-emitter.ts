@@ -6,7 +6,7 @@ import type { Args, BaseEventMap } from "@repo/types"
 // Helper type for parent event map construction
 
 export abstract class BubblingEmitter<
-  EventMap extends BaseEventMap<unknown[]> = BaseEventMap<unknown[]>,
+  EventMap extends BaseEventMap = BaseEventMap,
   ParentEventMap extends AllEvents<EventMap> = AllEvents<EventMap>,
 > extends FilteredPriorityEmitter<EventMap> {
   /**

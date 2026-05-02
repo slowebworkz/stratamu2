@@ -11,7 +11,7 @@ import type { Args, BaseEventMap } from "@repo/types"
  * @template ParentEventMap - The parent's event map (defaults to AllEvents<EventMap>)
  */
 export abstract class BubblingEmitter<
-  EventMap extends BaseEventMap<unknown[]> = BaseEventMap<unknown[]>,
+  EventMap extends BaseEventMap = BaseEventMap,
   ParentEventMap extends AllEvents<EventMap> = AllEvents<EventMap>,
 > extends FilteredPriorityEmitter<EventMap> {
   // Empty scaffold - ready for implementation

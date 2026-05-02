@@ -38,9 +38,7 @@ type TypedLogger = Simplify<
   }
 >
 
-export abstract class LoggedEmitter<
-  EventMap extends BaseEventMap<unknown[]>,
-> extends SafeEmitter<EventMap> {
+export abstract class LoggedEmitter<EventMap extends BaseEventMap> extends SafeEmitter<EventMap> {
   // Map to store original → wrapped level change listeners for correct removal
   private _levelChangeWrappers = new WeakMap<LevelChangeEventListener, LevelChangeEventListener>()
   private _levelChangeKeys = new Set<LevelChangeEventListener>()

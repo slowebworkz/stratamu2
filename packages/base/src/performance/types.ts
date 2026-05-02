@@ -1,4 +1,10 @@
 import type { LiteralUnion, Tagged } from "type-fest"
+import type { PERFORMANCE_LEVELS } from "./index.ts"
+
+/**
+ * Performance level classification for event metrics.
+ */
+export type PerformanceLevel = (typeof PERFORMANCE_LEVELS)[number]
 
 export type TimeInMs = Tagged<number, "TimeInMs">
 

@@ -1,24 +1,50 @@
 {
   "name": "@repo/types",
   "version": "0.1.0",
+  "description": "These are shared types for the game engine.",
+  "author": {
+    "name": "K Huehn",
+    "email": "slowebworkz@gmail.com"
+  },
   "type": "module",
-  "types": "dist/index.d.ts",
+  "types": "./index.d.ts",
+  "sideEffects": false,
+  "engines": {
+    "node": ">=22.19.0",
+    "pnpm": ">=9.0.0"
+  },
+  "files": [
+    "src",
+    "README.md",
+    "LICENSE"
+  ],
+  "keywords": [
+    "typescript",
+    "types",
+    "utility",
+    "event",
+    "game",
+    "engine",
+    "shared",
+    "monorepo"
+  ],
   "exports": {
     ".": {
-      "types": "./dist/index.d.ts"
+      "types": "./index.d.ts"
     }
   },
   "scripts": {
-    "clean": "rm -rf dist",
-    "build": "pnpm run clean && tsc --project tsconfig.json && pnpm exec dts-bundle-generator -o dist/index.d.ts index.ts",
     "lint": "echo 'noop'",
     "format": "pnpm exec biome format . --write --no-cache",
     "lint:fix": "pnpm run lint || (pnpm run format && pnpm run lint)",
     "test": "echo 'noop'"
   },
+  "dependencies": {
+    "emittery": "^1.2.0"
+  },
   "devDependencies": {
-    "dts-bundle-generator": "^9.5.1",
-    "type-fest": "^5.1.0",
+    "@types/node": "^24.10.1",
+    "type-fest": "^5.3.1",
     "typescript": "5.9.2"
   }
 }

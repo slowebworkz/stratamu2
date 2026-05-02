@@ -1,7 +1,7 @@
-import type { Comparator, IndexedPredicate, ListIndex, ValuePredicate } from "@/data"
-import { DEV_MODE } from "@/env"
-import { BaseError } from "@/errors"
-import { isObject } from "@/utils"
+import type { Comparator, IndexedPredicate, ListIndex, ValuePredicate } from "./types"
+import { DEV_MODE } from "../env"
+import { BaseError } from "../errors"
+import { isObject } from "../utils"
 
 /** Branding symbol for priority lists - prevents type confusion */
 const PRIORITY_LIST_BRAND = Symbol("__priorityList")
@@ -120,14 +120,18 @@ export class LinkedList<T> implements Iterable<T> {
       last = cur
       cur = cur.next
     }
-    if (count !== this._size) throw new Error(`LinkedList invariant failed: _size=${this._size} but counted ${count}`)
+    if (count !== this._size)
+      throw new Error(`LinkedList invariant failed: _size=${this._size} but counted ${count}`)
     if (this._size === 0) {
-      if (this.head !== null || this.tail !== null) throw new Error("LinkedList invariant failed: non-null head/tail for empty list")
+      if (this.head !== null || this.tail !== null)
+        throw new Error("LinkedList invariant failed: non-null head/tail for empty list")
     } else {
       if (!this.head) throw new Error("LinkedList invariant failed: null head for non-empty list")
       if (!this.tail) throw new Error("LinkedList invariant failed: null tail for non-empty list")
-      if (last !== this.tail) throw new Error("LinkedList invariant failed: tail does not match last node")
-      if (this.tail && this.tail.next !== null) throw new Error("LinkedList invariant failed: tail.next is not null")
+      if (last !== this.tail)
+        throw new Error("LinkedList invariant failed: tail does not match last node")
+      if (this.tail && this.tail.next !== null)
+        throw new Error("LinkedList invariant failed: tail.next is not null")
     }
   }
 
@@ -138,9 +142,7 @@ export class LinkedList<T> implements Iterable<T> {
    */
   constructor(itemsOrComparator?: Iterable<T> | Comparator<T>, comparator?: Comparator<T>) {
     const items = typeof itemsOrComparator === "function" ? undefined : itemsOrComparator
-    this.comparatorFn = typeof itemsOrComparator === "function"
-      ? itemsOrComparator
-      : comparator
+    this.comparatorFn = typeof itemsOrComparator === "function" ? itemsOrComparator : comparator
     if (items) {
       for (const item of items) this.push(item)
     }
@@ -179,17 +181,17 @@ export class LinkedList<T> implements Iterable<T> {
   }
 
   /**
-  * Create a branded PriorityList for items with priority and sequence properties.
-  *
- * Priority order is always defined by the canonical comparator (comparePriorityItem).
- * There is no manual stable insertion: all items are inserted in strict priority order.
- *
- * @returns A branded PriorityList
- * @example
- * const taskQueue = LinkedList.createPriorityList<Task>()
- * taskQueue.push({ name: 'urgent', priority: 10, sequence: 1 })
- * taskQueue.push({ name: 'normal', priority: 5, sequence: 2 })
- */
+   * Create a branded PriorityList for items with priority and sequence properties.
+   *
+   * Priority order is always defined by the canonical comparator (comparePriorityItem).
+   * There is no manual stable insertion: all items are inserted in strict priority order.
+   *
+   * @returns A branded PriorityList
+   * @example
+   * const taskQueue = LinkedList.createPriorityList<Task>()
+   * taskQueue.push({ name: 'urgent', priority: 10, sequence: 1 })
+   * taskQueue.push({ name: 'normal', priority: 5, sequence: 2 })
+   */
   public static createPriorityList<T extends PriorityItem>(): PriorityList<T> {
     const list = new LinkedList<T>(comparePriorityItem)
     Object.defineProperty(list, PRIORITY_LIST_BRAND, {
@@ -214,7 +216,6 @@ export class LinkedList<T> implements Iterable<T> {
       (value as Partial<PriorityListBrand>)[PRIORITY_LIST_BRAND] === true
     )
   }
-
 
   /**
    * Number of items in the list (O(1)).
@@ -245,13 +246,10 @@ export class LinkedList<T> implements Iterable<T> {
    */
   public unshift(value: T): this {
     if (this.comparatorFn) {
-      throw new BaseError(
-        "Cannot use unshift() on a sorted LinkedList",
-        {
-          code: "ERR_LINKED_LIST_UNSHIFT_SORTED",
-          metadata: { method: "unshift" }
-        }
-      )
+      throw new BaseError("Cannot use unshift() on a sorted LinkedList", {
+        code: "ERR_LINKED_LIST_UNSHIFT_SORTED",
+        metadata: { method: "unshift" },
+      })
     }
     const node = new ListNode(value)
     this._insertNodeAtHead(node)
@@ -412,13 +410,10 @@ export class LinkedList<T> implements Iterable<T> {
    */
   public insertAt(index: ListIndex, value: T): boolean {
     if (this.comparatorFn) {
-      throw new BaseError(
-        "insertAt() is not allowed on a sorted LinkedList",
-        {
-          code: "ERR_LINKED_LIST_INSERT_AT_SORTED",
-          metadata: { method: "insertAt" }
-        }
-      )
+      throw new BaseError("insertAt() is not allowed on a sorted LinkedList", {
+        code: "ERR_LINKED_LIST_INSERT_AT_SORTED",
+        metadata: { method: "insertAt" },
+      })
     }
     if (index < 0 || index > this._size) return false
     const node = new ListNode(value)
@@ -460,8 +455,8 @@ export class LinkedList<T> implements Iterable<T> {
         "No compareFn provided for sortedInsert; explicit comparator required for all types.",
         {
           code: "ERR_LINKED_LIST_NO_COMPARATOR",
-          metadata: { method: "sortedInsert", value }
-        }
+          metadata: { method: "sortedInsert", value },
+        },
       )
     }
 
@@ -534,7 +529,6 @@ export class ListNode<T> {
 
 // Export Node type for external use (e.g., event emitter filterGroups)
 export type Node<T> = ListNode<T>
-
 
 export function comparePriorityItem(a: PriorityItem, b: PriorityItem): number {
   if (a.priority !== b.priority) return b.priority - a.priority

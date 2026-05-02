@@ -10,7 +10,7 @@ import { BubblingEmitter } from "./bubbling-emitter.js"
  * @template EventMap - The event map for this emitter.
  */
 export class DestroyableEmitter<
-  EventMap extends BaseEventMap<unknown[]> = BaseEventMap<unknown[]>,
+  EventMap extends BaseEventMap = BaseEventMap,
 > extends BubblingEmitter<EventMap> {
   /**
    * Remove all listeners from this emitter.

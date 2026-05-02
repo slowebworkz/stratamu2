@@ -2,7 +2,10 @@
   "extends": "./tsconfig.paths.json",
   "compilerOptions": {
     "outDir": "dist",
-    "baseUrl": "."
+    "baseUrl": ".",
+    "skipLibCheck": false,
+    "lib": ["ES2023", "DOM"],
+    "types": ["node"]
   },
   "include": ["src/index.ts", "src/**/*.ts"],
   "exclude": ["node_modules"]

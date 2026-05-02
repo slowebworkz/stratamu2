@@ -9,17 +9,18 @@
     "lint": "turbo run lint",
     "lint:fix": "turbo run lint:fix",
     "format:sh": "shfmt -w scripts/*",
-    "format": "pnpm exec biome format . --write",
     "check-types": "turbo run check-types",
+    "format": "pnpm exec biome format --config-path=./packages/biome-config/biome.json --write .",
     "prepare": "husky",
     "test": "turbo run test"
   },
   "devDependencies": {
-    "@biomejs/biome": "^1.9.4",
+    "@biomejs/biome": "2.0.6",
+    "@types/node": "^24.10.1",
     "globals": "^16.5.0",
     "husky": "^9.1.7",
-    "turbo": "^2.6.1",
-    "type-fest": "^5.1.0",
+    "turbo": "^2.7.2",
+    "type-fest": "^5.3.1",
     "typescript": "5.9.2"
   },
   "packageManager": "pnpm@9.0.0",
