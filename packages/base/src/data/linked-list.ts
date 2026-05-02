@@ -1,7 +1,7 @@
-import type { Comparator, IndexedPredicate, ListIndex, ValuePredicate } from "@/data"
-import { DEV_MODE } from "@/env"
-import { BaseError } from "@/errors"
-import { isObject } from "@/utils"
+import type { Comparator, IndexedPredicate, ListIndex, ValuePredicate } from "./types"
+import { DEV_MODE } from "../env"
+import { BaseError } from "../errors"
+import { isObject } from "../utils"
 
 /** Branding symbol for priority lists - prevents type confusion */
 const PRIORITY_LIST_BRAND = Symbol("__priorityList")

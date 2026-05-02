@@ -1,6 +1,6 @@
-import type { Milliseconds } from "@/data"
-import { normalizeTimeout } from "@/data"
-import { isObject } from "@/utils"
+import type { Milliseconds } from "../data"
+import { normalizeTimeout } from "../data"
+import { isObject } from "../utils"
 
 export interface CreateAbortOptions {
   /** Timeout duration in milliseconds before automatic abort. */

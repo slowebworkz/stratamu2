@@ -7,10 +7,10 @@ import type {
   //   DisposerFn,
   PublicEventMap,
   //   SubscriptionOptions,
-} from "@/events"
-import { SafetyManager } from "@/events/safety/index.ts"
+} from "../../"
+import { SafetyManager } from "../safety/index.ts"
 
-import { ListenerRegistry } from "@/registry"
+import { ListenerRegistry } from "../registry"
 
 import type { Awaitable, BaseEventMap, SingleArgListener } from "@repo/types"
 

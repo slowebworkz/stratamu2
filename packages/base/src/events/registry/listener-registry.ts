@@ -1,6 +1,6 @@
-import { BaseError } from "@/errors"
-import type { AllEventKeys } from "@/events"
-import { ListenerSetRegistry, ListenerWrapperRegistry, SeenEventRegistry } from "@/registry"
+import { BaseError } from "../../errors"
+import type { AllEventKeys } from "../"
+import { ListenerSetRegistry, ListenerWrapperRegistry, SeenEventRegistry } from "./"
 import type { BaseEventMap, EventKey, SingleArgListener } from "@repo/types"
 
 export class ListenerRegistry<
@@ -10,7 +10,7 @@ export class ListenerRegistry<
     AllEventKeys<EventMap>
   >,
 > {
-  /* ------------------- Private Storage ------------------- */
+  /* -------------- 🔒 Private Storage ----------------------- */
 
   /** Event → set of wrapped listeners */
   private readonly listenerSetRegistry = new ListenerSetRegistry<EventMap>()
@@ -21,12 +21,12 @@ export class ListenerRegistry<
   /** Events that have been observed/emitted */
   private readonly seenEvents = new SeenEventRegistry<EventMap>()
 
-  /* -------------------- Registration -------------------- */
+  /* -------------- Registration ---------------------------- */
 
   public add<E extends AllEventKeys<EventMap>>(
     event: E,
     originalListener: SingleArgListener<EventMap, E>,
-    wrappedListener: RegistryKey,
+    wrappedListener: SingleArgListener<EventMap, E>,
   ): void {
     this.listenerSetRegistry.add(event, wrappedListener)
     this.listenerWrapperRegistry.add(
@@ -60,7 +60,7 @@ export class ListenerRegistry<
     )
   }
 
-  /* -------------------- Queries/Inspection -------------------- */
+  /* -------------- Queries/Inspection ---------------- */
 
   public getListenerCount(event?: EventKey<EventMap>): number {
     if (event !== undefined) {
@@ -95,7 +95,7 @@ export class ListenerRegistry<
     )
   }
 
-  /* ------------------ Private static helpers ------------------ */
+  /* -------------- Private static helpers -------------- */
 
   /** Casts a listener to the registry-wide type for compatibility */
   private static toAnyListener<EventMap extends BaseEventMap, E extends AllEventKeys<EventMap>>(

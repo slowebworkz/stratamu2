@@ -21,16 +21,22 @@ export class ListenerRegistry<
   /* -------------- 📝 Registration -------------------------- */
 
   public add<E extends AllEventKeys<EventMap>>(
-    event: E,
+    event: E | readonly E[],
     originalListener: SingleArgListener<EventMap, E>,
     wrappedListener: SingleArgListener<EventMap, E>,
   ): void {
-    this.listenerSetRegistry.add(event, wrappedListener)
-    this.listenerWrapperRegistry.add(
-      event,
-      ListenerRegistry.toAnyListener(originalListener),
-      () => wrappedListener,
-    )
+    const events = ListenerRegistry.normalizeEvents(event)
+
+    for (const ev of events) {
+      this._addSingle(ev, originalListener, wrappedListener)
+    }
+
+    // this.listenerSetRegistry.add(event, wrappedListener)
+    // this.listenerWrapperRegistry.add(
+    //   event,
+    //   ListenerRegistry.toAnyListener(originalListener),
+    //   () => wrappedListener,
+    // )
   }
 
   public remove<E extends AllEventKeys<EventMap>>(
@@ -54,6 +60,20 @@ export class ListenerRegistry<
     return this.listenerWrapperRegistry.delete(
       event,
       ListenerRegistry.toAnyListener(originalListener),
+    )
+  }
+
+  private _addSingle<E extends AllEventKeys<EventMap>>(
+    event: E,
+    originalListener: SingleArgListener<EventMap, E>,
+    wrappedListener: SingleArgListener<EventMap, E>,
+  ): void {
+    this.listenerSetRegistry.add(event, wrappedListener)
+
+    this.listenerWrapperRegistry.add(
+      event,
+      ListenerRegistry.toAnyListener(originalListener),
+      () => wrappedListener,
     )
   }
 
@@ -109,5 +129,9 @@ export class ListenerRegistry<
     ListenerKey extends EventKey<EventMap>,
   >(event: ListenerKey): AllEventKeys<EventMap> {
     return event as AllEventKeys<EventMap>
+  }
+
+  private static normalizeEvents<E extends unknown>(event: E | readonly E[]): readonly E[] {
+    return (Array.isArray(event) ? event : [event]) as readonly E[]
   }
 }

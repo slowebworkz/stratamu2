@@ -3,7 +3,7 @@
  */
 export type Milliseconds = number
 
-import { toNumber } from "@/data"
+import { toNumber } from "./index"
 
 /**
  * Normalizes an arbitrary value into a valid positive integer number of milliseconds.

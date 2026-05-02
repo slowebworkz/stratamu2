@@ -2,6 +2,7 @@ import type Emittery from "emittery"
 import type {
   DebugLogger,
   DebugOptions,
+  DatalessEventNames,
   EmitteryOncePromise,
   EventName as EmitteryEventName,
   ListenerChangedData,
@@ -9,7 +10,7 @@ import type {
   UnsubscribeFunction,
 } from "emittery"
 import type { BaseEventMap, SingleArgListener } from "@repo/types"
-import type { InternalEventMap, InternalEventKey } from "./index.ts"
+import type { InternalEventMap } from "./index.ts"
 import type { LiteralUnion, Simplify } from "type-fest"
 
 /**
@@ -24,6 +25,7 @@ import type { LiteralUnion, Simplify } from "type-fest"
 export type {
   DebugLogger as EmitteryDebugLogger,
   DebugOptions as EmitteryDebugOptions,
+  DatalessEventNames,
   EmitteryEventName,
   EmitteryOncePromise,
   EmitteryOptions,

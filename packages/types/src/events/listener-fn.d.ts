@@ -12,6 +12,16 @@ export type ListenerFn<
   EventKey extends keyof EventMap = keyof EventMap,
 > = (...args: EventMap[EventKey]) => Awaitable<unknown>
 
+
+
+
+
+
+export type TupleListenerFn<
+  EventMap extends Record<PropertyKey, readonly unknown[]>,
+  EventKey extends keyof EventMap,
+> = (...args: EventMap[EventKey]) => Awaitable<unknown>
+
 /**
  * A listener that receives a single argument (the event payload).
  */

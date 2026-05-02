@@ -1,4 +1,5 @@
 export * from "./base-error.ts"
+export * from "./capability-error.ts"
 export * from "./constants.ts"
 export * from "./database-error.ts"
 export * from "./domain-error.ts"

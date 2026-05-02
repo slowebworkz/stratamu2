@@ -1,6 +1,6 @@
 import type { BaseEventMap, SingleArgListener } from "@repo/types"
-import type { AllEventKeys } from "@/events"
-import { makeReadonlySet } from "@/utils"
+import type { AllEventKeys } from "../"
+import { makeReadonlySet } from "../../utils"
 import { RegistryBase } from "./registry-base.ts"
 
 type ListenerSet<EventMap extends BaseEventMap, K extends keyof EventMap = keyof EventMap> = Set<
