@@ -1,0 +1,4 @@
+{
+  "extends": "../vitest.json",
+  "include": ["src"]
+}

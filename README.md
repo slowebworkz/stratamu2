@@ -206,7 +206,7 @@ pnpm dev
 ### Type Checking
 
 ```sh
-pnpm check-types
+pnpm typecheck
 ```
 
 ### Linting

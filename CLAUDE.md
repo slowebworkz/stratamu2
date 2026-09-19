@@ -175,7 +175,7 @@ Typical commands include:
 pnpm dev
 pnpm build
 pnpm lint
-pnpm check-types
+pnpm typecheck
 pnpm test
 ```
 
@@ -322,7 +322,7 @@ Before considering a change complete, verify as appropriate:
 pnpm install
 pnpm build
 pnpm lint
-pnpm check-types
+pnpm typecheck
 pnpm test
 ```
 

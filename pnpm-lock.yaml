@@ -220,6 +220,9 @@ importers:
       '@eslint/js':
         specifier: 'catalog:'
         version: 10.0.1(eslint@10.11.0)
+      '@repo/typescript-config':
+        specifier: workspace:*
+        version: link:../typescript-config
       eslint:
         specifier: 'catalog:'
         version: 10.11.0
@@ -229,11 +232,21 @@ importers:
       globals:
         specifier: 'catalog:'
         version: 17.12.0
+      typescript:
+        specifier: 'catalog:'
+        version: 6.0.3
       typescript-eslint:
         specifier: 'catalog:'
         version: 8.70.0(eslint@10.11.0)(typescript@6.0.3)
 
-  packages/typescript-config: {}
+  libs/typescript-config:
+    devDependencies:
+      '@types/node':
+        specifier: 'catalog:'
+        version: 26.6.2
+      typescript:
+        specifier: 'catalog:'
+        version: 6.0.3
 
 packages:
 

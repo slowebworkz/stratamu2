@@ -1,0 +1,4 @@
+{
+  "extends": "../decorators.json",
+  "include": ["src"]
+}
