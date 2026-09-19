@@ -1,7 +1,11 @@
 packages:
+  - "adapters/*"
   - "apps/*"
   - "docs/*"
+  - "engine/*"
+  - "libs/*"
   - "packages/*"
+  - "plugins/*"
 
 allowBuilds:
   "@biomejs/biome": true

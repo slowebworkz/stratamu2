@@ -84,6 +84,93 @@ Keep the live world from becoming stale or inconsistent.
 - Coordinate world activity that occurs independently of direct player input.
 - Maintain a coherent current state.
 
+### Engine Lifecycle
+
+The engine owns the lifecycle of the running game, including startup and shutdown.
+
+The lifecycle moves through broad states:
+
+```text
+not running
+    |
+    v
+initializing
+    |
+    v
+running
+    |
+    v
+stopping
+    |
+    v
+stopped
+```
+
+Startup is coordinated by the engine. It should establish the correct ordering for initializing engine infrastructure, loading the selected adapter/game profile, initializing required plugins, loading persistent world state, constructing the authoritative live world, initializing runtime state/events/scheduling, establishing networking/session infrastructure where applicable, and starting normal game activity.
+
+Conceptually:
+
+```text
+START
+  |
+  v
+initialize engine
+  |
+  v
+load configuration/profile
+  |
+  v
+initialize plugins
+  |
+  v
+load world
+  |
+  v
+initialize runtime state
+  |
+  v
+start scheduling/events
+  |
+  v
+start accepting players
+  |
+  v
+RUNNING
+```
+
+Shutdown is likewise coordinated by the engine because the engine owns authoritative live state.
+
+A controlled shutdown should broadly provide for:
+
+```text
+RUNNING
+   |
+   v
+STOP REQUEST
+   |
+   v
+stop accepting new players
+   |
+   v
+finish/cancel active work
+   |
+   v
+disconnect/flush sessions
+   |
+   v
+persist authoritative state
+   |
+   v
+shutdown plugins/infrastructure
+   |
+   v
+STOPPED
+```
+
+The exact ordering is an implementation detail to establish later, but lifecycle coordination is an engine responsibility.
+
+`apps/server` should primarily be an application composition/root entry point: it constructs the engine, selects the adapter and plugins, and starts the engine. The engine itself owns the running game's lifecycle.
+
 ### Reliability / Concurrency
 
 The engine must support many simultaneous players without allowing concurrent activity to corrupt or stall the authoritative world.
@@ -575,7 +662,174 @@ The current preferred boundary is:
 
 This is preferred over making each adapter a self-contained implementation of an entire game.
 
-## 20. Git Workflow
+## 20. Monorepo Architecture
+
+The repository should reflect architectural roles rather than putting every workspace under a generic `packages/` directory.
+
+The current proposed workspace categories are:
+
+```text
+/
+├── apps/
+│   ├── cli/
+│   └── server/
+│
+├── engine/
+│   └── core/
+│
+├── libs/
+│   ├── types/
+│   ├── primitives/
+│   ├── utils/
+│   ├── config/
+│   └── ...
+│
+├── adapters/
+│   ├── mud/
+│   ├── moo/
+│   ├── muck/
+│   ├── mush/
+│   └── mux/
+│
+├── plugins/
+│   ├── networking/
+│   ├── storage/
+│   └── ...
+│
+├── package.json
+├── pnpm-workspace.yaml
+├── pnpm-lock.yaml
+└── turbo.json
+```
+
+### Apps
+
+`apps/` contains executable application compositions.
+
+- `apps/server` is the normal game-server entry point.
+- `apps/cli` provides command-line interaction and operational/development tooling.
+
+Applications compose the engine, adapters, plugins, and libraries. They should not own the underlying game logic.
+
+### Engine
+
+`engine/` contains the actual game/world runtime.
+
+The engine should initially remain a coherent workspace rather than splitting every responsibility into a separate package. Its internal responsibilities include:
+
+- authoritative world state
+- state transitions
+- rules and authority enforcement
+- events and scheduling
+- player/session interaction
+- world I/O
+- engine lifecycle
+- reliability and concurrency
+
+These are engine responsibilities, not necessarily separate workspace boundaries.
+
+### Libs
+
+`libs/` contains private shared implementation code:
+
+- private modules
+- primitives
+- global/shared types
+- reusable utilities
+- configuration and possibly other shared configuration packages
+
+Everything under `libs/*` should initially use:
+
+```json
+{
+  "private": true
+}
+```
+
+The purpose of `libs/` is to provide reusable internal support code, not to represent major engine architecture.
+
+### Adapters
+
+`adapters/` contains flavors of game.
+
+Examples include:
+
+- MUD
+- MOO
+- MUCK
+- MUSH
+- MUX
+
+An adapter is a game profile. It selects/configures the applicable rules, defaults, authority model, semantics, and available capabilities.
+
+Adapters do not implement an entire engine independently.
+
+### Plugins
+
+`plugins/` contains replaceable implementations and integrations that the engine can use.
+
+Examples include:
+
+- networking implementations
+- storage implementations
+- persistence implementations
+- protocol implementations
+- other infrastructure integrations
+
+For example:
+
+```text
+plugins/
+├── networking/
+│   ├── telnet/
+│   └── websocket/
+│
+└── storage/
+    ├── yaml/
+    ├── sqlite/
+    └── postgres/
+```
+
+The engine remains the authority over live state. Plugins provide implementations at the engine's defined boundaries rather than directly owning authoritative world state.
+
+### Domain Capabilities
+
+Terms such as "domain system" remain useful architectural concepts for capabilities such as combat, population, scripting, social interaction, economy, and progression.
+
+They do not necessarily require a separate top-level `systems/` workspace category. A capability can be implemented as a plugin or otherwise composed through the engine/adapter boundaries according to its role.
+
+The important distinction is:
+
+- **Engine** — runs the authoritative world.
+- **Adapter** — defines the game flavor/profile.
+- **Plugin** — supplies replaceable implementations/integrations.
+- **Lib** — supplies private reusable support code.
+- **App** — composes these into an executable.
+
+The repository should avoid introducing a workspace category merely because a concept exists in the architecture. Workspace boundaries should follow actual ownership and dependency boundaries.
+
+### Conceptual Composition
+
+```text
+                         APP
+                          |
+                    +-----+-----+
+                    |           |
+                  ENGINE      ADAPTER
+                    |           |
+                    |       game flavor
+                    |
+              +-----+------+
+              |            |
+        authoritative   plugins
+           runtime     implementations
+              |
+             libs
+```
+
+The engine owns the live game runtime. The adapter supplies game semantics and configuration. Plugins provide replaceable infrastructure or other capabilities at defined boundaries. Libraries provide private shared implementation support.
+
+## 21. Git Workflow
 
 Repository workflow:
 
@@ -603,7 +857,7 @@ main
 
 `main` represents stable/released history.
 
-## 21. Current Architectural Goal
+## 22. Current Architectural Goal
 
 Before implementing specific MUD/MUSH/MOO features, establish:
 
@@ -618,13 +872,15 @@ Before implementing specific MUD/MUSH/MOO features, establish:
 9. Domain-system/capability boundary.
 10. Rules/authority boundary.
 11. Concurrency and resilience model.
+12. Engine startup and shutdown lifecycle.
+13. Monorepo ownership and dependency boundaries.
 
-Then build representative systems (such as combat, population, or social behavior) as separate domain silos using those boundaries.
+Then build representative capabilities (such as combat, population, or social behavior) using those boundaries.
 
-## 22. Working Definition
+## 23. Working Definition
 
 The current working definition of the project is:
 
-> A robust, persistent, multi-user world runtime that maintains authoritative state, processes concurrent actions, applies rules and authority, coordinates time and events, and manages reliable information flow between the world and its participants.
+> A robust, persistent, multi-user world runtime that manages its own lifecycle, maintains authoritative state, processes concurrent actions, applies rules and authority, coordinates time and events, and manages reliable information flow between the world and its participants.
 
 The engine should be capable of managing traditional MUD/MUSH/MOO/MUCK-style game operations without requiring every game family to reimplement the same underlying machinery.
