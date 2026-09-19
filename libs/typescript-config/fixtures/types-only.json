@@ -1,0 +1,4 @@
+{
+  "extends": "../types-only.json",
+  "include": ["src"]
+}

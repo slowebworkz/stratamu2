@@ -1,0 +1,25 @@
+{
+  "name": "@repo/eslint",
+  "version": "0.0.0",
+  "private": true,
+  "exports": {
+    "./base": "./base.js",
+    "./node": "./node.js"
+  },
+  "type": "module",
+  "license": "MIT",
+  "scripts": {
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@eslint/js": "catalog:",
+    "@repo/typescript-config": "workspace:*",
+    "eslint": "catalog:",
+    "eslint-plugin-turbo": "catalog:",
+    "globals": "catalog:",
+    "typescript": "catalog:",
+    "typescript-eslint": "catalog:"
+  }
+}

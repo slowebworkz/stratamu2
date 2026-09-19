@@ -1,3 +1,33 @@
 packages:
+  - "adapters/*"
   - "apps/*"
+  - "docs/*"
+  - "engine/*"
+  - "libs/*"
   - "packages/*"
+  - "plugins/*"
+
+allowBuilds:
+  "@biomejs/biome": true
+  esbuild: true
+
+catalog:
+  # Formatting
+  "@biomejs/biome": ^2.5.14
+
+  # Linting
+  "@eslint/js": ^10.0.1
+  eslint: ^10.11.0
+  eslint-plugin-turbo: ^2.11.2
+  globals: ^17.12.0
+  typescript-eslint: ^8.70.0
+
+  # TypeScript (pinned to 6.x)
+  "@types/node": ^26.6.2
+  type-fest: ^5.10.0
+  typescript: ^6.0.3
+
+minimumReleaseAgeExclude:
+  - '@types/node@26.6.2'
+  - eslint-plugin-turbo@2.11.2
+  - eslint@10.11.0
