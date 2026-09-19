@@ -2,12 +2,9 @@
   "$schema": "https://json.schemastore.org/tsconfig",
   "extends": "./base.json",
   "compilerOptions": {
-    "experimentalDecorators": true,
-    "module": "ESNext",
-    "moduleResolution": "node",
-    "outDir": "dist",
+    "rootDir": "${configDir}/src",
+    "outDir": "${configDir}/dist",
     "declaration": true,
-    "declarationDir": "dist"
-  },
-  "include": ["src/index.ts"]
+    "declarationDir": "${configDir}/dist"
+  }
 }
