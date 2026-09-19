@@ -1,3 +1,16 @@
 packages:
   - "apps/*"
+  - "docs/*"
   - "packages/*"
+
+allowBuilds:
+  "@biomejs/biome": true
+  esbuild: true
+
+catalog:
+  "@biomejs/biome": ^2.5.14
+  "@types/node": ^24.10.4
+
+  # Architecture tooling
+  type-fest: ^5.9.0
+  typescript: ^6.0.3
