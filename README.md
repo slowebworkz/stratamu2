@@ -1,135 +1,339 @@
-# Turborepo starter
+# StrataMU2
 
-This Turborepo starter is maintained by the Turborepo core team.
+A general-purpose multiplayer world engine for persistent, text-based worlds.
 
-## Using this example
+StrataMU2 is a Node.js/TypeScript project exploring a modern, modular architecture for building systems in the tradition of **MUDs, MUSHes, MOOs, MUCKs, MUXes, and related multi-user worlds**.
 
-Run the following command:
+The goal is not to build a single predefined type of game. The goal is to provide a reusable runtime for persistent, stateful, multi-user worlds with pluggable rules, domain systems, storage, networking, and presentation.
 
-```sh
-npx create-turbo@latest
+> **Status: Early development**
+>
+> The repository currently contains the project foundation, architecture, workspace configuration, and development tooling. The game engine itself is under active development.
+
+## Project Goals
+
+StrataMU2 is being designed around several core principles:
+
+- **Authoritative world state** — the engine owns and coordinates the live world.
+- **State transitions** — world changes occur through controlled actions and transitions rather than arbitrary mutation.
+- **Game profiles** — MUD, MUSH, MOO, and other styles are represented through adapters rather than separate engines.
+- **Pluggable domain systems** — capabilities such as combat, magic, scripting, economy, and NPC behavior can be added independently.
+- **Infrastructure independence** — storage, networking, and presentation are replaceable implementation boundaries.
+- **Transport independence** — the engine is not coupled to Telnet or any particular client protocol.
+- **Controlled concurrency** — multiple players and asynchronous activities can interact with the world without compromising authoritative state.
+- **Explicit lifecycle management** — the engine owns startup, runtime operation, and shutdown.
+
+At a high level:
+
+```text
+                  ┌─────────────────────┐
+                  │     GAME ENGINE     │
+                  │                     │
+ input / event ──►│ rules → authority  │
+                  │        → transition│
+                  │        → consequences
+                  └──────────┬──────────┘
+                             │
+                    authoritative
+                      world state
+                             │
+              ┌──────────────┼──────────────┐
+              │              │              │
+          persistence     sessions       systems
+              │              │              │
+          YAML / SQL     Telnet / ...   combat / ...
 ```
 
-## What's inside?
+## Architecture
 
-This Turborepo includes the following packages/apps:
+The engine is intentionally divided into several kinds of components.
 
-### Apps and Packages
+### Engine
 
-- `docs`: a [Next.js](https://nextjs.org/) app
-- `web`: another [Next.js](https://nextjs.org/) app
-- `@repo/ui`: a stub React component library shared by both `web` and `docs` applications
-- `@repo/eslint-config`: `eslint` configurations (includes `eslint-config-next` and `eslint-config-prettier`)
-- `@repo/typescript-config`: `tsconfig.json`s used throughout the monorepo
+The engine provides the runtime that coordinates:
 
-Each package/app is 100% [TypeScript](https://www.typescriptlang.org/).
+- World state
+- Actions and state transitions
+- Rules and authority
+- Events and scheduling
+- Sessions and player I/O
+- Persistence
+- Startup and shutdown
+- Runtime coordination
 
-### Utilities
+The engine should remain independent of any particular game genre or transport.
 
-This Turborepo has some additional tools already setup for you:
+### Adapters
 
-- [TypeScript](https://www.typescriptlang.org/) for static type checking
-- [ESLint](https://eslint.org/) for code linting
-- [Prettier](https://prettier.io) for code formatting
+Adapters define a **game profile**.
+
+A profile can determine which capabilities are enabled and how those capabilities behave for a particular style of world.
+
+Examples may eventually include:
+
+```text
+MUD
+MUSH
+MOO
+MUCK
+MUX
+Custom
+```
+
+An adapter is not intended to be a second game engine. It configures and extends the common runtime.
+
+### Plugins
+
+Plugins provide replaceable implementations or integrations.
+
+Potential plugin areas include:
+
+```text
+Storage
+Networking
+Presentation
+Scripting
+Combat
+Magic
+NPC behavior
+Economy
+Population
+```
+
+Not every game needs every plugin.
+
+### Libraries
+
+`libs/` contains private shared development infrastructure used across the monorepo, such as:
+
+- TypeScript configurations
+- ESLint configurations
+- Biome configuration
+
+### Applications
+
+`apps/` contains executable compositions of the engine.
+
+For example, a future server application can select:
+
+```text
+engine
+  + adapter
+  + plugins
+  + configuration
+```
+
+and then start the engine.
+
+The application composition layer should not become responsible for the internal lifecycle of the running game.
+
+## Workspace Structure
+
+The repository is organized as a pnpm/Turborepo monorepo:
+
+```text
+.
+├── adapters/       # Game profiles and adapter implementations
+├── apps/           # Executable applications
+├── docs/           # Project and architecture documentation
+├── engine/         # Core engine/runtime
+├── libs/           # Shared private development libraries/configuration
+├── packages/       # Reusable package boundaries
+└── plugins/        # Pluggable systems and infrastructure
+```
+
+The exact contents of these workspaces will evolve as implementation begins.
+
+## Engine Lifecycle
+
+The engine owns the lifecycle of the running world.
+
+Conceptually:
+
+```text
+NOT RUNNING
+     │
+     ▼
+INITIALIZING
+     │
+     ▼
+  RUNNING
+     │
+     ▼
+ STOPPING
+     │
+     ▼
+  STOPPED
+```
+
+Startup is responsible for establishing the runtime, loading the selected profile and plugins, loading persistent world state, and beginning normal world activity.
+
+Shutdown is responsible for stopping new activity, completing or cancelling active work, flushing sessions, persisting authoritative state, and shutting down infrastructure.
+
+The exact implementation will evolve as the runtime is built.
+
+## Development
+
+### Requirements
+
+- Node.js `>= 22.19.0`
+- pnpm `12.x`
+
+The repository uses TypeScript, pnpm workspaces, and Turborepo.
+
+### Install
+
+```sh
+pnpm install
+```
 
 ### Build
 
-To build all apps and packages, run the following command:
+Build all workspaces:
 
-```
-cd my-turborepo
-
-# With [global `turbo`](https://turborepo.com/docs/getting-started/installation#global-installation) installed (recommended)
-turbo build
-
-# Without [global `turbo`](https://turborepo.com/docs/getting-started/installation#global-installation), use your package manager
-npx turbo build
-yarn dlx turbo build
-pnpm exec turbo build
+```sh
+pnpm build
 ```
 
-You can build a specific package by using a [filter](https://turborepo.com/docs/crafting-your-repository/running-tasks#using-filters):
+### Development
 
-```
-# With [global `turbo`](https://turborepo.com/docs/getting-started/installation#global-installation) installed (recommended)
-turbo build --filter=docs
+Run development tasks across the repository:
 
-# Without [global `turbo`](https://turborepo.com/docs/getting-started/installation#global-installation), use your package manager
-npx turbo build --filter=docs
-yarn exec turbo build --filter=docs
-pnpm exec turbo build --filter=docs
+```sh
+pnpm dev
 ```
 
-### Develop
+### Type Checking
 
-To develop all apps and packages, run the following command:
-
-```
-cd my-turborepo
-
-# With [global `turbo`](https://turborepo.com/docs/getting-started/installation#global-installation) installed (recommended)
-turbo dev
-
-# Without [global `turbo`](https://turborepo.com/docs/getting-started/installation#global-installation), use your package manager
-npx turbo dev
-yarn exec turbo dev
-pnpm exec turbo dev
+```sh
+pnpm check-types
 ```
 
-You can develop a specific package by using a [filter](https://turborepo.com/docs/crafting-your-repository/running-tasks#using-filters):
+### Linting
 
-```
-# With [global `turbo`](https://turborepo.com/docs/getting-started/installation#global-installation) installed (recommended)
-turbo dev --filter=web
-
-# Without [global `turbo`](https://turborepo.com/docs/getting-started/installation#global-installation), use your package manager
-npx turbo dev --filter=web
-yarn exec turbo dev --filter=web
-pnpm exec turbo dev --filter=web
+```sh
+pnpm lint
 ```
 
-### Remote Caching
+Apply automatic lint fixes where supported:
 
-> [!TIP]
-> Vercel Remote Cache is free for all plans. Get started today at [vercel.com](https://vercel.com/signup?/signup?utm_source=remote-cache-sdk&utm_campaign=free_remote_cache).
-
-Turborepo can use a technique known as [Remote Caching](https://turborepo.com/docs/core-concepts/remote-caching) to share cache artifacts across machines, enabling you to share build caches with your team and CI/CD pipelines.
-
-By default, Turborepo will cache locally. To enable Remote Caching you will need an account with Vercel. If you don't have an account you can [create one](https://vercel.com/signup?utm_source=turborepo-examples), then enter the following commands:
-
-```
-cd my-turborepo
-
-# With [global `turbo`](https://turborepo.com/docs/getting-started/installation#global-installation) installed (recommended)
-turbo login
-
-# Without [global `turbo`](https://turborepo.com/docs/getting-started/installation#global-installation), use your package manager
-npx turbo login
-yarn exec turbo login
-pnpm exec turbo login
+```sh
+pnpm lint:fix
 ```
 
-This will authenticate the Turborepo CLI with your [Vercel account](https://vercel.com/docs/concepts/personal-accounts/overview).
+### Tests
 
-Next, you can link your Turborepo to your Remote Cache by running the following command from the root of your Turborepo:
-
-```
-# With [global `turbo`](https://turborepo.com/docs/getting-started/installation#global-installation) installed (recommended)
-turbo link
-
-# Without [global `turbo`](https://turborepo.com/docs/getting-started/installation#global-installation), use your package manager
-npx turbo link
-yarn exec turbo link
-pnpm exec turbo link
+```sh
+pnpm test
 ```
 
-## Useful Links
+### Clean
 
-Learn more about the power of Turborepo:
+```sh
+pnpm clean
+```
 
-- [Tasks](https://turborepo.com/docs/crafting-your-repository/running-tasks)
-- [Caching](https://turborepo.com/docs/crafting-your-repository/caching)
-- [Remote Caching](https://turborepo.com/docs/core-concepts/remote-caching)
-- [Filtering](https://turborepo.com/docs/crafting-your-repository/running-tasks#using-filters)
-- [Configuration Options](https://turborepo.com/docs/reference/configuration)
-- [CLI Usage](https://turborepo.com/docs/reference/command-line-reference)
+## Documentation
+
+The primary architecture document is:
+
+**[Game Engine Architecture](./docs/GAME_ENGINE_ARCHITECTURE.md)**
+
+It describes the current working design in greater detail, including:
+
+- Engine responsibilities
+- World state
+- Player/session I/O
+- Rules and authority
+- State transitions
+- Lifecycle management
+- Persistence
+- Concurrency
+- Adapters
+- Plugins
+- Domain systems
+- Monorepo organization
+
+The architecture is intentionally a **working design** and will change as implementation validates or challenges the current model.
+
+## Development Philosophy
+
+StrataMU2 is being developed from the runtime outward.
+
+Rather than implementing an entire MUD first and attempting to generalize it later, the project is intended to establish a small, coherent engine core and then prove that different world models can be built on top of it.
+
+A useful architectural test will be whether substantially different systems can share the same core runtime:
+
+```text
+              ┌─────────────────┐
+              │   Core Engine   │
+              └────────┬────────┘
+                       │
+             ┌─────────┴─────────┐
+             │                   │
+        ┌────▼────┐         ┌────▼────┐
+        │   MUD   │         │  MUSH   │
+        │ profile │         │ profile │
+        └─────────┘         └─────────┘
+```
+
+If a particular world model requires duplicating the engine, the abstraction is probably in the wrong place.
+
+The project therefore favors:
+
+- Small, explicit interfaces
+- Clear ownership of mutable state
+- Composition over inheritance
+- Replaceable infrastructure
+- Minimal assumptions in the core
+- Incremental implementation backed by executable tests
+
+## Branching Model
+
+The repository uses a Gitflow-style development model:
+
+```text
+main
+  ▲
+  │ release PRs
+  │
+develop
+  ▲
+  │ feature work
+  │
+feature/*
+```
+
+`develop` is the primary integration branch for ongoing work.
+
+`main` represents released/stable history and receives changes from `develop` through pull requests.
+
+## Project Status
+
+Current work is focused on establishing the repository and architecture foundation.
+
+### Current
+
+- [x] Monorepo structure
+- [x] pnpm workspace
+- [x] Turborepo pipeline
+- [x] Shared TypeScript configuration
+- [x] Shared linting configuration
+- [x] Shared Biome configuration
+- [x] Initial engine architecture
+- [x] Engine lifecycle direction
+- [ ] Core engine implementation
+- [ ] Authoritative world state
+- [ ] State-transition system
+- [ ] Persistence implementation
+- [ ] Session system
+- [ ] Networking implementation
+- [ ] First game adapter
+- [ ] First domain plugin
+- [ ] Complete playable vertical slice
+
+The checklist is intentionally conservative. Architectural decisions will be validated through implementation rather than treated as final simply because they are documented.
+
+## License
+
+License information will be added when the project's distribution model is finalized.
