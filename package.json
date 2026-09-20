@@ -8,6 +8,9 @@
     "dev": "turbo run dev",
     "lint": "turbo run lint",
     "lint:fix": "turbo run lint:fix",
+    "format": "biome format --write .",
+    "format:check": "biome format .",
+    "format:staged": "biome format --write --staged --no-errors-on-unmatched",
     "typecheck": "turbo run typecheck",
     "prepare": "husky",
     "test": "turbo run test"
