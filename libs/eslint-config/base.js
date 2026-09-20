@@ -1,6 +1,6 @@
-import eslint from "@eslint/js";
-import turbo from "eslint-plugin-turbo";
-import tseslint from "typescript-eslint";
+import eslint from "@eslint/js"
+import turbo from "eslint-plugin-turbo"
+import tseslint from "typescript-eslint"
 
 /** @type {import("eslint").Linter.Config[]} */
 export const config = [
@@ -28,4 +28,4 @@ export const config = [
       "turbo/no-undeclared-env-vars": "error",
     },
   },
-];
+]
