@@ -6,13 +6,14 @@
     "./base": "./base.json",
     "./decorators": "./decorators.json",
     "./esm": "./esm.json",
+    "./esm-ts": "./esm-ts.json",
     "./noemit": "./no-emit.json",
     "./vitest": "./vitest.json",
     "./types": "./types-only.json"
   },
   "license": "MIT",
   "scripts": {
-    "typecheck": "tsc -p fixtures/base.json --noEmit && tsc -p fixtures/decorators.json --noEmit && tsc -p fixtures/esm.json --noEmit && tsc -p fixtures/no-emit.json --noEmit && tsc -p fixtures/types-only.json --noEmit && tsc -p fixtures/vitest.json --noEmit"
+    "typecheck": "tsc -p fixtures/base.json --noEmit && tsc -p fixtures/decorators.json --noEmit && tsc -p fixtures/esm.json --noEmit && tsc -p fixtures/esm-ts/tsconfig.json --noEmit && tsc -p fixtures/no-emit.json --noEmit && tsc -p fixtures/types-only.json --noEmit && tsc -p fixtures/vitest.json --noEmit"
   },
   "devDependencies": {
     "@types/node": "catalog:",
