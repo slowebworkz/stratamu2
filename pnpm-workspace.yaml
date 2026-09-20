@@ -22,6 +22,12 @@ catalog:
   globals: ^17.12.0
   typescript-eslint: ^8.70.0
 
+  # Runtime
+  pino: ^10.3.1
+
+  # Testing
+  vitest: ^4.1.11
+
   # TypeScript (pinned to 6.x)
   "@types/node": ^26.6.2
   type-fest: ^5.10.0
