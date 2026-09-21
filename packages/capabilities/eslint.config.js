@@ -1,4 +1,4 @@
-import { config } from "@stratamu/eslint/node"
+import { config, guardz } from "@stratamu/eslint/node"
 
 const pino = {
   group: ["pino", "pino/*"],
@@ -20,21 +20,21 @@ export default [
     files: ["src/**/*.ts"],
     rules: {
       "@typescript-eslint/consistent-type-imports": "error",
-      "no-restricted-imports": restrict([pino, emittery]),
+      "no-restricted-imports": restrict([guardz, pino, emittery]),
     },
   },
 
   {
     files: ["src/logging/pino-logger.ts", "src/logging/pino-logger.test.ts"],
     rules: {
-      "no-restricted-imports": restrict([emittery]),
+      "no-restricted-imports": restrict([guardz, emittery]),
     },
   },
 
   {
     files: ["src/events/emittery-events.ts"],
     rules: {
-      "no-restricted-imports": restrict([pino]),
+      "no-restricted-imports": restrict([guardz, pino]),
     },
   },
 ]
