@@ -17,8 +17,10 @@
     "test": "vitest run",
     "typecheck": "tsc --noEmit"
   },
+  "dependencies": {
+    "@repo/capabilities": "workspace:*"
+  },
   "devDependencies": {
-    "@repo/capabilities": "workspace:*",
     "@repo/eslint": "workspace:*",
     "@repo/typescript-config": "workspace:*",
     "@types/node": "catalog:",

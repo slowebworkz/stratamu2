@@ -258,10 +258,11 @@ importers:
         version: 6.0.3
 
   packages/base:
-    devDependencies:
+    dependencies:
       '@repo/capabilities':
         specifier: workspace:*
         version: link:../capabilities
+    devDependencies:
       '@repo/eslint':
         specifier: workspace:*
         version: link:../../libs/eslint-config
