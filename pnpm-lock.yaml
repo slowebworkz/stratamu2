@@ -185,6 +185,9 @@ catalogs:
     globals:
       specifier: ^17.12.0
       version: 17.12.0
+    guardz:
+      specifier: ^1.13.0
+      version: 1.13.0
     pino:
       specifier: ^10.3.1
       version: 10.3.1
@@ -274,6 +277,10 @@ importers:
         version: 8.70.0(eslint@10.11.0)(typescript@6.0.3)
 
   libs/primitives:
+    dependencies:
+      guardz:
+        specifier: 'catalog:'
+        version: 1.13.0
     devDependencies:
       '@stratamu/eslint':
         specifier: workspace:*
@@ -908,6 +915,9 @@ packages:
   globals@17.12.0:
     resolution: {integrity: sha512-cezEd/DTyyht9cvSSURyygXPfy04GtWO/5e6ZPvH7fCtjKz9PYOmuawphw1Ctd1f6C+5JypXfGD7ahNMXvevBA==}
     engines: {node: '>=18'}
+
+  guardz@1.13.0:
+    resolution: {integrity: sha512-b84F7YU6JBJSIRhq6fER35COYMVJ4CpfS6Gqo+0o/O92EmX2F7btI3Pn3m2sEZevqUUmuiQehmlgcNm8I+bF2g==}
 
   hashery@1.5.1:
     resolution: {integrity: sha512-iZyKG96/JwPz1N55vj2Ie2vXbhu440zfUfJvSwEqEbeLluk7NnapfGqa7LH0mOsnDxTF85Mx8/dyR6HfqcbmbQ==}
@@ -1825,6 +1835,8 @@ snapshots:
       is-glob: 4.0.3
 
   globals@17.12.0: {}
+
+  guardz@1.13.0: {}
 
   hashery@1.5.1:
     dependencies:
