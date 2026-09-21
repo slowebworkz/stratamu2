@@ -1,7 +1,5 @@
 export type { TaskId } from "./task-id.ts"
 export { isTaskId, taskId } from "./task-id.ts"
-export type { TaskKind } from "./task-kind.ts"
-export { isTaskKind, taskKind } from "./task-kind.ts"
 export type { TaskPriority } from "./task-priority.ts"
 export { isTaskPriority, taskPriority } from "./task-priority.ts"
 export type { TaskSequence } from "./task-sequence.ts"
