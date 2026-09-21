@@ -173,6 +173,9 @@ catalogs:
     '@types/node':
       specifier: ^26.6.2
       version: 26.6.2
+    emittery:
+      specifier: ^2.0.0
+      version: 2.0.0
     eslint:
       specifier: ^10.11.0
       version: 10.11.0
@@ -280,6 +283,9 @@ importers:
 
   packages/capabilities:
     dependencies:
+      emittery:
+        specifier: 'catalog:'
+        version: 2.0.0
       pino:
         specifier: 'catalog:'
         version: 10.3.1
@@ -745,6 +751,10 @@ packages:
   dotenv@16.0.3:
     resolution: {integrity: sha512-7GO6HghkA5fYG9TYnNxi14/7K9f5occMlp3zXAuSxn7CKCxt9xbNWG7yF8hTCSUchlfWSe3uLmlPfigevRItzQ==}
     engines: {node: '>=12'}
+
+  emittery@2.0.0:
+    resolution: {integrity: sha512-FLtgn/CGBXiX3ZtPAm5q4LWWepHChOt55J9u01WFu3dyap2U7IwptlrqoE1COR/kxwdy/DOxIBALSxIW449I1g==}
+    engines: {node: '>=22'}
 
   es-module-lexer@2.3.2:
     resolution: {integrity: sha512-poHGpORABojJJucnV9KbOavETW8lBVnphkW77ER5/BQ5Fz7oXSoCNek7IH3vR5nRjdsEz926ibFYX8KtLQmdyw==}
@@ -1650,6 +1660,8 @@ snapshots:
   detect-libc@2.1.2: {}
 
   dotenv@16.0.3: {}
+
+  emittery@2.0.0: {}
 
   es-module-lexer@2.3.2: {}
 
