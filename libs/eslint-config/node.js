@@ -1,6 +1,6 @@
-import globals from "globals";
+import globals from "globals"
 
-import { config as base } from "./base.js";
+import { config as base } from "./base.js"
 
 /** @type {import("eslint").Linter.Config[]} */
 export const config = [
@@ -11,4 +11,4 @@ export const config = [
       globals: globals.nodeBuiltin,
     },
   },
-];
+]

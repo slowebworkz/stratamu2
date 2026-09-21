@@ -1,0 +1,4 @@
+{
+  "extends": "../../esm-ts.json",
+  "include": ["src"]
+}

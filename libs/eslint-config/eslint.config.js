@@ -1,1 +1,1 @@
-export { config as default } from "./node.js";
+export { config as default } from "./node.js"
