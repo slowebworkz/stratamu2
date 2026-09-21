@@ -1,10 +1,9 @@
 {
   "$schema": "https://json.schemastore.org/tsconfig",
-  "extends": "@stratamu/typescript-config/noemit",
+  "extends": ["@stratamu/typescript-config/noemit", "@stratamu/typescript-config/skip-lib-check"],
   "compilerOptions": {
     "allowJs": true,
-    "checkJs": true,
-    "skipLibCheck": true
+    "checkJs": true
   },
   "include": ["*.js"]
 }

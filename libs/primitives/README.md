@@ -1,18 +1,36 @@
 # @stratamu/primitives
 
-Small value types shared across the workspaces. It has no runtime dependencies.
+Small value types shared across the workspaces. Its one runtime dependency is [`guardz`](https://www.npmjs.com/package/guardz), used for type guards.
 
 **Status:** working and tested. Private and unpublished. No other workspace depends on it yet.
 
 ## What exists
 
-All three live in `src/time` and are exported from the package entry.
+Everything is exported from the package entry.
+
+### Time (`src/time`)
 
 - `Duration<TDomain>`: an amount of time in a temporal domain. `from`, `zero`, `add`, `subtract`.
 - `Instant<TDomain>`: a point in a temporal domain. `from`, `zero`, `add` and `subtract` a `Duration` of the same domain, and `durationSince`.
 - `Timestamp`: a wall-clock time in milliseconds since the Unix epoch. Its meaning is fixed, so it has no domain. `fromMilliseconds`, `fromNumber`, `fromDate`, `add` and `subtract` (in milliseconds), `toDate`, `toISOString`, `toJSON`.
 
 All three hold a `bigint`, so values stay exact beyond the safe integer range. They share `compare`, `equals`, `isBefore`, `isAfter` and `toString` through an internal base class, `TemporalValue`, which is not exported.
+
+### Task values (`src/task`)
+
+Branded identifiers and orderings for tasks. Each is created with a constructor that validates it, so no cast is needed at the call site, and each serialises as an ordinary JSON value.
+
+- `TaskId`: a string with something in it. `isTaskId` is the matching guard for data that has not been through `taskId`, such as a value read back from storage, and `taskId` uses it, so it needs no cast. `TaskId` and `TaskKind` use `guardz` so far.
+- `TaskKind`: a dotted name such as `diku.command` or `mush.wait`, owned by whoever defines it. Core routes on it and does not interpret it. `isTaskKind` is the matching guard, and `taskKind` uses it, so it needs no cast.
+- `TaskPriority`: a finite number, with `isTaskPriority`. Whether it exists, and which direction runs first, is the execution policy's decision.
+- `TaskState`: the seven states of a task (`pending`, `ready`, `running`, `waiting`, `completed`, `failed`, `cancelled`). `pending` is waiting for a time and `waiting` is suspended on anything else. `TASK_STATES` is the list the type is made from, and `isTaskState` is the guard for a state read back from storage.
+- `TaskSequence`: a non-negative safe integer that records creation order, with `isTaskSequence`. It is a number so it persists cleanly, and `Number.MAX_SAFE_INTEGER` would take about 285 years at a million tasks a second.
+
+`guardz` is an implementation dependency of this package, not part of Stratamu's own vocabulary. Consumers import the guards from `@stratamu/primitives` (`import { isTaskId } from "@stratamu/primitives"`) and never from `guardz`, which would couple them to an implementation detail. The shared ESLint config enforces this: importing `guardz` is an error everywhere except in this package.
+
+Every value has an `isX` guard next to its constructor, and the constructor uses it, so none of them needs a cast. `guardz` is used where it does the whole job: `isNonEmptyString` for ids, `isPattern` for kinds, and `isOneOf` for states. It is not used for priority or sequence, because its numeric guards are looser than the rules: `isNumber` accepts `Infinity`, and `isNonNegativeInteger` accepts integers beyond `Number.MAX_SAFE_INTEGER`. `Number.isFinite` and `Number.isSafeInteger` are exact, and the tests check both cases.
+
+The rule is to use `bigint` where exact magnitude matters, and a branded number for a bounded counter that needs ordinary JSON.
 
 ### Domains
 
@@ -46,3 +64,5 @@ type Wall = { readonly kind: "wall" }
 These are real-time and domain-typed values, and they stay outside the deterministic core's logical time. The engine's clocks count in their own units, and only comparisons within one clock mean anything (see [DETERMINISM.md](../../docs/DETERMINISM.md)).
 
 `tsconfig.json` sets `types: ["node"]` because the tests use `vitest`, whose types need Node globals and TypeScript 6 does not load `@types/node` by default.
+
+`tsconfig.json` sets `skipLibCheck` because `guardz`'s declarations refer to DOM types such as `FileList`, which a Node-first project does not load. Its own declarations do not mention `guardz`, so packages that import this one are not affected.

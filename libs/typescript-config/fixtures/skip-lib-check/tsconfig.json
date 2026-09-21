@@ -1,0 +1,4 @@
+{
+  "extends": ["../../base.json", "../../skip-lib-check.json"],
+  "include": ["src"]
+}
