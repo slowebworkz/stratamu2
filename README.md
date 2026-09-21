@@ -17,7 +17,8 @@ StrataMU2 is being designed around several core principles:
 - **Authoritative world state** — the engine owns and coordinates the live world.
 - **State transitions** — world changes occur through controlled actions and transitions rather than arbitrary mutation.
 - **Game profiles** — MUD, MUSH, MOO, and other styles are represented through adapters rather than separate engines.
-- **Pluggable domain systems** — capabilities such as combat, magic, scripting, economy, and NPC behavior can be added independently.
+- **Domain capabilities** — gameplay capabilities such as combat, magic, scripting, economy, and NPC behavior are optional and independent of the core. Where each one lives is not yet decided.
+- **Execution semantics by profile** — different traditions order and time work differently, so the core provides an execution substrate and each adapter selects the execution policy.
 - **Infrastructure independence** — storage, networking, and presentation are replaceable implementation boundaries.
 - **Transport independence** — the engine is not coupled to Telnet or any particular client protocol.
 - **Controlled concurrency** — multiple players and asynchronous activities can interact with the world without compromising authoritative state.
@@ -80,35 +81,34 @@ MUX
 Custom
 ```
 
-An adapter is not intended to be a second game engine. It configures and extends the common runtime.
+An adapter is not intended to be a second game engine. It configures and extends the common runtime. That includes its execution semantics: an adapter selects the execution policy that decides how ready work is ordered, timed and budgeted.
 
 ### Plugins
 
-Plugins provide replaceable implementations or integrations.
+Plugins provide replaceable infrastructure and integrations at boundaries the engine defines.
 
 Potential plugin areas include:
 
 ```text
 Storage
 Networking
+Protocols
 Presentation
-Scripting
-Combat
-Magic
-NPC behavior
-Economy
-Population
+Logging and event infrastructure
 ```
+
+Gameplay domains such as combat, scripting, economy, and population are architectural capabilities. They are not assumed to be plugins.
 
 Not every game needs every plugin.
 
 ### Libraries
 
-`libs/` contains private shared development infrastructure used across the monorepo, such as:
+`libs/` contains private reusable support code used across the monorepo, such as:
 
 - TypeScript configurations
 - ESLint configurations
 - Biome configuration
+- Basic definitions such as clocks (`@stratamu/clock`), which the engine receives as instances
 
 ### Applications
 
@@ -136,13 +136,13 @@ The repository is organized as a pnpm/Turborepo monorepo:
 ├── adapters/       # Game profiles and adapter implementations
 ├── apps/           # Executable applications
 ├── docs/           # Project and architecture documentation
-├── engine/         # Core engine/runtime
-├── libs/           # Shared private development libraries/configuration
-├── packages/       # Reusable package boundaries
-└── plugins/        # Pluggable systems and infrastructure
+├── engine/         # Core engine: the execution substrate and world runtime
+├── libs/           # Private reusable support code and shared configuration
+├── packages/       # Transitional: predates the layout above, to be relocated
+└── plugins/        # Replaceable infrastructure and integrations
 ```
 
-The exact contents of these workspaces will evolve as implementation begins.
+The exact contents of these workspaces will evolve as implementation begins. Every workspace has a `README.md` that says what it is for and what state it is in. `packages/` is a transition state, described in the architecture document.
 
 ## Engine Lifecycle
 
@@ -249,6 +249,8 @@ It describes the current working design in greater detail, including:
 - Lifecycle management
 - Persistence
 - Concurrency
+- Execution substrate, execution policy and the work model
+- Determinism
 - Adapters
 - Plugins
 - Domain systems
@@ -322,6 +324,8 @@ Current work is focused on establishing the repository and architecture foundati
 - [x] Shared Biome configuration
 - [x] Initial engine architecture
 - [x] Engine lifecycle direction
+- [x] Execution substrate prototype (tasks, named clocks, execution-policy seam)
+- [ ] Execution work model: waiting and waking, recurring work, phases, budgets
 - [ ] Core engine implementation
 - [ ] Authoritative world state
 - [ ] State-transition system

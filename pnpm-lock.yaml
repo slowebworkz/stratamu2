@@ -224,6 +224,31 @@ importers:
         specifier: 'catalog:'
         version: 2.5.14
 
+  libs/clock:
+    dependencies:
+      '@stratamu/primitives':
+        specifier: workspace:*
+        version: link:../primitives
+    devDependencies:
+      '@stratamu/eslint':
+        specifier: workspace:*
+        version: link:../eslint-config
+      '@stratamu/typescript-config':
+        specifier: workspace:*
+        version: link:../typescript-config
+      '@types/node':
+        specifier: 'catalog:'
+        version: 26.6.2
+      eslint:
+        specifier: 'catalog:'
+        version: 10.11.0
+      typescript:
+        specifier: 'catalog:'
+        version: 6.0.3
+      vitest:
+        specifier: 'catalog:'
+        version: 4.1.11(@types/node@26.6.2)(vite@8.3.0(@types/node@26.6.2))
+
   libs/eslint-config:
     devDependencies:
       '@eslint/js':
@@ -247,6 +272,27 @@ importers:
       typescript-eslint:
         specifier: 'catalog:'
         version: 8.70.0(eslint@10.11.0)(typescript@6.0.3)
+
+  libs/primitives:
+    devDependencies:
+      '@stratamu/eslint':
+        specifier: workspace:*
+        version: link:../eslint-config
+      '@stratamu/typescript-config':
+        specifier: workspace:*
+        version: link:../typescript-config
+      '@types/node':
+        specifier: 'catalog:'
+        version: 26.6.2
+      eslint:
+        specifier: 'catalog:'
+        version: 10.11.0
+      typescript:
+        specifier: 'catalog:'
+        version: 6.0.3
+      vitest:
+        specifier: 'catalog:'
+        version: 4.1.11(@types/node@26.6.2)(vite@8.3.0(@types/node@26.6.2))
 
   libs/typescript-config:
     devDependencies:
