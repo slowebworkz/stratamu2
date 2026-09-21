@@ -1,6 +1,6 @@
 import Emittery from "emittery"
 
-import { PinoLogger } from "../logging/pino-logger.ts"
+import { createContextLogger } from "../logging/root-logger.ts"
 import type { LoggingCapability } from "../logging/types.ts"
 import type {
   EventCapability,
@@ -20,8 +20,6 @@ interface LooseEmitter<Events extends EventMap> {
 }
 
 export class EmitteryEvents<Events extends EventMap = EventMap> implements EventCapability<Events> {
-  static #root?: LoggingCapability
-
   readonly #emitter = new Emittery<Events>()
 
   readonly #listeners = new Map<keyof Events, Map<EventListener<unknown>, WrappedListener>>()
@@ -75,9 +73,7 @@ export class EmitteryEvents<Events extends EventMap = EventMap> implements Event
   }
 
   #getLogger(): LoggingCapability {
-    this.#log ??= EmitteryEvents.#getRootLogger().child({
-      component: this.constructor.name || "anonymous",
-    })
+    this.#log ??= createContextLogger(this.constructor.name || "anonymous")
 
     return this.#log
   }
@@ -182,12 +178,6 @@ export class EmitteryEvents<Events extends EventMap = EventMap> implements Event
     if (listeners.size === 0) {
       this.#listeners.delete(event)
     }
-  }
-
-  static #getRootLogger(): LoggingCapability {
-    EmitteryEvents.#root ??= PinoLogger.create()
-
-    return EmitteryEvents.#root
   }
 
   static #wrap<Payload>(listener: EventListener<Payload>): WrappedListener {

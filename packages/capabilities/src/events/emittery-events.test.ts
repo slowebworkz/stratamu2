@@ -44,6 +44,7 @@ async function loadFresh() {
     .spyOn(PinoLogger, "create")
     .mockImplementation(() => createReal({ level: "trace" }, destination))
 
+  const { setRootLogger } = await import("../logging/root-logger.ts")
   const { EmitteryEvents } = await import("./emittery-events.ts")
 
   class Named extends EmitteryEvents<Events> {
@@ -58,7 +59,7 @@ async function loadFresh() {
     }
   }
 
-  return { EmitteryEvents, create, records, Named, OtherNamed }
+  return { EmitteryEvents, create, createReal, records, setRootLogger, Named, OtherNamed }
 }
 
 afterEach(() => {
@@ -460,6 +461,27 @@ describe("EmitteryEvents once() lifecycle", () => {
 })
 
 describe("EmitteryEvents logging", () => {
+  it("logs through the root logger the application configured, without creating a default", async () => {
+    const { create, createReal, records, setRootLogger, Named } = await loadFresh()
+    const configured: LogRecord[] = []
+    setRootLogger(
+      createReal(
+        { level: "info" },
+        {
+          write(chunk: string) {
+            configured.push(JSON.parse(chunk) as LogRecord)
+          },
+        },
+      ),
+    )
+
+    new Named().exposed.info("configured")
+
+    expect(create).not.toHaveBeenCalled()
+    expect(records).toEqual([])
+    expect(configured).toMatchObject([{ component: "Named", msg: "configured" }])
+  })
+
   it("creates no logger while the bus is used without touching log", async () => {
     const { EmitteryEvents, create, records } = await loadFresh()
     const events = new EmitteryEvents<Events>()
