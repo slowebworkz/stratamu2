@@ -166,7 +166,7 @@ describe("Base logging: per-object child logger", () => {
     expect(records.map(record => record.msg)).toEqual(["kept"])
   })
 
-  it("keeps nothing on the instance", async () => {
+  it("keeps implementation state private", async () => {
     const { Talker } = await loadFresh()
     const talker = new Talker()
 
