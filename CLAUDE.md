@@ -156,7 +156,7 @@ Do not use npm or Yarn to modify the workspace lockfile.
 Workspace dependencies should use the workspace protocol where appropriate:
 
 ```json
-"@repo/package": "workspace:*"
+"@stratamu/package": "workspace:*"
 ```
 
 Shared dependency versions should remain in the pnpm workspace catalog where the repository already centralizes them.

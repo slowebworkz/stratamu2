@@ -1,5 +1,5 @@
-import type { LoggingCapability } from "@repo/capabilities"
-import { createContextLogger } from "@repo/capabilities"
+import type { LoggingCapability } from "@stratamu/capabilities"
+import { createContextLogger } from "@stratamu/capabilities"
 
 export abstract class Base {
   #log?: LoggingCapability

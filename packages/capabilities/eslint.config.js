@@ -1,4 +1,4 @@
-import { config } from "@repo/eslint/node"
+import { config } from "@stratamu/eslint/node"
 
 const pino = {
   group: ["pino", "pino/*"],

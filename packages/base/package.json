@@ -1,5 +1,5 @@
 {
-  "name": "@repo/base",
+  "name": "@stratamu/base",
   "version": "0.0.0",
   "private": true,
   "type": "module",
@@ -18,11 +18,11 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@repo/capabilities": "workspace:*"
+    "@stratamu/capabilities": "workspace:*"
   },
   "devDependencies": {
-    "@repo/eslint": "workspace:*",
-    "@repo/typescript-config": "workspace:*",
+    "@stratamu/eslint": "workspace:*",
+    "@stratamu/typescript-config": "workspace:*",
     "@types/node": "catalog:",
     "eslint": "catalog:",
     "typescript": "catalog:",

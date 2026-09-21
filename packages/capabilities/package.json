@@ -1,5 +1,5 @@
 {
-  "name": "@repo/capabilities",
+  "name": "@stratamu/capabilities",
   "version": "0.0.0",
   "private": true,
   "type": "module",
@@ -22,8 +22,8 @@
     "pino": "catalog:"
   },
   "devDependencies": {
-    "@repo/eslint": "workspace:*",
-    "@repo/typescript-config": "workspace:*",
+    "@stratamu/eslint": "workspace:*",
+    "@stratamu/typescript-config": "workspace:*",
     "@types/node": "catalog:",
     "eslint": "catalog:",
     "typescript": "catalog:",

@@ -1,1 +1,1 @@
-export { config as default } from "@repo/eslint/node"
+export { config as default } from "@stratamu/eslint/node"

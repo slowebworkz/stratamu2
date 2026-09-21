@@ -1,4 +1,4 @@
-import type { LoggingCapability } from "@repo/capabilities"
+import type { LoggingCapability } from "@stratamu/capabilities"
 import { afterEach, describe, expect, it, vi } from "vitest"
 
 interface LogRecord {
@@ -18,7 +18,7 @@ async function loadFresh() {
     },
   }
 
-  const { PinoLogger, setRootLogger } = await import("@repo/capabilities")
+  const { PinoLogger, setRootLogger } = await import("@stratamu/capabilities")
   const createReal = PinoLogger.create.bind(PinoLogger)
   const create = vi
     .spyOn(PinoLogger, "create")

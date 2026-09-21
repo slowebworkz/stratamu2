@@ -229,7 +229,7 @@ importers:
       '@eslint/js':
         specifier: 'catalog:'
         version: 10.0.1(eslint@10.11.0)
-      '@repo/typescript-config':
+      '@stratamu/typescript-config':
         specifier: workspace:*
         version: link:../typescript-config
       eslint:
@@ -259,14 +259,14 @@ importers:
 
   packages/base:
     dependencies:
-      '@repo/capabilities':
+      '@stratamu/capabilities':
         specifier: workspace:*
         version: link:../capabilities
     devDependencies:
-      '@repo/eslint':
+      '@stratamu/eslint':
         specifier: workspace:*
         version: link:../../libs/eslint-config
-      '@repo/typescript-config':
+      '@stratamu/typescript-config':
         specifier: workspace:*
         version: link:../../libs/typescript-config
       '@types/node':
@@ -291,10 +291,10 @@ importers:
         specifier: 'catalog:'
         version: 10.3.1
     devDependencies:
-      '@repo/eslint':
+      '@stratamu/eslint':
         specifier: workspace:*
         version: link:../../libs/eslint-config
-      '@repo/typescript-config':
+      '@stratamu/typescript-config':
         specifier: workspace:*
         version: link:../../libs/typescript-config
       '@types/node':
