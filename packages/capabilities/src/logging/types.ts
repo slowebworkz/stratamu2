@@ -22,6 +22,10 @@ export interface LoggingCapability {
   error(...args: LogArgs): void
   fatal(...args: LogArgs): void
 
+  /**
+   * Creates a logger whose records carry `bindings`. A logger's bindings identify it, so a field
+   * with the same name in a log call does not override them.
+   */
   child(bindings: LogBindings): LoggingCapability
   flush(): Promise<void>
 }

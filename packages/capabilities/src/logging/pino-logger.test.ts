@@ -89,6 +89,65 @@ describe("PinoLogger arguments", () => {
   })
 })
 
+describe("PinoLogger bindings", () => {
+  it("does not let a log call override a binding, and emits the key once", () => {
+    const lines: string[] = []
+    const log = PinoLogger.create({ level: "trace" }, { write: chunk => lines.push(chunk) }).child({
+      component: "World",
+    })
+
+    log.info({ component: "spoof", playerId: "p1" }, "entered")
+
+    const record = JSON.parse(lines[0] ?? "{}") as LogRecord
+    expect(record).toMatchObject({ component: "World", playerId: "p1", msg: "entered" })
+    expect(lines[0]?.match(/"component":/g)).toHaveLength(1)
+  })
+
+  it("protects the bindings of every ancestor", () => {
+    const { log, records } = capture()
+
+    log
+      .child({ component: "World" })
+      .child({ request: "r1" })
+      .info({ component: "x", request: "y", extra: 1 }, "nested")
+
+    expect(records[0]).toMatchObject({ component: "World", request: "r1", extra: 1 })
+  })
+
+  it("protects the fields configured on the root logger", () => {
+    const { log, records } = capture({ base: { app: "stratamu2" } })
+
+    log.info({ app: "other", kept: true }, "root")
+
+    expect(records[0]).toMatchObject({ app: "stratamu2", kept: true })
+  })
+
+  it("passes a context through untouched when it does not collide", () => {
+    const { log, records } = capture()
+
+    log.child({ component: "World" }).info({ playerId: "p1" }, "no collision")
+
+    expect(records[0]).toMatchObject({ component: "World", playerId: "p1" })
+  })
+
+  it("lets a logger without bindings accept any field", () => {
+    const { log, records } = capture({ base: null })
+
+    log.info({ component: "free" }, "root has no bindings")
+
+    expect(records[0]?.component).toBe("free")
+  })
+
+  it("still serializes an Error passed as the context on a logger with bindings", () => {
+    const { log, records } = capture()
+
+    log.child({ component: "World" }).error(new Error("disk full"), "failed")
+
+    expect(records[0]).toMatchObject({ component: "World", msg: "failed" })
+    expect(records[0]?.err).toMatchObject({ message: "disk full" })
+  })
+})
+
 describe("PinoLogger child loggers", () => {
   it("adds bindings to child records without affecting the parent", () => {
     const { log, records } = capture()
