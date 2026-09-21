@@ -18,7 +18,7 @@ All three hold a `bigint`, so values stay exact beyond the safe integer range. T
 
 A domain says what the units mean: `Duration<Pulse>`, `Duration<WallTime>` and `Instant<GameTime>` are different, and mixing them is a compile error. That includes comparing them, adding them, widening `Duration<"pulse">` to `Duration<string>`, and using an `Instant` where a `Duration` is expected.
 
-This relies on a phantom field, `declare private readonly __domain: (value: TDomain) => TDomain`, which makes the domain parameter invariant. Do not replace it with a simpler brand such as `readonly __brand: TDomain`: that still separates unrelated domains but allows widening. The `@ts-expect-error` tests in `duration.test.ts` and `instant.test.ts` guard this, and `pnpm typecheck` fails if the rule stops holding.
+This relies on a phantom field, `declare protected readonly __domain: (value: TDomain) => TDomain`, which makes the domain parameter invariant. Do not replace it with a simpler brand such as `readonly __brand: TDomain`: that still separates unrelated domains but allows widening. It is `protected` and not `private` because declaration emit drops the type of a private member, and the domain check would then disappear for every package that imports the built code. The clock tests check it across that boundary. The `@ts-expect-error` tests in `duration.test.ts` and `instant.test.ts` guard this, and `pnpm typecheck` fails if the rule stops holding.
 
 Two domain types with the same structure are interchangeable, so use distinct shapes or string literals:
 
@@ -39,7 +39,7 @@ type Wall = { readonly kind: "wall" }
 - `Duration` and `Instant` have no `toJSON`, so `JSON.stringify` writes them as `{}`. Do not put them in data that is persisted or replayed until they do.
 - No units, and no conversion between domains (milliseconds to pulses, say). An adapter that defines a pulse length is the natural owner of that.
 - `Timestamp.add` takes raw milliseconds, not a `Duration<WallTime>`. That is an API choice that has not been made.
-- The engine's `Clock` still reports plain numbers. Nothing connects clocks to `Instant` yet.
+- The engine's triggers and timelines still use plain numbers. `@stratamu/clock` produces these values, and the runtime reads them as safe integers.
 
 ## Notes
 

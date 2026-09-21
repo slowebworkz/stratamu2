@@ -1,0 +1,5 @@
+export type { Clock } from "./clock.ts"
+export { ManualClock } from "./manual-clock.ts"
+export type { MonotonicTime } from "./monotonic-clock.ts"
+export { MonotonicClock } from "./monotonic-clock.ts"
+export { WallClock } from "./wall-clock.ts"

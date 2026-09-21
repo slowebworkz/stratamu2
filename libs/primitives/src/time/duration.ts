@@ -12,7 +12,9 @@ import { TemporalValue } from "./temporal-value.ts"
  * These are not interchangeable.
  */
 export class Duration<TDomain> extends TemporalValue<Duration<TDomain>> {
-  declare private readonly __domain: (value: TDomain) => TDomain
+  // Phantom field: it makes TDomain invariant. It is protected, not private, because declaration
+  // emit drops the type of a private member and the domain check would vanish for importers.
+  declare protected readonly __domain: (value: TDomain) => TDomain
 
   private constructor(value: bigint) {
     super(value)

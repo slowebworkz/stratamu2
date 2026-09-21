@@ -3,7 +3,8 @@ import { TemporalValue } from "./temporal-value.ts"
 
 /** A point within a specific temporal domain. */
 export class Instant<TDomain> extends TemporalValue<Instant<TDomain>> {
-  declare private readonly __domain: (value: TDomain) => TDomain
+  // Phantom field: see Duration. Protected so that its type survives declaration emit.
+  declare protected readonly __domain: (value: TDomain) => TDomain
 
   private constructor(value: bigint) {
     super(value)
