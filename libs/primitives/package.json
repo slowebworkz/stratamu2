@@ -17,6 +17,9 @@
     "test": "vitest run",
     "typecheck": "tsc --noEmit"
   },
+  "dependencies": {
+    "guardz": "catalog:"
+  },
   "devDependencies": {
     "@stratamu/eslint": "workspace:*",
     "@stratamu/typescript-config": "workspace:*",

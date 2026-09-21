@@ -28,4 +28,4 @@ The runtime reads time only from injected clocks and never reads wall time or ra
 
 ## Depends on
 
-`@stratamu/base` (logging), `@stratamu/clock`, and `@stratamu/capabilities`. The last two `packages/` dependencies are part of the transition described in the architecture document.
+`@stratamu/base` (logging), `@stratamu/clock`, and `@stratamu/capabilities`. Its tests also use `@stratamu/primitives`. The last two `packages/` dependencies are part of the transition described in the architecture document.
