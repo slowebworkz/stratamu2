@@ -18,7 +18,7 @@ async function loadFresh() {
     },
   }
 
-  const { PinoLogger } = await import("@repo/capabilities")
+  const { PinoLogger, setRootLogger } = await import("@repo/capabilities")
   const createReal = PinoLogger.create.bind(PinoLogger)
   const create = vi
     .spyOn(PinoLogger, "create")
@@ -42,7 +42,18 @@ async function loadFresh() {
 
   class SubTalker extends Talker {}
 
-  return { Base, PinoLogger, create, records, Quiet, Talker, OtherTalker, SubTalker }
+  return {
+    Base,
+    PinoLogger,
+    create,
+    createReal,
+    records,
+    setRootLogger,
+    Quiet,
+    Talker,
+    OtherTalker,
+    SubTalker,
+  }
 }
 
 afterEach(() => {
@@ -50,6 +61,27 @@ afterEach(() => {
 })
 
 describe("Base logging: root logger", () => {
+  it("logs through the root logger the application configured, without creating a default", async () => {
+    const { create, createReal, records, setRootLogger, Talker } = await loadFresh()
+    const configured: LogRecord[] = []
+    setRootLogger(
+      createReal(
+        { level: "info" },
+        {
+          write(chunk: string) {
+            configured.push(JSON.parse(chunk) as LogRecord)
+          },
+        },
+      ),
+    )
+
+    new Talker().exposed.info("configured")
+
+    expect(create).not.toHaveBeenCalled()
+    expect(records).toEqual([])
+    expect(configured).toMatchObject([{ component: "Talker", msg: "configured" }])
+  })
+
   it("creates nothing when no class uses log", async () => {
     const { create, records, Quiet, Talker } = await loadFresh()
 
