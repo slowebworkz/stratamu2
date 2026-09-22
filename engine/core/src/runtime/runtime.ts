@@ -367,8 +367,9 @@ export class Runtime extends Base {
   async #execute(record: TaskRecord, canSuspend: boolean): Promise<TaskOutcome | undefined> {
     record.state = "running"
     // Its ready ordering no longer applies once it is running, and a task that goes on to
-    // suspend must reach `waiting` with no stale via either.
+    // suspend must reach `waiting` with no stale via or batch either.
     record.via = undefined
+    record.batch = 0
     const continuation = record.continuation
 
     let outcome: TaskOutcome | undefined
@@ -415,6 +416,7 @@ export class Runtime extends Base {
   #finish(record: TaskRecord, outcome: TaskOutcome): void {
     record.state = outcome.state
     record.via = undefined
+    record.batch = 0
     this.#live.delete(record.task.id)
     record.execution.settle(outcome)
   }
