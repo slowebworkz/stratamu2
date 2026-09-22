@@ -29,7 +29,12 @@ export interface TaskRecord {
   readonly lane: LaneId
   readonly tags: readonly string[]
   state: TaskState
-  /** See `ReadyTask`. Meaningful once the task is ready. */
+  /**
+   * See `ReadyTask`. Meaningful only while the task is `ready`, and `0` otherwise: a task has
+   * never been in a batch until `#ready` first assigns one, and it carries no batch once it
+   * leaves `ready`, cleared alongside `via` in the same places: see `#execute` and `#finish` in
+   * `Runtime`.
+   */
   batch: number
   /**
    * Present only while the task is `pending` or `ready`, and identifies the temporal schedule
