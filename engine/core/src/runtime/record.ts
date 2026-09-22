@@ -20,11 +20,11 @@ export interface TaskExecution {
 }
 
 export interface TaskRecord {
-  /** Canonical data: the engine's admitted, durable description of this task. */
+  /** Canonical data: the engine's admitted, immutable description of this task. */
   readonly task: Task
   /**
    * Not part of `Task`: queueing and cancellation are the runtime's concern, not the task's
-   * durable identity. See `@stratamu/task`.
+   * canonical identity. See `@stratamu/task`.
    */
   readonly lane: LaneId
   readonly tags: readonly string[]
