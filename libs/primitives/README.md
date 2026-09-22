@@ -20,17 +20,20 @@ All three hold a `bigint`, so values stay exact beyond the safe integer range. T
 
 Branded identifiers and orderings for tasks. Each is created with a constructor that validates it, so no cast is needed at the call site, and each serialises as an ordinary JSON value.
 
-- `TaskId`: a string with something in it. `isTaskId` is the matching guard for data that has not been through `taskId`, such as a value read back from storage, and `taskId` uses it, so it needs no cast. `TaskId` and `TaskKind` use `guardz` so far.
-- `TaskKind`: a dotted name such as `diku.command` or `mush.wait`, owned by whoever defines it. Core routes on it and does not interpret it. `isTaskKind` is the matching guard, and `taskKind` uses it, so it needs no cast.
+- `TaskId`: a string with something in it. `isTaskId` is the matching guard for data that has not been through `taskId`, such as a value read back from storage, and `taskId` uses it, so it needs no cast. `TaskId` and `TaskState` use `guardz`.
 - `TaskPriority`: a finite number, with `isTaskPriority`. Whether it exists, and which direction runs first, is the execution policy's decision.
 - `TaskState`: the seven states of a task (`pending`, `ready`, `running`, `waiting`, `completed`, `failed`, `cancelled`). `pending` is waiting for a time and `waiting` is suspended on anything else. `TASK_STATES` is the list the type is made from, and `isTaskState` is the guard for a state read back from storage.
 - `TaskSequence`: a non-negative safe integer that records creation order, with `isTaskSequence`. It is a number so it persists cleanly, and `Number.MAX_SAFE_INTEGER` would take about 285 years at a million tasks a second.
 
 `guardz` is an implementation dependency of this package, not part of Stratamu's own vocabulary. Consumers import the guards from `@stratamu/primitives` (`import { isTaskId } from "@stratamu/primitives"`) and never from `guardz`, which would couple them to an implementation detail. The shared ESLint config enforces this: importing `guardz` is an error everywhere except in this package.
 
-Every value has an `isX` guard next to its constructor, and the constructor uses it, so none of them needs a cast. `guardz` is used where it does the whole job: `isNonEmptyString` for ids, `isPattern` for kinds, and `isOneOf` for states. It is not used for priority or sequence, because its numeric guards are looser than the rules: `isNumber` accepts `Infinity`, and `isNonNegativeInteger` accepts integers beyond `Number.MAX_SAFE_INTEGER`. `Number.isFinite` and `Number.isSafeInteger` are exact, and the tests check both cases.
+Every value has an `isX` guard next to its constructor, and the constructor uses it, so none of them needs a cast. `guardz` is used where it does the whole job: `isNonEmptyString` for ids and namespaced kinds, and `isOneOf` for states. It is not used for priority or sequence, because its numeric guards are looser than the rules: `isNumber` accepts `Infinity`, and `isNonNegativeInteger` accepts integers beyond `Number.MAX_SAFE_INTEGER`. `Number.isFinite` and `Number.isSafeInteger` are exact, and the tests check both cases.
 
 The rule is to use `bigint` where exact magnitude matters, and a branded number for a bounded counter that needs ordinary JSON.
+
+### Namespaced kinds (`src/namespaced`)
+
+`isNamespacedKind` is the guard for a namespaced kind: a dotted name in lower case, such as `diku.command` or `mush.wait`. Every kind in the system has this shape, so a MUSH `command` and a Diku `command` cannot collide. `@stratamu/work` builds `WorkKind` on it. The pattern must not have a `g` or `y` flag, because `RegExp.test` would then keep state between calls, and a test checks that repeated calls give the same answer.
 
 ### Domains
 
