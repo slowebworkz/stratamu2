@@ -5,6 +5,7 @@ export const TASK_STATES = [
   "pending",
   "ready",
   "running",
+  "scheduled",
   "waiting",
   "completed",
   "failed",
@@ -16,18 +17,21 @@ export const TASK_STATES = [
  *
  * | State       | Meaning                                                                        |
  * |-------------|--------------------------------------------------------------------------------|
- * | `pending`   | Waiting for its scheduled time to arrive                                       |
+ * | `pending`   | Waiting for its scheduled time to arrive, before ever running                  |
  * | `ready`     | Eligible to run now, waiting to be selected                                    |
  * | `running`   | Its step is executing                                                          |
+ * | `scheduled` | Ran at least once and asked to become eligible again at a scheduled time       |
  * | `waiting`   | Suspended on something other than time: an event, a condition, input, a semaphore |
  * | `completed` | Finished normally (final)                                                      |
  * | `failed`    | Its execution ended with an error (final)                                      |
  * | `cancelled` | Prevented from running or finishing (final)                                    |
  *
- * `pending` is temporal eligibility ("not until time T") and `waiting` is logical eligibility
- * ("not until something happens"). A new task is immediately `ready`, `pending` or `waiting`, so
- * a task that has not finished is either eligible, running, or has a specific reason it is not
- * eligible. `pending` never means "new".
+ * `pending` and `scheduled` are both temporal eligibility ("not until time T"), and `waiting` is
+ * logical eligibility ("not until something happens"). They stay distinct states rather than one
+ * shared "temporally not-yet-eligible" state because they mean different things about the task's
+ * history: `pending` is a task that has never run, `scheduled` is one that has already run at
+ * least once and chose to run again. A new task is immediately `ready`, `pending` or `waiting`,
+ * never `scheduled`: that state is only reached from `running`. `pending` never means "new".
  */
 export type TaskState = (typeof TASK_STATES)[number]
 

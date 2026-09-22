@@ -15,7 +15,7 @@ export interface TaskExecution {
   readonly settle: (outcome: TaskOutcome) => void
   /** How many inline runs deep the task is. Zero for a task the policy chose to run. */
   readonly depth: number
-  /** The timeline the task waits in while pending. */
+  /** The timeline the task waits in while `pending` or `scheduled`. */
   timeline: Timeline<TaskRecord> | undefined
 }
 
@@ -37,14 +37,18 @@ export interface TaskRecord {
    */
   batch: number
   /**
-   * Present only while the task is `pending` or `ready`, and identifies the temporal schedule
-   * used for its current eligibility or order. Retained across `pending -> ready`, since
-   * `oldestReady` uses it for cross-clock ordering, but cleared no later than `ready -> running`,
-   * so it is never stale while `running`, `waiting`, or in a terminal state: see `#execute`,
-   * `#cancel` and `#finish` in `Runtime`.
+   * Temporal information associated with the task while it is temporally scheduled or ready:
+   * present while `pending`, `scheduled` or `ready`, undefined otherwise. It is not tied to a
+   * particular state name, only to that condition, so it survives `pending -> ready` and
+   * `scheduled -> ready` unchanged (`oldestReady` uses it for cross-clock ordering while ready),
+   * but is cleared no later than `ready -> running`, so it is never stale while `running`,
+   * `waiting`, or in a terminal state: see `#execute`, `#cancel` and `#finish` in `Runtime`.
    */
   via: ReadyVia | undefined
-  /** What the task suspended with. It is handed back, once, when the task runs again. */
+  /**
+   * What the task returned to defer its next run, whether by suspending or rescheduling. Opaque
+   * to the runtime and defined by the adapter. Handed back once, when the task runs again.
+   */
   continuation: unknown
   /** Runtime-only state. */
   readonly execution: TaskExecution

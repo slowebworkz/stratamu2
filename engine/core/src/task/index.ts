@@ -1,7 +1,7 @@
 export type { Task } from "@stratamu/task"
 
-export type { TaskResult, TaskSuspend } from "./result.ts"
-export { isTaskSuspend, suspend } from "./result.ts"
+export type { TaskReschedule, TaskResult, TaskSuspend } from "./result.ts"
+export { isTaskReschedule, isTaskSuspend, reschedule, suspend } from "./result.ts"
 export { TaskSequencer } from "./sequencer.ts"
 export type { TaskAdmission } from "./task-admission.ts"
 export type { TaskContext } from "./task-context.ts"

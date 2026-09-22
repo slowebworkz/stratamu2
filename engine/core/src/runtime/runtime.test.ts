@@ -10,7 +10,7 @@ import type { ExecutionPolicy, ReadyLane, ReadyTask } from "../policy/index.ts"
 import { oldestReady } from "../policy/index.ts"
 import { schedule } from "../schedule/index.ts"
 import type { Task, TaskContext } from "../task/index.ts"
-import { suspend } from "../task/index.ts"
+import { reschedule, suspend } from "../task/index.ts"
 import { Runtime } from "./runtime.ts"
 
 /** Test kinds live under one namespace, as real ones live under their family's. */
@@ -1059,6 +1059,186 @@ describe("waiting", () => {
 
     expect(outcomes).toMatchObject([{ state: "failed" }])
     expect(String((outcomes[0] as { error: unknown }).error)).toContain("cannot suspend")
+    expect(runtime.pending).toBe(0)
+  })
+})
+
+describe("rescheduling", () => {
+  it("takes a task that reschedules out of running and into scheduled", async () => {
+    const { runtime, seen } = setup()
+    runtime.handle(k("later"), () => reschedule(schedule.after(10, "time")))
+    const handle = runtime.submit({ work: work(k("later"), undefined) })
+
+    await runtime.drain()
+
+    expect(handle.state).toBe("scheduled")
+    expect(seen).toEqual([])
+    expect(runtime.pending).toBe(1)
+  })
+
+  it("runs a rescheduled task again once its clock reaches the new due time", async () => {
+    const { runtime, clock } = setup()
+    let ran = 0
+    runtime.handle(k("later"), () => {
+      ran++
+      if (ran === 1) {
+        return reschedule(schedule.after(10, "time"))
+      }
+    })
+    const handle = runtime.submit({ work: work(k("later"), undefined) })
+    await runtime.drain()
+
+    clock.tick(9)
+    await runtime.drain()
+    expect(handle.state).toBe("scheduled")
+
+    clock.tick(1)
+    await runtime.drain()
+
+    expect(ran).toBe(2)
+    expect(handle.state).toBe("completed")
+  })
+
+  it("hands a continuation back once, the same way suspend does", async () => {
+    const seenContinuations: unknown[] = []
+    const { runtime, clock } = setup()
+    runtime.handle(k("again"), (_task, context) => {
+      seenContinuations.push(context.continuation)
+      if (seenContinuations.length === 1) {
+        return reschedule(schedule.after(5, "time"), "first")
+      }
+    })
+    runtime.submit({ work: work(k("again"), undefined) })
+    await runtime.drain()
+
+    clock.tick(5)
+    await runtime.drain()
+
+    expect(seenContinuations).toEqual([undefined, "first"])
+  })
+
+  it("makes a task rescheduled for now, or an already-due time, ready immediately", async () => {
+    const { runtime } = setup()
+    let ran = 0
+    runtime.handle(k("now"), () => {
+      ran++
+      if (ran === 1) {
+        return reschedule(schedule.now)
+      }
+    })
+    const handle = runtime.submit({ work: work(k("now"), undefined) })
+
+    await runtime.drain()
+
+    expect(ran).toBe(2)
+    expect(handle.state).toBe("completed")
+  })
+
+  it("is recurring work: a handler that keeps rescheduling itself runs on every due time", async () => {
+    const { runtime, clock } = setup()
+    let ran = 0
+    runtime.handle(k("tick"), () => {
+      ran++
+      if (ran < 3) {
+        return reschedule(schedule.after(10, "time"))
+      }
+    })
+    const handle = runtime.submit({ work: work(k("tick"), undefined) })
+
+    for (let i = 0; i < 3; i++) {
+      await runtime.drain()
+      clock.tick(10)
+    }
+    await runtime.drain()
+
+    expect(ran).toBe(3)
+    expect(handle.state).toBe("completed")
+  })
+
+  it("preserves the task's id and sequence across a reschedule", async () => {
+    const { runtime, clock } = setup()
+    const seenIds: unknown[] = []
+    const seenSequences: unknown[] = []
+    runtime.handle(k("later"), task => {
+      seenIds.push(task.id)
+      seenSequences.push(task.sequence)
+      if (seenIds.length === 1) {
+        return reschedule(schedule.after(10, "time"))
+      }
+    })
+    const handle = runtime.submit({ work: work(k("later"), undefined) })
+    await runtime.drain()
+    clock.tick(10)
+    await runtime.drain()
+
+    expect(seenIds[0]).toBe(seenIds[1])
+    expect(seenIds[0]).toBe(handle.id)
+    expect(seenSequences[0]).toBe(seenSequences[1])
+  })
+
+  it("is shown the same via facts a pending task would be, while scheduled", async () => {
+    const views: { clock: string | undefined; dueAt: number | undefined }[][] = []
+    const spy: ExecutionPolicy = {
+      next(lanes) {
+        views.push(
+          [...lanes].flatMap(lane =>
+            [...lane.items()].map(ready => ({ clock: ready.via?.clock, dueAt: ready.via?.dueAt })),
+          ),
+        )
+        return oldestReady().next(lanes)
+      },
+    }
+    const { runtime, clock } = setup(spy)
+    let ran = 0
+    runtime.handle(k("later"), () => {
+      ran++
+      if (ran === 1) {
+        return reschedule(schedule.after(10, "time"))
+      }
+    })
+    runtime.submit({ work: work(k("later"), undefined) })
+    await runtime.drain()
+    views.length = 0
+
+    clock.tick(10)
+    await runtime.drain()
+
+    expect(views[0]).toEqual([{ clock: "time", dueAt: 10 }])
+  })
+
+  it("cancels a scheduled task so it never runs again", async () => {
+    const { runtime, clock } = setup()
+    let ran = 0
+    runtime.handle(k("later"), () => {
+      ran++
+      return reschedule(schedule.after(10, "time"))
+    })
+    const handle = runtime.submit({ work: work(k("later"), undefined) })
+    await runtime.drain()
+    expect(handle.state).toBe("scheduled")
+
+    handle.cancel()
+    clock.tick(10)
+    await runtime.drain()
+
+    expect(ran).toBe(1)
+    expect(handle.state).toBe("cancelled")
+    expect(runtime.pending).toBe(0)
+  })
+
+  it("does not let a task run inline reschedule, since there is nothing for it to wait inside of", async () => {
+    const { runtime } = setup()
+    const outcomes: unknown[] = []
+    runtime.handle(k("later"), () => reschedule(schedule.after(10, "time")))
+    runtime.handle(k("force"), async (_task, context) => {
+      outcomes.push(await context.run({ work: work(k("later"), undefined) }))
+    })
+    runtime.submit({ work: work(k("force"), undefined) })
+
+    await runtime.drain()
+
+    expect(outcomes).toMatchObject([{ state: "failed" }])
+    expect(String((outcomes[0] as { error: unknown }).error)).toContain("cannot reschedule")
     expect(runtime.pending).toBe(0)
   })
 })
