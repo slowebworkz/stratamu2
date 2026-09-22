@@ -3,7 +3,7 @@ import type { Task } from "@stratamu/task"
 
 import type { ClockId } from "../clock/index.ts"
 import type { LaneId } from "../lane/index.ts"
-import type { TaskInput } from "../task/index.ts"
+import type { TaskAdmission } from "../task/index.ts"
 
 /** The clock and time a task was waiting for when it became ready. */
 export interface ReadyVia {
@@ -40,7 +40,7 @@ export interface ReadyLane {
 export interface InlineRequest {
   /** The task asking to run another inline. */
   readonly parent: Task
-  readonly input: TaskInput
+  readonly admission: TaskAdmission
   /** How many inline runs deep the new task would be. The first is 1. */
   readonly depth: number
 }

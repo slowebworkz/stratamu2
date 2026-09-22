@@ -1,4 +1,4 @@
-import type { TaskInput } from "./task-input.ts"
+import type { TaskAdmission } from "./task-admission.ts"
 import type { TaskOutcome } from "./task-outcome.ts"
 
 export interface TaskContext {
@@ -10,5 +10,5 @@ export interface TaskContext {
    * Runs a task inline, as part of the current step, without queueing it. An inline task cannot
    * suspend, because there is nothing for it to wait inside of: it fails if it tries.
    */
-  run(input: TaskInput): Promise<TaskOutcome>
+  run(admission: TaskAdmission): Promise<TaskOutcome>
 }

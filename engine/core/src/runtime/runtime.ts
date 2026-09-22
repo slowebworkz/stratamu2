@@ -9,7 +9,7 @@ import type { ClockId } from "../clock/index.ts"
 import { GLOBAL_LANE, Lane } from "../lane/index.ts"
 import type { ExecutionPolicy, ReadyLane } from "../policy/index.ts"
 import { oldestReady } from "../policy/index.ts"
-import type { TaskHandle, TaskHandler, TaskInput, TaskOutcome } from "../task/index.ts"
+import type { TaskAdmission, TaskHandle, TaskHandler, TaskOutcome } from "../task/index.ts"
 import { isTaskSuspend, TaskSequencer } from "../task/index.ts"
 import { Timeline } from "../timeline/index.ts"
 import type { Trigger } from "../trigger/index.ts"
@@ -30,8 +30,8 @@ type Reading = { readonly value: bigint }
  * the `ExecutionPolicy` it is given.
  *
  * Admitting a task follows `@stratamu/submission -> @stratamu/task`: a `Submission` (carried on a
- * `TaskInput`) is admitted into a `Task`, which is then wrapped in a `TaskRecord` and given to its
- * `Trigger`, which decides whether it starts `ready` or `pending`.
+ * `TaskAdmission`) is admitted into a `Task`, which is then wrapped in a `TaskRecord` and given to
+ * its `Trigger`, which decides whether it starts `ready` or `pending`.
  *
  * What the runtime does record are facts: the batch in which a task became ready and, for a task
  * that waited on a clock, when it was due. It does not order tasks from different clocks, because
@@ -114,16 +114,16 @@ export class Runtime extends Base {
   /**
    * Submits a task for deferred execution: it becomes ready when `when` says so.
    *
-   * `input`'s `Submission` is admitted into a `Task`, wrapped in a `TaskRecord`, and then handed
-   * to `when`, which decides whether it starts `ready` or `pending`.
+   * `admission`'s `Submission` is admitted into a `Task`, wrapped in a `TaskRecord`, and then
+   * handed to `when`, which decides whether it starts `ready` or `pending`.
    */
-  submit(input: TaskInput, when: Trigger = trigger.now): TaskHandle {
+  submit(admission: TaskAdmission, when: Trigger = trigger.now): TaskHandle {
     // Tasks that came due before this call are ready before the new one is queued.
     this.release()
     // Resolve the trigger first so an invalid one consumes no task id.
     const due = this.#resolve(when)
-    const task = this.#admit(input)
-    const record = this.#createRecord(task, input, when)
+    const task = this.#admit(admission)
+    const record = this.#createRecord(task, admission, when)
     this.#live.set(record.task.id, record)
 
     if (due === undefined) {
@@ -266,19 +266,19 @@ export class Runtime extends Base {
    * Admits a `Submission` into a `Task`: the engine assigns it an identity, its place in creation
    * order, and a priority (the lowest, if none was given; the engine always decides one).
    */
-  #admit(input: TaskInput): Task {
-    const sequence = this.#sequencer.next()
+  #admit(admission: TaskAdmission): Task {
+    const sequence = this.#sequencer.allocate()
     return {
       id: taskId(`task-${sequence}`),
-      work: input.work,
+      work: admission.work,
       sequence,
-      priority: input.priority ?? taskPriority(0),
+      priority: admission.priority ?? taskPriority(0),
     }
   }
 
   #createRecord(
     task: Task,
-    input: TaskInput,
+    admission: TaskAdmission,
     when: Trigger,
     inherited?: { signal: AbortSignal; depth: number },
   ): TaskRecord {
@@ -290,8 +290,8 @@ export class Runtime extends Base {
 
     return {
       task,
-      lane: input.lane ?? GLOBAL_LANE,
-      tags: [...(input.tags ?? [])],
+      lane: admission.lane ?? GLOBAL_LANE,
+      tags: [...(admission.tags ?? [])],
       trigger: when,
       state: "ready",
       batch: 0,
@@ -346,14 +346,14 @@ export class Runtime extends Base {
     }
   }
 
-  async #runInline(parent: TaskRecord, input: TaskInput): Promise<TaskOutcome> {
+  async #runInline(parent: TaskRecord, admission: TaskAdmission): Promise<TaskOutcome> {
     const depth = parent.execution.depth + 1
-    if (this.#policy.allowInline?.({ parent: parent.task, input, depth }) === false) {
-      throw new Error(`The execution policy does not allow running "${input.work.kind}" inline`)
+    if (this.#policy.allowInline?.({ parent: parent.task, admission, depth }) === false) {
+      throw new Error(`The execution policy does not allow running "${admission.work.kind}" inline`)
     }
 
-    const task = this.#admit(input)
-    const inline = this.#createRecord(task, input, trigger.now, {
+    const task = this.#admit(admission)
+    const inline = this.#createRecord(task, admission, trigger.now, {
       signal: parent.execution.signal,
       depth,
     })
@@ -380,7 +380,7 @@ export class Runtime extends Base {
       const result = await handler(record.task, {
         signal: record.execution.signal,
         continuation,
-        run: input => this.#runInline(record, input),
+        run: admission => this.#runInline(record, admission),
       })
       if (!isTaskSuspend(result)) {
         outcome = { state: "completed" }
