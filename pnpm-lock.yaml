@@ -221,6 +221,49 @@ importers:
         specifier: 'catalog:'
         version: 6.0.3
 
+  engine/core:
+    dependencies:
+      '@stratamu/base':
+        specifier: workspace:*
+        version: link:../../packages/base
+      '@stratamu/capabilities':
+        specifier: workspace:*
+        version: link:../../packages/capabilities
+      '@stratamu/clock':
+        specifier: workspace:*
+        version: link:../../libs/clock
+      '@stratamu/primitives':
+        specifier: workspace:*
+        version: link:../../libs/primitives
+      '@stratamu/submission':
+        specifier: workspace:*
+        version: link:../../libs/submission
+      '@stratamu/task':
+        specifier: workspace:*
+        version: link:../../libs/task
+      '@stratamu/work':
+        specifier: workspace:*
+        version: link:../../libs/work
+    devDependencies:
+      '@stratamu/eslint':
+        specifier: workspace:*
+        version: link:../../libs/eslint-config
+      '@stratamu/typescript-config':
+        specifier: workspace:*
+        version: link:../../libs/typescript-config
+      '@types/node':
+        specifier: 'catalog:'
+        version: 26.6.2
+      eslint:
+        specifier: 'catalog:'
+        version: 10.11.0
+      typescript:
+        specifier: 'catalog:'
+        version: 6.0.3
+      vitest:
+        specifier: 'catalog:'
+        version: 4.1.11(@types/node@26.6.2)(vite@8.3.0(@types/node@26.6.2))
+
   libs/biome-config:
     devDependencies:
       '@biomejs/biome':
@@ -303,6 +346,34 @@ importers:
 
   libs/submission:
     dependencies:
+      '@stratamu/work':
+        specifier: workspace:*
+        version: link:../work
+    devDependencies:
+      '@stratamu/eslint':
+        specifier: workspace:*
+        version: link:../eslint-config
+      '@stratamu/typescript-config':
+        specifier: workspace:*
+        version: link:../typescript-config
+      '@types/node':
+        specifier: 'catalog:'
+        version: 26.6.2
+      eslint:
+        specifier: 'catalog:'
+        version: 10.11.0
+      typescript:
+        specifier: 'catalog:'
+        version: 6.0.3
+      vitest:
+        specifier: 'catalog:'
+        version: 4.1.11(@types/node@26.6.2)(vite@8.3.0(@types/node@26.6.2))
+
+  libs/task:
+    dependencies:
+      '@stratamu/primitives':
+        specifier: workspace:*
+        version: link:../primitives
       '@stratamu/work':
         specifier: workspace:*
         version: link:../work

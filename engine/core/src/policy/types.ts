@@ -67,3 +67,12 @@ export interface ExecutionPolicy {
    */
   allowInline?(request: InlineRequest): boolean
 }
+
+export interface OldestReadyOptions {
+  /**
+   * The order of precedence between clocks, first to last. When tasks that became ready together
+   * from different clocks compete, the one from the earlier clock goes first. Clocks that are not
+   * listed go after the listed ones, ordered by id.
+   */
+  readonly clockOrder?: readonly ClockId[]
+}
