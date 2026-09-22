@@ -2,7 +2,7 @@
 
 `Work`: what operation is being requested, and what input that operation needs.
 
-**Status:** small and tested. Private and unpublished. Depends on [`@stratamu/primitives`](../primitives) for the namespaced-kind guard. Nothing depends on it yet.
+**Status:** small and tested. Private and unpublished. Depends on [`@stratamu/primitives`](../primitives) for the namespaced-kind guard. Used by `@stratamu/submission`, `@stratamu/task` and `engine/core`.
 
 ## What exists
 
