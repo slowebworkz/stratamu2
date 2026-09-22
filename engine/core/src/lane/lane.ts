@@ -1,14 +1,11 @@
-import { Base } from "@stratamu/base"
-
 import type { LaneId } from "./types.ts"
 
 /** A queue of ready items, kept in the order they were added. */
-export class Lane<T> extends Base {
+export class Lane<T> {
   readonly id: LaneId
   #items: T[] = []
 
   constructor(id: LaneId) {
-    super()
     this.id = id
   }
 
