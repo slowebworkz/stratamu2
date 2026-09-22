@@ -2,7 +2,7 @@
 
 Small value types shared across the workspaces. Its one runtime dependency is [`guardz`](https://www.npmjs.com/package/guardz), used for type guards.
 
-**Status:** working and tested. Private and unpublished. No other workspace depends on it yet.
+**Status:** working and tested. Private and unpublished. Used by `@stratamu/clock`, `@stratamu/work`, `@stratamu/task` and `engine/core`.
 
 ## What exists
 
