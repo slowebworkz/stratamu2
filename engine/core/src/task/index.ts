@@ -1,12 +1,10 @@
+export type { Task } from "@stratamu/task"
+
 export type { TaskResult, TaskSuspend } from "./result.ts"
 export { isTaskSuspend, suspend } from "./result.ts"
 export { TaskSequencer } from "./sequencer.ts"
-export type {
-  Task,
-  TaskContext,
-  TaskHandle,
-  TaskHandler,
-  TaskInput,
-  TaskOutcome,
-  Work,
-} from "./types.ts"
+export type { TaskAdmission } from "./task-admission.ts"
+export type { TaskContext } from "./task-context.ts"
+export type { TaskHandle } from "./task-handle.ts"
+export type { TaskHandler } from "./task-handler.ts"
+export type { TaskOutcome } from "./task-outcome.ts"

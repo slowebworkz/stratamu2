@@ -388,6 +388,7 @@ Instead, an adapter should increasingly function as a game profile that:
 - configures rules
 - constrains authority
 - establishes game semantics
+- selects and configures the execution policy (see section 16)
 
 Conceptually:
 
@@ -429,6 +430,8 @@ MOO-like:
 ```
 
 These are examples, not rigid categories.
+
+Selecting systems is not enough to define a game family. Diku-, MUSH-, MOO- and MUCK-style games also differ in their execution semantics: how queued work is ordered, what a pulse or tick means, how waiting and waking work, how much work may run per unit of time. An adapter therefore selects and configures the execution policy as well (section 16).
 
 A custom game can combine systems from multiple traditions without requiring a new monolithic adapter.
 
@@ -585,30 +588,80 @@ Potential implementations:
 
 The core should define the semantics required for loading, saving, mutation persistence, and possibly transactions, while remaining independent of the storage technology.
 
-## 16. Events and Scheduling
+## 16. Execution Substrate, Execution Policy and the Work Model
 
-Events and scheduling are foundational engine infrastructure.
+Traditional games disagree about the internal semantics of events and actions. A Diku-style game runs phases on a pulse. A MUSH queues commands per object and lets them wait on semaphores. A MOO suspends and forks tasks under tick budgets. The core must not pick one of these. It provides an **execution substrate**, and the adapter supplies the **execution policy** that gives the substrate its semantics.
 
-Events can represent things such as:
+```text
+                      CORE: execution substrate (Runtime)
+                                    |
+              +---------------------+---------------------+
+              |                     |                     |
+            Tasks                 Clocks              Scheduling
+              |                     |                     |
+              +---------------------+---------------------+
+                                    |
+                            Execution Policy
+                     (selected by the adapter)
+                                    |
+              +---------------------+---------------------+
+              v                     v                     v
+         Diku / Circle          MUSH / MUX            MOO / MUCK
+```
 
-- entity creation/destruction
-- movement
-- property changes
-- connection/disconnection
-- command activity
-- domain-system outcomes
+### Mechanism and policy
 
-Scheduling provides:
+The substrate provides mechanisms:
 
-- delayed actions
-- recurring work
-- timers
-- world simulation
-- combat timing
-- scripts
-- resets
+- a task registry, following `Work -> Submission -> Task -> TaskRecord`: `Work` (`libs/work`) is what to do, a `kind` and an `input`. A `Submission` (`libs/submission`) is a request to have a `Work` executed. The engine admits a `Submission` into a `Task` (`libs/task`): `id`, `work`, `sequence`, `priority`, executed by a handler registered for its kind. `TaskRecord`, in `engine/core`, is the runtime's mutable state around one `Task`: its lifecycle state, its queue (`lane`, `tags`) and its execution state. Queue and cancellation metadata is not part of `Task` because their ownership is not settled beyond the runtime. The identifier values (`TaskId`, `TaskPriority`, `TaskSequence`) live in `libs/primitives`
+- named clocks, injected as instances (`libs/clock`), each with its own units
+- timelines, which release scheduled tasks when their clock reaches them
+- queues (lanes) holding ready work
+- the task lifecycle, cancellation, outcomes, and containment of handler failures
+- execution mechanics: running one step at a time
 
-Domain systems should use these mechanisms instead of implementing unrelated timing/event infrastructure of their own.
+The execution policy decides how they are used:
+
+- **queue selection and ordering**: which ready task runs next, including whether lanes are independent or merged into one order
+- **priority and fairness** between lanes and tasks
+- **ordering between clocks**: tasks on different clocks are not ordered by the substrate, because clock units are not comparable, so a policy establishes any relationship explicitly
+- **budgets and boundaries**: how much work runs per step, pulse or round; a policy may decline to run ready work
+- **inline execution**: whether, and how deeply, a task may run another task immediately (`context.run`) rather than deferring it (`submit`)
+
+Two entry points express the difference in execution style: `submit` defers work, and `context.run` executes it inline as part of the current step. Whether a game may use inline execution is a policy decision.
+
+The substrate records facts and imposes no order of its own. For each ready task it records the batch in which the task became ready and, if the task waited on a clock, the time it was due. `oldestReady` is a default policy that runs the earliest-ready task across all lanes. It is one policy among possible ones, not the definition of the substrate.
+
+### The work model
+
+Every unit of work is in exactly one state:
+
+| State | Meaning | Status |
+|-------|---------|--------|
+| pending | Waiting for its scheduled time to arrive | implemented |
+| ready | May run, waiting for the policy to choose it | implemented |
+| waiting | Suspended on something other than time: an event, a condition, input or a semaphore | implemented |
+| running | Its step is executing | implemented |
+| completed | Finished normally | implemented |
+| failed | Its handler threw | implemented |
+| cancelled | Cancelled before or during execution | implemented |
+
+Work reaches `ready` through different triggers. `now`, `after` and `at` exist. Still to be defined generically, before any game adapter is written:
+
+- **the rest of the handler outcomes**: a handler can now suspend a task into `waiting`, and `runtime.wake(id)` makes it ready again with the continuation it suspended with. The core stores no reason for the wait, so an adapter keeps its own map from a semaphore, event or prompt to task ids. Reschedule and yield are still to come, and use the same outcome mechanism.
+- **recurring work**: repeat on a clock, including what happens to missed repetitions.
+- **logical boundaries and phases**: an adapter can say "at pulse boundary P, execute phase X" and establish the ordering between phases. The core provides the boundary and ordering primitives; it does not contain a Diku scheduler.
+- **priority, fairness and execution budgets** as policies over the existing selection point.
+
+The rule for each of these is the same: the core adds a generic mechanism, and the adapter's policy interprets it.
+
+### Events
+
+Events report what has already happened and never decide it. Authoritative work goes through the execution substrate; events let other components react to the result. Domain systems should use these mechanisms instead of implementing their own timing or event infrastructure.
+
+### Determinism
+
+The logical engine is deterministic for a given input history and execution policy. See [DETERMINISM.md](./DETERMINISM.md).
 
 ## 17. Robustness Principles
 
@@ -626,6 +679,7 @@ For a live server with potentially dozens or hundreds of players:
 - Support graceful shutdown.
 - Make recovery/restart behavior explicit.
 - Keep observability available.
+- Keep the logical engine deterministic, and treat environmental timing and external I/O as inputs to it ([DETERMINISM.md](./DETERMINISM.md)).
 
 The initial runtime can remain a single process/event loop if that is appropriate. The domain model should not depend on that assumption.
 
@@ -652,13 +706,13 @@ The runtime can later use additional workers, processes, or another implementati
 
 The current preferred boundary is:
 
-> Core provides the runtime and traditional world machinery.
+> Core provides the execution substrate and the traditional world machinery.
 >
-> Domain systems provide optional gameplay/social/behavioral capabilities.
+> Adapters/game profiles define game semantics, select the execution policy, and select, configure and constrain domain capabilities.
 >
-> Adapters/game profiles select, configure, and constrain those systems.
+> Plugins provide replaceable infrastructure and integrations: storage, networking, protocols and similar boundaries.
 >
-> Infrastructure implementations provide storage, networking, protocols, and other external integrations.
+> Libs provide private reusable support code.
 
 This is preferred over making each adapter a self-contained implementation of an entire game.
 
@@ -796,13 +850,13 @@ The engine remains the authority over live state. Plugins provide implementation
 
 Terms such as "domain system" remain useful architectural concepts for capabilities such as combat, population, scripting, social interaction, economy, and progression.
 
-They do not necessarily require a separate top-level `systems/` workspace category. A capability can be implemented as a plugin or otherwise composed through the engine/adapter boundaries according to its role.
+They do not require a separate top-level `systems/` workspace category. Where a capability lives has not been decided: `plugins/` is for replaceable infrastructure and integrations, not for gameplay domains by default. A domain capability will be placed when its ownership and dependencies are clear.
 
 The important distinction is:
 
-- **Engine** — runs the authoritative world.
-- **Adapter** — defines the game flavor/profile.
-- **Plugin** — supplies replaceable implementations/integrations.
+- **Engine** — runs the authoritative world and provides the execution substrate.
+- **Adapter** — defines the game flavor/profile, including its execution policy.
+- **Plugin** — supplies replaceable infrastructure and integrations.
 - **Lib** — supplies private reusable support code.
 - **App** — composes these into an executable.
 
@@ -828,6 +882,15 @@ The repository should avoid introducing a workspace category merely because a co
 ```
 
 The engine owns the live game runtime. The adapter supplies game semantics and configuration. Plugins provide replaceable infrastructure or other capabilities at defined boundaries. Libraries provide private shared implementation support.
+
+### Current transition state
+
+The repository is between its earlier layout and the layout above. This is a transition, not the target.
+
+- `engine/core` and `libs/clock` follow the target layout.
+- `packages/base` and `packages/capabilities` predate it, and `engine/core` depends on them. Where their contents belong (libs, plugins or the engine) has not been decided; the pino and emittery adapters are plausible plugin candidates, and `Base` and the capability contracts plausible lib candidates.
+- `engine/events`, `engine/lifecycle`, `engine/rules`, `engine/sessions` and `engine/world` exist only as empty directories. They are not workspaces, and a directory becomes a package only when its responsibility is established.
+- `packages/*` and `docs/*` remain in `pnpm-workspace.yaml` until the moves above are decided.
 
 ## 21. Git Workflow
 
@@ -864,7 +927,7 @@ Before implementing specific MUD/MUSH/MOO features, establish:
 1. Core engine boundaries.
 2. World/state model.
 3. Controlled state-transition mechanism.
-4. Events and scheduling.
+4. Execution substrate, execution policy and the work model (section 16).
 5. Session/player I/O.
 6. Persistence boundary.
 7. Networking boundary.
