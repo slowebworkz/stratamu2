@@ -2,7 +2,7 @@
 
 `Base`, an abstract class that gives an object a lazily created, contextual logger.
 
-**Status:** small and settled. Private and unpublished. It lives in `packages/`, which is part of the repository's transition state; its final location is undecided (see the architecture document).
+**Status:** small and settled. Private and unpublished.
 
 ## What exists
 

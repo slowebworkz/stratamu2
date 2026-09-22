@@ -2,7 +2,7 @@
 
 Capability contracts and their default adapters: logging and events. A contract is a small interface in `types.ts` with no third-party types. An adapter implements it and is the only place a third-party library is imported.
 
-**Status:** working and tested. Private and unpublished. It lives in `packages/`, which is part of the repository's transition state; the adapters are candidates for `plugins/` and the contracts for `libs/`, but that is undecided.
+**Status:** working and tested. Private and unpublished. Whether the concrete `pino`/`emittery` adapters should eventually split out into their own `plugins/` packages, leaving only the contracts here, is still open; nothing currently needs that split (see the architecture document).
 
 ## What exists
 
