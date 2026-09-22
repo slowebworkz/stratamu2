@@ -965,6 +965,9 @@ describe("waiting", () => {
   describe("wake", () => {
     it("refuses a task that is not waiting, and says what state it is in", async () => {
       const { runtime, say } = setup()
+      runtime.handle(k("later"), () => reschedule(schedule.after(5, "time")))
+      const scheduled = runtime.submit({ work: work(k("later"), undefined) })
+      await runtime.drain()
       const ready = runtime.submit(say("ready"))
       const pending = runtime.submit(say("pending"), schedule.after(5, "time"))
       const errors: string[] = []
@@ -978,6 +981,7 @@ describe("waiting", () => {
 
       expect(() => runtime.wake(ready.id)).toThrow("while it is ready")
       expect(() => runtime.wake(pending.id)).toThrow("while it is pending")
+      expect(() => runtime.wake(scheduled.id)).toThrow("while it is scheduled")
 
       runtime.submit({ work: work(k("self"), undefined) })
       await runtime.drain()
@@ -1240,5 +1244,151 @@ describe("rescheduling", () => {
     expect(outcomes).toMatchObject([{ state: "failed" }])
     expect(String((outcomes[0] as { error: unknown }).error)).toContain("cannot reschedule")
     expect(runtime.pending).toBe(0)
+  })
+
+  it("cancels a scheduled task by lane or tag, the same as a pending one", async () => {
+    const { runtime } = setup()
+    runtime.handle(k("later"), () => reschedule(schedule.after(10, "time")))
+    runtime.submit({ work: work(k("later"), undefined), lane: "session-1" })
+    runtime.submit({ work: work(k("later"), undefined), tags: ["combat"] })
+    await runtime.drain()
+
+    expect(runtime.cancelLane("session-1")).toBe(1)
+    expect(runtime.cancelTag("combat")).toBe(1)
+    expect(runtime.pending).toBe(0)
+  })
+
+  it("does not cancel a task that already finished after rescheduling once", async () => {
+    const { runtime, clock } = setup()
+    let ran = 0
+    runtime.handle(k("later"), () => {
+      ran++
+      if (ran === 1) {
+        return reschedule(schedule.after(5, "time"))
+      }
+    })
+    const handle = runtime.submit({ work: work(k("later"), undefined) })
+    await runtime.drain()
+    clock.tick(5)
+    await runtime.drain()
+    expect(handle.state).toBe("completed")
+
+    expect(handle.cancel()).toBe(false)
+    expect(handle.state).toBe("completed")
+  })
+
+  it("moves a repeatedly rescheduled task between different clocks' timelines", async () => {
+    const { runtime, clock } = setup()
+    const other = testClock()
+    runtime.attachClock("other", other)
+    const seenClocks: unknown[] = []
+    runtime.handle(k("later"), () => {
+      seenClocks.push(runtime.pending)
+      if (seenClocks.length === 1) {
+        return reschedule(schedule.after(5, "time"))
+      }
+      if (seenClocks.length === 2) {
+        return reschedule(schedule.after(5, "other"))
+      }
+    })
+    const handle = runtime.submit({ work: work(k("later"), undefined) })
+    await runtime.drain()
+
+    clock.tick(5)
+    await runtime.drain()
+    expect(handle.state).toBe("scheduled")
+
+    other.tick(5)
+    await runtime.drain()
+
+    expect(seenClocks).toHaveLength(3)
+    expect(handle.state).toBe("completed")
+  })
+
+  it("shares a batch with a pending task released by the same observation", async () => {
+    const views: { batch: number }[][] = []
+    const spy: ExecutionPolicy = {
+      next(lanes) {
+        views.push(
+          [...lanes].flatMap(lane => [...lane.items()].map(ready => ({ batch: ready.batch }))),
+        )
+        return oldestReady().next(lanes)
+      },
+    }
+    const { runtime, clock, say } = setup(spy)
+    let ran = 0
+    runtime.handle(k("later"), () => {
+      ran++
+      if (ran === 1) {
+        return reschedule(schedule.after(5, "time"))
+      }
+    })
+    runtime.submit({ work: work(k("later"), undefined) })
+    await runtime.drain()
+    runtime.submit(say("also due"), schedule.after(5, "time"))
+    views.length = 0
+
+    clock.tick(5)
+    await runtime.drain()
+
+    const [rescheduled, pending] = views[0] ?? []
+    expect(rescheduled?.batch).toBe(pending?.batch)
+  })
+
+  it("rejects an invalid reschedule the same way an invalid admission schedule is rejected", async () => {
+    const { runtime } = setup()
+    runtime.handle(k("later"), () => reschedule(schedule.after(-1, "time")))
+    const handle = runtime.submit({ work: work(k("later"), undefined) })
+
+    await runtime.drain()
+
+    expect(handle.state).toBe("failed")
+    const outcome = await handle.settled
+    expect(outcome).toMatchObject({ state: "failed" })
+    expect(String((outcome as { error: unknown }).error)).toContain("Invalid schedule time")
+    expect(runtime.pending).toBe(0)
+  })
+
+  it("rejects a reschedule that names an unattached clock, and does not leave the runtime stuck", async () => {
+    const { runtime } = setup()
+    runtime.handle(k("later"), () => reschedule(schedule.after(5, "nonexistent")))
+    const handle = runtime.submit({ work: work(k("later"), undefined) })
+
+    await expect(runtime.drain()).resolves.toBe(1)
+
+    expect(handle.state).toBe("failed")
+    const outcome = await handle.settled
+    expect(outcome).toMatchObject({ state: "failed" })
+    expect(String((outcome as { error: unknown }).error)).toContain('Unknown clock "nonexistent"')
+    expect(runtime.pending).toBe(0)
+  })
+
+  it("hands a continuation through a mixed chain of suspending and rescheduling", async () => {
+    const seenContinuations: unknown[] = []
+    const { runtime, clock } = setup()
+    runtime.handle(k("mixed"), (_task, context) => {
+      seenContinuations.push(context.continuation)
+      switch (seenContinuations.length) {
+        case 1:
+          return suspend("after waiting")
+        case 2:
+          return reschedule(schedule.after(5, "time"), "after scheduling")
+        default:
+          return undefined
+      }
+    })
+    const handle = runtime.submit({ work: work(k("mixed"), undefined) })
+    await runtime.drain()
+    expect(handle.state).toBe("waiting")
+
+    runtime.wake(handle.id)
+    await runtime.drain()
+    expect(handle.state).toBe("scheduled")
+
+    clock.tick(5)
+    await runtime.drain()
+
+    expect(seenContinuations).toEqual([undefined, "after waiting", "after scheduling"])
+    expect(handle.state).toBe("completed")
   })
 })

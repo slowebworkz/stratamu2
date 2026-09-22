@@ -53,4 +53,4 @@ The runtime reads time only from injected clocks and never reads wall time or ra
 
 ## Depends on
 
-`@stratamu/base` (logging), `@stratamu/clock`, `@stratamu/primitives`, `@stratamu/work`, `@stratamu/submission`, `@stratamu/task`, and `@stratamu/capabilities`. The last is part of the transition described in the architecture document.
+`@stratamu/base` (logging), `@stratamu/clock`, `@stratamu/primitives`, `@stratamu/work`, `@stratamu/submission`, `@stratamu/task`, and `@stratamu/capabilities`.

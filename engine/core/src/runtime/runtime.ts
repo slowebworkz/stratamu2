@@ -30,6 +30,13 @@ import type { RuntimeOptions } from "./types.ts"
  */
 type Reading = { readonly value: bigint }
 
+/** A resolved `Schedule`: a clock, the timeline it names, and the safe-integer time it is due. */
+type Due = {
+  readonly clock: ClockId
+  readonly timeline: Timeline<TaskRecord>
+  readonly dueAt: number
+}
+
 /**
  * The execution substrate: the task registry, clocks, timelines, queues, task lifecycle and the
  * mechanics of running a task. It provides mechanisms and imposes no execution semantics of its
@@ -242,9 +249,7 @@ export class Runtime extends Base {
     return time
   }
 
-  #resolve(
-    when: Schedule,
-  ): { clock: ClockId; timeline: Timeline<TaskRecord>; dueAt: number } | undefined {
+  #resolve(when: Schedule): Due | undefined {
     if (when.kind === "now") {
       return undefined
     }
@@ -271,15 +276,7 @@ export class Runtime extends Base {
    * or `scheduled` (a running task rescheduling itself): the same temporal wait, reached from two
    * different points in a task's life. `release` picks either kind up identically once due.
    */
-  #defer(
-    record: TaskRecord,
-    due: {
-      readonly clock: ClockId
-      readonly timeline: Timeline<TaskRecord>
-      readonly dueAt: number
-    },
-    state: "pending" | "scheduled",
-  ): void {
+  #defer(record: TaskRecord, due: Due, state: "pending" | "scheduled"): void {
     record.state = state
     record.via = { clock: due.clock, dueAt: due.dueAt }
     record.execution.timeline = due.timeline
@@ -399,6 +396,7 @@ export class Runtime extends Base {
     let outcome: TaskOutcome | undefined
     let suspended: TaskSuspend | undefined
     let rescheduled: TaskReschedule | undefined
+    let due: Due | undefined
     try {
       const handler = this.#handlers.get(record.task.work.kind)
       if (!handler) {
@@ -418,6 +416,10 @@ export class Runtime extends Base {
         if (!canDefer) {
           throw new Error("A task run inline cannot reschedule")
         }
+        // Resolved inside the same error boundary as the handler itself: an invalid
+        // reschedule (a bad delay, an unknown clock) is this task's failure, not an
+        // unhandled crash of the runtime.
+        due = this.#resolve(result.schedule)
         rescheduled = result
       } else {
         outcome = { state: "completed" }
@@ -437,7 +439,6 @@ export class Runtime extends Base {
     if (outcome === undefined) {
       if (rescheduled !== undefined) {
         record.continuation = rescheduled.continuation
-        const due = this.#resolve(rescheduled.schedule)
         if (due === undefined) {
           this.#ready(record, this.#nextBatch++)
         } else {

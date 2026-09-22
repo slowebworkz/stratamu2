@@ -888,10 +888,9 @@ The engine owns the live game runtime. The adapter supplies game semantics and c
 
 The repository is between its earlier layout and the layout above. This is a transition, not the target.
 
-- `engine/core` and `libs/clock` follow the target layout.
-- `packages/base` and `packages/capabilities` predate it, and `engine/core` depends on them. Where their contents belong (libs, plugins or the engine) has not been decided; the pino and emittery adapters are plausible plugin candidates, and `Base` and the capability contracts plausible lib candidates.
+- `engine/core`, `libs/clock`, `libs/base` and `libs/capabilities` follow the target layout. `base` and `capabilities` (the logging and events contracts, `Base`'s contextual logger) moved from `packages/` to `libs/` once nothing else was undecided about them. Whether the concrete `pino`/`emittery` adapters inside `capabilities` should eventually split out into their own plugins is still open, and not acted on: `plugins/` has no established member yet, and nothing currently needs that split.
 - `engine/events`, `engine/lifecycle`, `engine/rules`, `engine/sessions` and `engine/world` exist only as empty directories. They are not workspaces, and a directory becomes a package only when its responsibility is established.
-- `packages/*` and `docs/*` remain in `pnpm-workspace.yaml` until the moves above are decided.
+- `packages/*` and `docs/*` remain in `pnpm-workspace.yaml`, matching nothing today: `packages/` is empty now that `base` and `capabilities` moved, and `docs/*` was never used for a package. Left as-is rather than pruned in the same change that moved `base`/`capabilities`, since removing them is an unrelated, separate decision.
 
 ## 21. Git Workflow
 
