@@ -33,8 +33,10 @@ export interface TaskRecord {
   batch: number
   /**
    * Present only while the task is `pending` or `ready`, and identifies the temporal schedule
-   * used for its current eligibility or order. Cleared as soon as the task leaves those states,
-   * so it is never stale: see `#cancel` and `#finish` in `Runtime`.
+   * used for its current eligibility or order. Retained across `pending -> ready`, since
+   * `oldestReady` uses it for cross-clock ordering, but cleared no later than `ready -> running`,
+   * so it is never stale while `running`, `waiting`, or in a terminal state: see `#execute`,
+   * `#cancel` and `#finish` in `Runtime`.
    */
   via: ReadyVia | undefined
   /** What the task suspended with. It is handed back, once, when the task runs again. */
