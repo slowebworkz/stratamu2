@@ -6,4 +6,4 @@ import type { TaskContext } from "./task-context.ts"
 export type TaskHandler = (
   task: Task,
   context: TaskContext,
-) => void | TaskResult | Promise<void> | Promise<TaskResult | undefined>
+) => undefined | TaskResult | Promise<TaskResult | undefined>

@@ -11,8 +11,15 @@ import type { ExecutionPolicy, ReadyLane } from "../policy/index.ts"
 import { oldestReady } from "../policy/index.ts"
 import type { Schedule } from "../schedule/index.ts"
 import { schedule } from "../schedule/index.ts"
-import type { TaskAdmission, TaskHandle, TaskHandler, TaskOutcome } from "../task/index.ts"
-import { isTaskSuspend, TaskSequencer } from "../task/index.ts"
+import type {
+  TaskAdmission,
+  TaskHandle,
+  TaskHandler,
+  TaskOutcome,
+  TaskReschedule,
+  TaskSuspend,
+} from "../task/index.ts"
+import { isTaskReschedule, isTaskSuspend, TaskSequencer } from "../task/index.ts"
 import { Timeline } from "../timeline/index.ts"
 import type { TaskRecord } from "./record.ts"
 import type { RuntimeOptions } from "./types.ts"
@@ -129,10 +136,7 @@ export class Runtime extends Base {
     if (due === undefined) {
       this.#ready(record, this.#nextBatch++)
     } else {
-      record.state = "pending"
-      record.via = { clock: due.clock, dueAt: due.dueAt }
-      record.execution.timeline = due.timeline
-      due.timeline.insert(record, due.dueAt)
+      this.#defer(record, due, "pending")
     }
 
     return {
@@ -263,6 +267,26 @@ export class Runtime extends Base {
   }
 
   /**
+   * Puts a record into the timeline a resolved `Schedule` names, as either `pending` (admission)
+   * or `scheduled` (a running task rescheduling itself): the same temporal wait, reached from two
+   * different points in a task's life. `release` picks either kind up identically once due.
+   */
+  #defer(
+    record: TaskRecord,
+    due: {
+      readonly clock: ClockId
+      readonly timeline: Timeline<TaskRecord>
+      readonly dueAt: number
+    },
+    state: "pending" | "scheduled",
+  ): void {
+    record.state = state
+    record.via = { clock: due.clock, dueAt: due.dueAt }
+    record.execution.timeline = due.timeline
+    due.timeline.insert(record, due.dueAt)
+  }
+
+  /**
    * Admits a `Submission` into a `Task`: the engine assigns it an identity, its place in creation
    * order, and a priority (the lowest, if none was given; the engine always decides one).
    */
@@ -359,21 +383,22 @@ export class Runtime extends Base {
   }
 
   /**
-   * Runs one step of a task. Resolves with its outcome, or with `undefined` if it suspended,
-   * which only a task run by the scheduler may do.
+   * Runs one step of a task. Resolves with its outcome, or with `undefined` if it suspended or
+   * rescheduled itself, either of which only a task run by the scheduler may do.
    */
-  async #execute(record: TaskRecord, canSuspend: false): Promise<TaskOutcome>
-  async #execute(record: TaskRecord, canSuspend: true): Promise<TaskOutcome | undefined>
-  async #execute(record: TaskRecord, canSuspend: boolean): Promise<TaskOutcome | undefined> {
+  async #execute(record: TaskRecord, canDefer: false): Promise<TaskOutcome>
+  async #execute(record: TaskRecord, canDefer: true): Promise<TaskOutcome | undefined>
+  async #execute(record: TaskRecord, canDefer: boolean): Promise<TaskOutcome | undefined> {
     record.state = "running"
     // Its ready ordering no longer applies once it is running, and a task that goes on to
-    // suspend must reach `waiting` with no stale via or batch either.
+    // suspend or reschedule must reach that state with no stale via or batch either.
     record.via = undefined
     record.batch = 0
     const continuation = record.continuation
 
     let outcome: TaskOutcome | undefined
-    let suspended: { readonly continuation?: unknown } | undefined
+    let suspended: TaskSuspend | undefined
+    let rescheduled: TaskReschedule | undefined
     try {
       const handler = this.#handlers.get(record.task.work.kind)
       if (!handler) {
@@ -384,12 +409,18 @@ export class Runtime extends Base {
         continuation,
         run: admission => this.#runInline(record, admission),
       })
-      if (!isTaskSuspend(result)) {
-        outcome = { state: "completed" }
-      } else if (canSuspend) {
+      if (isTaskSuspend(result)) {
+        if (!canDefer) {
+          throw new Error("A task run inline cannot suspend")
+        }
         suspended = result
+      } else if (isTaskReschedule(result)) {
+        if (!canDefer) {
+          throw new Error("A task run inline cannot reschedule")
+        }
+        rescheduled = result
       } else {
-        throw new Error("A task run inline cannot suspend")
+        outcome = { state: "completed" }
       }
     } catch (error) {
       outcome = { state: "failed", error }
@@ -404,6 +435,16 @@ export class Runtime extends Base {
     }
 
     if (outcome === undefined) {
+      if (rescheduled !== undefined) {
+        record.continuation = rescheduled.continuation
+        const due = this.#resolve(rescheduled.schedule)
+        if (due === undefined) {
+          this.#ready(record, this.#nextBatch++)
+        } else {
+          this.#defer(record, due, "scheduled")
+        }
+        return undefined
+      }
       record.continuation = suspended?.continuation
       record.state = "waiting"
       return undefined
@@ -427,6 +468,7 @@ export class Runtime extends Base {
 
     switch (record.state) {
       case "pending":
+      case "scheduled":
         execution.timeline?.remove(record)
         execution.timeline = undefined
         record.via = undefined

@@ -638,18 +638,19 @@ Every unit of work is in exactly one state:
 
 | State | Meaning | Status |
 |-------|---------|--------|
-| pending | Waiting for its scheduled time to arrive | implemented |
+| pending | Waiting for its scheduled time to arrive, before ever running | implemented |
 | ready | May run, waiting for the policy to choose it | implemented |
-| waiting | Suspended on something other than time: an event, a condition, input or a semaphore | implemented |
 | running | Its step is executing | implemented |
+| scheduled | Ran at least once and asked to become eligible again at a scheduled time | implemented |
+| waiting | Suspended on something other than time: an event, a condition, input or a semaphore | implemented |
 | completed | Finished normally | implemented |
 | failed | Its handler threw | implemented |
 | cancelled | Cancelled before or during execution | implemented |
 
 A task reaches `ready` through its `Schedule`: temporal eligibility, resolved once at admission (`now`, `after` and `at` exist). This is not the same concept as a trigger in the traditional sense (a property change, a command, an object event, a semaphore, a timer) that causes `Work` to exist in the first place: that is a `Source`/`Event`, outside this substrate, and the term "trigger" is deliberately not used for the engine's own scheduling instruction, to keep the two apart. Still to be defined generically, before any game adapter is written:
 
-- **the rest of the handler outcomes**: a handler can now suspend a task into `waiting`, and `runtime.wake(id)` makes it ready again with the continuation it suspended with. The core stores no reason for the wait, so an adapter keeps its own map from a semaphore, event or prompt to task ids. Reschedule and yield are still to come, and use the same outcome mechanism.
-- **recurring work**: repeat on a clock, including what happens to missed repetitions.
+- **the rest of the handler outcomes**: a handler can suspend a task into `waiting`, and `runtime.wake(id)` makes it ready again with the continuation it suspended with. A handler can also reschedule a task into `scheduled`, reusing `Schedule` itself: the same task, the same id and sequence, asking to become eligible again at a temporal point of its own choosing. The core stores no reason for a wait, so an adapter keeps its own map from a semaphore, event or prompt to task ids. Yield is still to come, and would use the same outcome mechanism.
+- **recurring work**: not a separate mechanism. A handler that returns `reschedule` every time it runs is recurring work; period tracking, drift and what happens to a missed repetition are the adapter's own bookkeeping, carried in its continuation, not something core tracks.
 - **logical boundaries and phases**: an adapter can say "at pulse boundary P, execute phase X" and establish the ordering between phases. The core provides the boundary and ordering primitives; it does not contain a Diku scheduler.
 - **priority, fairness and execution budgets** as policies over the existing selection point.
 
