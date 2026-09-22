@@ -9,11 +9,11 @@ import type { ClockId } from "../clock/index.ts"
 import { GLOBAL_LANE, Lane } from "../lane/index.ts"
 import type { ExecutionPolicy, ReadyLane } from "../policy/index.ts"
 import { oldestReady } from "../policy/index.ts"
+import type { Schedule } from "../schedule/index.ts"
+import { schedule } from "../schedule/index.ts"
 import type { TaskAdmission, TaskHandle, TaskHandler, TaskOutcome } from "../task/index.ts"
 import { isTaskSuspend, TaskSequencer } from "../task/index.ts"
 import { Timeline } from "../timeline/index.ts"
-import type { Trigger } from "../trigger/index.ts"
-import { trigger } from "../trigger/index.ts"
 import type { TaskRecord } from "./record.ts"
 import type { RuntimeOptions } from "./types.ts"
 
@@ -31,7 +31,7 @@ type Reading = { readonly value: bigint }
  *
  * Admitting a task follows `@stratamu/submission -> @stratamu/task`: a `Submission` (carried on a
  * `TaskAdmission`) is admitted into a `Task`, which is then wrapped in a `TaskRecord` and given to
- * its `Trigger`, which decides whether it starts `ready` or `pending`.
+ * its `Schedule`, which decides whether it starts `ready` or `pending`.
  *
  * What the runtime does record are facts: the batch in which a task became ready and, for a task
  * that waited on a clock, when it was due. It does not order tasks from different clocks, because
@@ -79,7 +79,7 @@ export class Runtime extends Base {
     this.#handlers.set(kind, handler)
   }
 
-  /** Attaches a clock that triggers can refer to by `id`. */
+  /** Attaches a clock that schedules can refer to by `id`. */
   attachClock(id: ClockId, clock: Clock<Reading>): void {
     if (this.#clocks.has(id)) {
       throw new Error(`Clock "${id}" is already attached`)
@@ -117,10 +117,10 @@ export class Runtime extends Base {
    * `admission`'s `Submission` is admitted into a `Task`, wrapped in a `TaskRecord`, and then
    * handed to `when`, which decides whether it starts `ready` or `pending`.
    */
-  submit(admission: TaskAdmission, when: Trigger = trigger.now): TaskHandle {
+  submit(admission: TaskAdmission, when: Schedule = schedule.now): TaskHandle {
     // Tasks that came due before this call are ready before the new one is queued.
     this.release()
-    // Resolve the trigger first so an invalid one consumes no task id.
+    // Resolve the schedule first so an invalid one consumes no task id.
     const due = this.#resolve(when)
     const task = this.#admit(admission)
     const record = this.#createRecord(task, admission, when)
@@ -239,16 +239,16 @@ export class Runtime extends Base {
   }
 
   #resolve(
-    when: Trigger,
+    when: Schedule,
   ): { clock: ClockId; timeline: Timeline<TaskRecord>; dueAt: number } | undefined {
     if (when.kind === "now") {
       return undefined
     }
 
     const now = this.now(when.clock)
-    const dueAt = when.kind === "after" ? now + when.n : when.t
-    if (!Number.isFinite(dueAt) || (when.kind === "after" && when.n < 0)) {
-      throw new RangeError(`Invalid trigger time for clock "${when.clock}"`)
+    const dueAt = when.kind === "after" ? now + when.delay : when.time
+    if (!Number.isFinite(dueAt) || (when.kind === "after" && when.delay < 0)) {
+      throw new RangeError(`Invalid schedule time for clock "${when.clock}"`)
     }
 
     // Due already: the task is ready now rather than waiting for the clock to move.
@@ -279,7 +279,7 @@ export class Runtime extends Base {
   #createRecord(
     task: Task,
     admission: TaskAdmission,
-    when: Trigger,
+    when: Schedule,
     inherited?: { signal: AbortSignal; depth: number },
   ): TaskRecord {
     const controller = inherited === undefined ? new AbortController() : undefined
@@ -353,7 +353,7 @@ export class Runtime extends Base {
     }
 
     const task = this.#admit(admission)
-    const inline = this.#createRecord(task, admission, trigger.now, {
+    const inline = this.#createRecord(task, admission, schedule.now, {
       signal: parent.execution.signal,
       depth,
     })

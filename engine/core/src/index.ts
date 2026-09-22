@@ -11,6 +11,11 @@ export type {
 export { oldestReady } from "./policy/index.ts"
 export type { RuntimeOptions } from "./runtime/index.ts"
 export { Runtime } from "./runtime/index.ts"
+export type {
+  AbsoluteSchedule,
+  ImmediateSchedule,
+  RelativeSchedule,
+  Schedule,
+} from "./schedule/index.ts"
+export { schedule } from "./schedule/index.ts"
 export * from "./task/index.ts"
-export type { Trigger } from "./trigger/index.ts"
-export { trigger } from "./trigger/index.ts"
