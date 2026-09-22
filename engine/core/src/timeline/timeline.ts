@@ -1,7 +1,5 @@
-import { Base } from "@stratamu/base"
-
 /** Items ordered by due time. Items due at the same time keep the order they were inserted in. */
-export class Timeline<T> extends Base {
+export class Timeline<T> {
   #entries: { item: T; dueAt: number }[] = []
 
   get size(): number {

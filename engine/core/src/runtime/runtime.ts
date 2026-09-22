@@ -123,7 +123,7 @@ export class Runtime extends Base {
     // Resolve the schedule first so an invalid one consumes no task id.
     const due = this.#resolve(when)
     const task = this.#admit(admission)
-    const record = this.#createRecord(task, admission, when)
+    const record = this.#createRecord(task, admission)
     this.#live.set(record.task.id, record)
 
     if (due === undefined) {
@@ -279,7 +279,6 @@ export class Runtime extends Base {
   #createRecord(
     task: Task,
     admission: TaskAdmission,
-    when: Schedule,
     inherited?: { signal: AbortSignal; depth: number },
   ): TaskRecord {
     const controller = inherited === undefined ? new AbortController() : undefined
@@ -292,7 +291,6 @@ export class Runtime extends Base {
       task,
       lane: admission.lane ?? GLOBAL_LANE,
       tags: [...(admission.tags ?? [])],
-      trigger: when,
       state: "ready",
       batch: 0,
       via: undefined,
@@ -353,7 +351,7 @@ export class Runtime extends Base {
     }
 
     const task = this.#admit(admission)
-    const inline = this.#createRecord(task, admission, schedule.now, {
+    const inline = this.#createRecord(task, admission, {
       signal: parent.execution.signal,
       depth,
     })
@@ -413,6 +411,7 @@ export class Runtime extends Base {
 
   #finish(record: TaskRecord, outcome: TaskOutcome): void {
     record.state = outcome.state
+    record.via = undefined
     this.#live.delete(record.task.id)
     record.execution.settle(outcome)
   }
@@ -425,6 +424,7 @@ export class Runtime extends Base {
       case "pending":
         execution.timeline?.remove(record)
         execution.timeline = undefined
+        record.via = undefined
         break
       case "ready":
         this.#lanes.get(record.lane)?.remove(record)
