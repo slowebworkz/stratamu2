@@ -8,9 +8,9 @@ import { afterEach, beforeAll, describe, expect, it, vi } from "vitest"
 
 import type { ExecutionPolicy, ReadyLane, ReadyTask } from "../policy/index.ts"
 import { oldestReady } from "../policy/index.ts"
+import { schedule } from "../schedule/index.ts"
 import type { Task, TaskContext } from "../task/index.ts"
 import { suspend } from "../task/index.ts"
-import { trigger } from "../trigger/index.ts"
 import { Runtime } from "./runtime.ts"
 
 /** Test kinds live under one namespace, as real ones live under their family's. */
@@ -192,7 +192,7 @@ describe("immediate execution", () => {
 describe("delayed and scheduled execution", () => {
   it("holds a delayed task until its clock reaches it", async () => {
     const { runtime, clock, seen, say } = setup()
-    const handle = runtime.submit(say("later"), trigger.after(10, "time"))
+    const handle = runtime.submit(say("later"), schedule.after(10, "time"))
 
     expect(handle.state).toBe("pending")
     clock.tick(9)
@@ -207,7 +207,7 @@ describe("delayed and scheduled execution", () => {
 
   it("runs a task scheduled for an absolute time when the clock gets there", async () => {
     const { runtime, clock, seen, say } = setup()
-    runtime.submit(say("at 50"), trigger.at(50, "time"))
+    runtime.submit(say("at 50"), schedule.at(50, "time"))
 
     clock.tick(49)
     await runtime.drain()
@@ -221,8 +221,8 @@ describe("delayed and scheduled execution", () => {
     const { runtime, clock, say } = setup()
     clock.tick(100)
 
-    const late = runtime.submit(say("late"), trigger.at(50, "time"))
-    const zero = runtime.submit(say("zero"), trigger.after(0, "time"))
+    const late = runtime.submit(say("late"), schedule.at(50, "time"))
+    const zero = runtime.submit(say("zero"), schedule.after(0, "time"))
 
     expect(late.state).toBe("ready")
     expect(zero.state).toBe("ready")
@@ -230,9 +230,9 @@ describe("delayed and scheduled execution", () => {
 
   it("orders delayed tasks by due time, then by submission", async () => {
     const { runtime, clock, seen, say } = setup()
-    runtime.submit(say("c"), trigger.after(20, "time"))
-    runtime.submit(say("a"), trigger.after(10, "time"))
-    runtime.submit(say("b"), trigger.after(10, "time"))
+    runtime.submit(say("c"), schedule.after(20, "time"))
+    runtime.submit(say("a"), schedule.after(10, "time"))
+    runtime.submit(say("b"), schedule.after(10, "time"))
 
     clock.tick(20)
     await runtime.drain()
@@ -242,7 +242,7 @@ describe("delayed and scheduled execution", () => {
 
   it("orders a task by when it became ready, not when it was submitted", async () => {
     const { runtime, clock, seen, say } = setup()
-    runtime.submit(say("delayed"), trigger.after(5, "time"))
+    runtime.submit(say("delayed"), schedule.after(5, "time"))
     runtime.submit(say("queued"))
     clock.tick(5)
 
@@ -253,7 +253,7 @@ describe("delayed and scheduled execution", () => {
 
   it("makes tasks that came due ready before a task submitted afterwards", async () => {
     const { runtime, clock, seen, say } = setup()
-    runtime.submit(say("delayed"), trigger.after(5, "time"))
+    runtime.submit(say("delayed"), schedule.after(5, "time"))
     clock.tick(5)
     runtime.submit(say("fresh"))
 
@@ -267,7 +267,7 @@ describe("delayed and scheduled execution", () => {
     runtime.handle(k("end-round"), () => {
       clock.tick(1)
     })
-    runtime.submit(say("next round"), trigger.after(1, "time"))
+    runtime.submit(say("next round"), schedule.after(1, "time"))
     runtime.submit({ work: work(k("end-round"), undefined) })
 
     await runtime.drain()
@@ -279,8 +279,8 @@ describe("delayed and scheduled execution", () => {
     const { runtime, clock, seen, say } = setup()
     const turns = testClock()
     runtime.attachClock("turns", turns)
-    runtime.submit(say("on time"), trigger.after(1, "time"))
-    runtime.submit(say("on turns"), trigger.after(1, "turns"))
+    runtime.submit(say("on time"), schedule.after(1, "time"))
+    runtime.submit(say("on turns"), schedule.after(1, "turns"))
 
     clock.tick(1)
     await runtime.drain()
@@ -294,10 +294,12 @@ describe("delayed and scheduled execution", () => {
   it("rejects an unknown clock or an invalid time without consuming a task id", () => {
     const { runtime, say } = setup()
 
-    expect(() => runtime.submit(say("x"), trigger.after(1, "nope"))).toThrow('Unknown clock "nope"')
-    expect(() => runtime.submit(say("x"), trigger.after(-1, "time"))).toThrow(RangeError)
-    expect(() => runtime.submit(say("x"), trigger.after(Number.NaN, "time"))).toThrow(RangeError)
-    expect(() => runtime.submit(say("x"), trigger.at(Number.POSITIVE_INFINITY, "time"))).toThrow(
+    expect(() => runtime.submit(say("x"), schedule.after(1, "nope"))).toThrow(
+      'Unknown clock "nope"',
+    )
+    expect(() => runtime.submit(say("x"), schedule.after(-1, "time"))).toThrow(RangeError)
+    expect(() => runtime.submit(say("x"), schedule.after(Number.NaN, "time"))).toThrow(RangeError)
+    expect(() => runtime.submit(say("x"), schedule.at(Number.POSITIVE_INFINITY, "time"))).toThrow(
       RangeError,
     )
     expect(runtime.submit(say("x")).id).toBe(taskId("task-0"))
@@ -326,7 +328,7 @@ describe("lanes", () => {
   it("cancels everything in one lane and leaves the rest", async () => {
     const { runtime, clock, seen, say } = setup()
     runtime.submit(say("mine", { lane: "session-1" }))
-    runtime.submit(say("mine, delayed", { lane: "session-1" }), trigger.after(5, "time"))
+    runtime.submit(say("mine, delayed", { lane: "session-1" }), schedule.after(5, "time"))
     runtime.submit(say("theirs", { lane: "session-2" }))
 
     expect(runtime.cancelLane("session-1", "disconnected")).toBe(2)
@@ -365,7 +367,7 @@ describe("cancellation", () => {
 
   it("cancels a scheduled task so it never becomes ready", async () => {
     const { runtime, clock, seen, say } = setup()
-    const handle = runtime.submit(say("never"), trigger.after(5, "time"))
+    const handle = runtime.submit(say("never"), schedule.after(5, "time"))
 
     handle.cancel()
     clock.tick(5)
@@ -459,13 +461,13 @@ async function trace(policy?: ExecutionPolicy) {
   const { runtime, clock, seen, say } = setup(policy)
   runtime.handle(k("chain"), () => {
     seen.push("chain")
-    runtime.submit(say("from chain"), trigger.after(3, "time"))
+    runtime.submit(say("from chain"), schedule.after(3, "time"))
   })
   runtime.submit(say("a", { lane: "x" }))
   runtime.submit({ work: work(k("chain"), undefined), lane: "y" })
-  runtime.submit(say("b", { lane: "x" }), trigger.after(3, "time"))
-  runtime.submit(say("c", { lane: "y" }), trigger.after(1, "time"))
-  const cancelled = runtime.submit(say("never"), trigger.after(2, "time"))
+  runtime.submit(say("b", { lane: "x" }), schedule.after(3, "time"))
+  runtime.submit(say("c", { lane: "y" }), schedule.after(1, "time"))
+  const cancelled = runtime.submit(say("never"), schedule.after(2, "time"))
 
   await runtime.drain()
   cancelled.cancel()
@@ -581,7 +583,7 @@ describe("execution policy", () => {
   it("is not consulted when nothing is ready", async () => {
     const next = vi.fn()
     const { runtime, clock, say } = setup({ next })
-    runtime.submit(say("later"), trigger.after(5, "time"))
+    runtime.submit(say("later"), schedule.after(5, "time"))
 
     await runtime.drain()
     clock.tick(1)
@@ -624,8 +626,8 @@ describe("execution policy", () => {
     const { runtime, clock, say } = setup(spy)
     const other = testClock()
     runtime.attachClock("other", other)
-    runtime.submit(say("on time"), trigger.after(5, "time"))
-    runtime.submit(say("on other"), trigger.after(7, "other"))
+    runtime.submit(say("on time"), schedule.after(5, "time"))
+    runtime.submit(say("on other"), schedule.after(7, "other"))
     runtime.submit(say("now"))
     clock.tick(5)
     other.tick(7)
@@ -660,8 +662,8 @@ describe("ordering between clocks", () => {
     const a = testClock()
     runtime.attachClock("b-clock", b)
     runtime.attachClock("a-clock", a)
-    runtime.submit({ work: work(k("say"), "on b") }, trigger.after(5, "b-clock"))
-    runtime.submit({ work: work(k("say"), "on a") }, trigger.after(5, "a-clock"))
+    runtime.submit({ work: work(k("say"), "on b") }, schedule.after(5, "b-clock"))
+    runtime.submit({ work: work(k("say"), "on a") }, schedule.after(5, "a-clock"))
     b.tick(5)
     a.tick(5)
     await runtime.drain()
@@ -791,7 +793,7 @@ describe("clocks", () => {
     const now = vi.spyOn(Date, "now").mockReturnValue(1_000_000)
     const { runtime, seen, say } = setup()
     runtime.attachClock("wall", new WallClock())
-    runtime.submit(say("later"), trigger.after(500, "wall"))
+    runtime.submit(say("later"), schedule.after(500, "wall"))
 
     await runtime.drain()
     expect(seen).toEqual([])
@@ -811,7 +813,7 @@ describe("clocks", () => {
     runtime.attachClock("odd", backwards)
 
     expect(runtime.now("odd")).toBe(100)
-    expect(() => runtime.submit(say("x"), trigger.after(5, "odd"))).toThrow(
+    expect(() => runtime.submit(say("x"), schedule.after(5, "odd"))).toThrow(
       'Clock "odd" moved backwards, from 100 to 40',
     )
   })
@@ -926,7 +928,7 @@ describe("waiting", () => {
   it("is not moved by a clock, since it is waiting for something other than time", async () => {
     const { runtime, clock, seen } = setup()
     runtime.handle(k("wait"), waitsOnce(seen))
-    const handle = runtime.submit({ work: work(k("wait"), "a") }, trigger.after(5, "time"))
+    const handle = runtime.submit({ work: work(k("wait"), "a") }, schedule.after(5, "time"))
     clock.tick(5)
     await runtime.drain()
 
@@ -947,7 +949,7 @@ describe("waiting", () => {
     }
     const { runtime, clock, seen } = setup(spy)
     runtime.handle(k("wait"), waitsOnce(seen))
-    const handle = runtime.submit({ work: work(k("wait"), "a") }, trigger.after(5, "time"))
+    const handle = runtime.submit({ work: work(k("wait"), "a") }, schedule.after(5, "time"))
     clock.tick(5)
     await runtime.drain()
     const firstRun = views.at(-1)
@@ -964,7 +966,7 @@ describe("waiting", () => {
     it("refuses a task that is not waiting, and says what state it is in", async () => {
       const { runtime, say } = setup()
       const ready = runtime.submit(say("ready"))
-      const pending = runtime.submit(say("pending"), trigger.after(5, "time"))
+      const pending = runtime.submit(say("pending"), schedule.after(5, "time"))
       const errors: string[] = []
       runtime.handle(k("self"), task => {
         try {

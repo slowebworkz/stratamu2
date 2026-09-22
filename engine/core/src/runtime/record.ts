@@ -3,9 +3,9 @@ import type { Task } from "@stratamu/task"
 
 import type { LaneId } from "../lane/index.ts"
 import type { ReadyVia } from "../policy/index.ts"
+import type { Schedule } from "../schedule/index.ts"
 import type { TaskOutcome } from "../task/index.ts"
 import type { Timeline } from "../timeline/index.ts"
-import type { Trigger } from "../trigger/index.ts"
 
 /** The state a task has only while the process runs. It holds live objects and cannot be persisted. */
 export interface TaskExecution {
@@ -29,7 +29,7 @@ export interface TaskRecord {
    */
   readonly lane: LaneId
   readonly tags: readonly string[]
-  readonly trigger: Trigger
+  readonly trigger: Schedule
   state: TaskState
   /** See `ReadyTask`. Meaningful once the task is ready. */
   batch: number
