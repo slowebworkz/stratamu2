@@ -20,7 +20,7 @@ The engine's **authoritative game state**: what the `Runtime` executes against, 
 ## Not yet
 
 - Anything beyond identity and membership: locations, relationships, attributes. Not designed wholesale — discovered from what an adapter actually needs. The old giant `BaseEntity` (id, type, name, description, location, owner, flags, attributes, timestamps...) is exactly what this is avoiding.
-- `Sessions` and `Authority` on `EngineState`. Neither has a design yet. `Authority` in particular: nothing yet stops a handler from calling `world.remove(...)` directly, bypassing whatever rules a game would want to apply first.
+- `Sessions` and `Authority` on `EngineState`. `Sessions` has a design investigation, not yet an implementation — see [SESSION_BOUNDARY.md](../../docs/SESSION_BOUNDARY.md). `Authority` has no design yet: nothing stops a handler from calling `world.remove(...)` directly, bypassing whatever rules a game would want to apply first.
 - Persistence. `WorldState` is in-memory only.
 
 ## Depends on
