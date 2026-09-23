@@ -4,7 +4,6 @@ packages:
   - "docs/*"
   - "engine/*"
   - "libs/*"
-  - "packages/*"
   - "plugins/*"
 
 allowBuilds:

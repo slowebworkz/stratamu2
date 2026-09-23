@@ -11,11 +11,16 @@ The engine's **authoritative game state**: what the `Runtime` executes against, 
 
 `Entity` and `EntityType` live in [`@stratamu/entity`](../../libs/entity), not here: this package owns the authoritative *container*, not the shape of what it contains.
 
+## How a handler reaches it
+
+`Runtime` accepts an `EngineState` at construction (`RuntimeOptions.engineState`, optional — a `Runtime` has no opinion about game state, so it works without one) and threads its `world` through to `TaskContext.world`, unread and uninterpreted, for both a scheduler-run task and an inline one. See `@stratamu/engine-core`'s "vertical slice" test for the whole path proven end to end: `Input -> Work -> Task -> Runtime -> TaskHandler -> EngineState -> WorldState -> Output`.
+
+`WorldState` is not the authority system. `world.add(entity)`/`world.remove(id)` are plain data operations today, with no rule-checking — a handler that calls them directly is not (yet) going through anything that could refuse. That is fine for now: this is an internal authoritative data structure, not a public game API. Whatever eventually decides *whether* a mutation is allowed (`Authority`, in the architecture document's `Engine` sketch) sits between a handler and `WorldState`, not inside it — that boundary has no design yet, and isn't being retrofitted in speculatively.
+
 ## Not yet
 
 - Anything beyond identity and membership: locations, relationships, attributes. Not designed wholesale — discovered from what an adapter actually needs. The old giant `BaseEntity` (id, type, name, description, location, owner, flags, attributes, timestamps...) is exactly what this is avoiding.
-- `Sessions` and `Authority` on `EngineState`. Sessions is the next branch in the roadmap; Authority ("who may change what") has no design yet.
-- Wiring into `Runtime`/`TaskContext`, so a handler can actually read or write a `WorldState`. That interface is deliberately not guessed at here — it should emerge from a real vertical slice (a `look` command, say), not be designed before anything needs it.
+- `Sessions` and `Authority` on `EngineState`. Neither has a design yet. `Authority` in particular: nothing yet stops a handler from calling `world.remove(...)` directly, bypassing whatever rules a game would want to apply first.
 - Persistence. `WorldState` is in-memory only.
 
 ## Depends on

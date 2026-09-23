@@ -1,5 +1,6 @@
 import { Base } from "@stratamu/base"
 import type { Clock } from "@stratamu/clock"
+import type { EngineState } from "@stratamu/engine-world"
 import type { TaskId } from "@stratamu/primitives"
 import { taskId, taskPriority } from "@stratamu/primitives"
 import type { Task } from "@stratamu/task"
@@ -60,6 +61,7 @@ type Due = {
  */
 export class Runtime extends Base {
   readonly #policy: ExecutionPolicy
+  readonly #engineState: EngineState | undefined
   readonly #handlers = new Map<WorkKind, TaskHandler>()
   readonly #clocks = new Map<ClockId, Clock<Reading>>()
   readonly #lastReading = new Map<ClockId, number>()
@@ -78,6 +80,7 @@ export class Runtime extends Base {
   constructor(options: RuntimeOptions = {}) {
     super()
     this.#policy = options.policy ?? oldestReady()
+    this.#engineState = options.engineState
   }
 
   /** The number of tasks that have not finished, including the one running. */
@@ -405,6 +408,7 @@ export class Runtime extends Base {
       const result = await handler(record.task, {
         signal: record.execution.signal,
         continuation,
+        world: this.#engineState?.world,
         run: admission => this.#runInline(record, admission),
       })
       if (isTaskSuspend(result)) {
