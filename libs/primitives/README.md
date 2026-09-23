@@ -2,7 +2,7 @@
 
 Small value types shared across the workspaces. Its one runtime dependency is [`guardz`](https://www.npmjs.com/package/guardz), used for type guards.
 
-**Status:** working and tested. Private and unpublished. Used by `@stratamu/clock`, `@stratamu/work`, `@stratamu/task` and `engine/core`.
+**Status:** working and tested. Private and unpublished. Used by `@stratamu/clock`, `@stratamu/work`, `@stratamu/entity`, `@stratamu/task`, `@stratamu/engine-core` and `@stratamu/engine-world`.
 
 ## What exists
 
@@ -22,7 +22,7 @@ Branded identifiers and orderings for tasks. Each is created with a constructor 
 
 - `TaskId`: a string with something in it. `isTaskId` is the matching guard for data that has not been through `taskId`, such as a value read back from storage, and `taskId` uses it, so it needs no cast. `TaskId` and `TaskState` use `guardz`.
 - `TaskPriority`: a finite number, with `isTaskPriority`. Whether it exists, and which direction runs first, is the execution policy's decision.
-- `TaskState`: the seven states of a task (`pending`, `ready`, `running`, `waiting`, `completed`, `failed`, `cancelled`). `pending` is waiting for a time and `waiting` is suspended on anything else. `TASK_STATES` is the list the type is made from, and `isTaskState` is the guard for a state read back from storage.
+- `TaskState`: the eight states of a task (`pending`, `ready`, `running`, `scheduled`, `waiting`, `completed`, `failed`, `cancelled`). `pending` and `scheduled` are both temporal ("not until time T"), differing only in whether the task has ever run; `waiting` is logical ("not until something happens"). `TASK_STATES` is the list the type is made from, and `isTaskState` is the guard for a state read back from storage.
 - `TaskSequence`: a non-negative safe integer that records creation order, with `isTaskSequence`. It is a number so it persists cleanly, and `Number.MAX_SAFE_INTEGER` would take about 285 years at a million tasks a second.
 
 `guardz` is an implementation dependency of this package, not part of Stratamu's own vocabulary. Consumers import the guards from `@stratamu/primitives` (`import { isTaskId } from "@stratamu/primitives"`) and never from `guardz`, which would couple them to an implementation detail. The shared ESLint config enforces this: importing `guardz` is an error everywhere except in this package.
@@ -30,6 +30,10 @@ Branded identifiers and orderings for tasks. Each is created with a constructor 
 Every value has an `isX` guard next to its constructor, and the constructor uses it, so none of them needs a cast. `guardz` is used where it does the whole job: `isNonEmptyString` for ids and namespaced kinds, and `isOneOf` for states. It is not used for priority or sequence, because its numeric guards are looser than the rules: `isNumber` accepts `Infinity`, and `isNonNegativeInteger` accepts integers beyond `Number.MAX_SAFE_INTEGER`. `Number.isFinite` and `Number.isSafeInteger` are exact, and the tests check both cases.
 
 The rule is to use `bigint` where exact magnitude matters, and a branded number for a bounded counter that needs ordinary JSON.
+
+### Entity values (`src/entity`)
+
+- `EntityId`: a string with something in it, the identity of an entity in a `WorldState`. `isEntityId` is the matching guard, and `entityId` uses it. Mirrors `TaskId` exactly: same shape, same reason (an id cannot be confused with a type or any other string).
 
 ### Namespaced kinds (`src/namespaced`)
 

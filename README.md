@@ -138,11 +138,10 @@ The repository is organized as a pnpm/Turborepo monorepo:
 ├── docs/           # Project and architecture documentation
 ├── engine/         # Core engine: the execution substrate and world runtime
 ├── libs/           # Private reusable support code and shared configuration
-├── packages/       # Transitional: predates the layout above, to be relocated
 └── plugins/        # Replaceable infrastructure and integrations
 ```
 
-The exact contents of these workspaces will evolve as implementation begins. Every workspace has a `README.md` that says what it is for and what state it is in. `packages/` is a transition state, described in the architecture document.
+The exact contents of these workspaces will evolve as implementation begins. Every workspace has a `README.md` that says what it is for and what state it is in. `adapters/`, `apps/` and `plugins/` have no member yet; a directory becomes a workspace only when its responsibility is established, described in the architecture document.
 
 ## Engine Lifecycle
 
