@@ -3,9 +3,11 @@ import type { EntityId } from "@stratamu/primitives"
 
 /**
  * The authoritative entities in the world: what exists, what each thing's identity is, and where
- * it is. It says nothing about how entities otherwise relate to each other -- containment beyond
- * location, ownership, anything else -- and nothing about what "where" means (a room, in this
- * proof, but `WorldState` does not know that): those are `Entity` attributes an adapter adds, not
+ * it is. `occupants` answers "who is here" by querying that same location data, not by tracking a
+ * separate relationship -- there is still only one fact (location), read two ways. It says
+ * nothing about how entities otherwise relate to each other -- containment beyond location,
+ * ownership, anything else -- and nothing about what "where" means (a room, in the proofs that
+ * use it, but `WorldState` does not know that): those are `Entity` attributes an adapter adds, not
  * something this minimum model assumes.
  *
  * This is deliberately small: `WorldState` is the container a `Runtime` executes against, not a
@@ -75,5 +77,22 @@ export class WorldState {
       throw new Error(`Entity "${at}" does not exist`)
     }
     this.#locations.set(id, at)
+  }
+
+  /**
+   * The id of every entity whose location is `id`, in no meaningful order -- including whatever
+   * entity called this if it is itself at `id`: a neutral query over what `WorldState` already
+   * knows, the same as `entities()`, not biased toward any one caller's need to exclude itself.
+   * Ids, not `Entity` records, to match `locationOf`/`locate`'s own model and stay a fact, not a
+   * lookup: a filter such as "exclude this one" or "visible to that one" belongs to whatever game
+   * operation is asking, not to `WorldState`, so this takes no options and never will. Computed on
+   * demand from `#locations`, not a maintained index: nothing here has shown a need for one yet.
+   */
+  *occupants(id: EntityId): IterableIterator<EntityId> {
+    for (const [entityId, locationId] of this.#locations) {
+      if (locationId === id) {
+        yield entityId
+      }
+    }
   }
 }
