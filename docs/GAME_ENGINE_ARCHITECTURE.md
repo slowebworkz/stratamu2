@@ -333,7 +333,7 @@ This is more fundamental than classifying the action as "MUD" or "MUSH."
 
 ## 8. Sessions and Networking
 
-The engine needs the concept of a player/session, but networking should not be embedded directly in the core.
+The engine needs the concept of a player/session, but networking should not be embedded directly in the core. See [SESSION_BOUNDARY.md](./SESSION_BOUNDARY.md) for the detailed design investigation: the `SessionId`/`PrincipalId`/`EntityId` identity model, why `Session` is not a socket, and the open questions (chiefly semantic output) a small implementation proof still needs to answer.
 
 Conceptually:
 
