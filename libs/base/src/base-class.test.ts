@@ -2,8 +2,8 @@ import type { LoggingCapability } from "@stratamu/capabilities"
 import { afterEach, describe, expect, it, vi } from "vitest"
 
 interface LogRecord {
-  level: number
-  msg?: string
+  level: string
+  message?: string
   component?: string
   [key: string]: unknown
 }
@@ -12,17 +12,20 @@ async function loadFresh() {
   vi.resetModules()
 
   const records: LogRecord[] = []
-  const destination = {
-    write(chunk: string) {
-      records.push(JSON.parse(chunk) as LogRecord)
+  // The bare-function transport form gets tslog's raw, positional-args "logObj", not the shaped
+  // record; a full transport's `line` parameter carries that shape, the same
+  // `destination.write` -> `JSON.parse` pattern the previous pino-backed test used.
+  const transport = {
+    write(_record: unknown, line: string) {
+      records.push(JSON.parse(line) as LogRecord)
     },
   }
 
-  const { PinoLogger, setRootLogger } = await import("@stratamu/capabilities")
-  const createReal = PinoLogger.create.bind(PinoLogger)
+  const { TslogLogger, setRootLogger } = await import("@stratamu/capabilities")
+  const createReal = TslogLogger.create.bind(TslogLogger)
   const create = vi
-    .spyOn(PinoLogger, "create")
-    .mockImplementation(() => createReal({ level: "trace" }, destination))
+    .spyOn(TslogLogger, "create")
+    .mockImplementation(() => createReal({ type: "hidden", minLevel: "TRACE" }, transport))
 
   const { Base } = await import("./base-class.ts")
 
@@ -44,7 +47,7 @@ async function loadFresh() {
 
   return {
     Base,
-    PinoLogger,
+    TslogLogger,
     create,
     createReal,
     records,
@@ -66,10 +69,10 @@ describe("Base logging: root logger", () => {
     const configured: LogRecord[] = []
     setRootLogger(
       createReal(
-        { level: "info" },
+        { type: "hidden", minLevel: "INFO" },
         {
-          write(chunk: string) {
-            configured.push(JSON.parse(chunk) as LogRecord)
+          write(_record: unknown, line: string) {
+            configured.push(JSON.parse(line) as LogRecord)
           },
         },
       ),
@@ -79,7 +82,7 @@ describe("Base logging: root logger", () => {
 
     expect(create).not.toHaveBeenCalled()
     expect(records).toEqual([])
-    expect(configured).toMatchObject([{ component: "Talker", msg: "configured" }])
+    expect(configured).toMatchObject([{ component: "Talker", message: "configured" }])
   })
 
   it("creates nothing when no class uses log", async () => {
@@ -103,12 +106,12 @@ describe("Base logging: root logger", () => {
 })
 
 describe("Base logging: per-object child logger", () => {
-  it("provides a LoggingCapability backed by PinoLogger", async () => {
-    const { PinoLogger, Talker } = await loadFresh()
+  it("provides a LoggingCapability backed by TslogLogger", async () => {
+    const { TslogLogger, Talker } = await loadFresh()
 
     const log: LoggingCapability = new Talker().exposed
 
-    expect(log).toBeInstanceOf(PinoLogger)
+    expect(log).toBeInstanceOf(TslogLogger)
   })
 
   it("binds the class name as the component on every record", async () => {
@@ -118,8 +121,8 @@ describe("Base logging: per-object child logger", () => {
     new OtherTalker().exposed.info("entered")
 
     expect(records).toMatchObject([
-      { component: "Talker", msg: "loaded" },
-      { component: "OtherTalker", msg: "entered" },
+      { component: "Talker", message: "loaded" },
+      { component: "OtherTalker", message: "entered" },
     ])
   })
 
@@ -149,7 +152,7 @@ describe("Base logging: per-object child logger", () => {
 
     new Talker().exposed.child({ request: "r1" }).info("nested")
 
-    expect(records[0]).toMatchObject({ component: "Talker", request: "r1", msg: "nested" })
+    expect(records[0]).toMatchObject({ component: "Talker", request: "r1", message: "nested" })
   })
 
   it("applies the root logger's default redaction to child records", async () => {
@@ -157,8 +160,8 @@ describe("Base logging: per-object child logger", () => {
 
     new Talker().exposed.info({ password: "hunter2", user: { token: "abc", name: "ada" } }, "login")
 
-    expect(records[0]?.password).toBe("[Redacted]")
-    expect(records[0]?.user).toEqual({ token: "[Redacted]", name: "ada" })
+    expect(records[0]?.password).toBe("[***]")
+    expect(records[0]?.user).toEqual({ token: "[***]", name: "ada" })
   })
 
   it("reuses the same child on every access from one instance", async () => {
@@ -195,7 +198,7 @@ describe("Base logging: per-object child logger", () => {
 
     expect(quieted.level).toBe("silent")
     expect(untouched.level).toBe("trace")
-    expect(records.map(record => record.msg)).toEqual(["kept"])
+    expect(records.map(record => record.message)).toEqual(["kept"])
   })
 
   it("keeps implementation state private", async () => {

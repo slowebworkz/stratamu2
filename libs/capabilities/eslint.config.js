@@ -1,8 +1,9 @@
 import { config, guardz } from "@stratamu/eslint/node"
 
-const pino = {
-  group: ["pino", "pino/*"],
-  message: "Only PinoLogger may import pino. Depend on LoggingCapability from ./types.ts instead.",
+const tslog = {
+  group: ["tslog", "tslog/*"],
+  message:
+    "Only TslogLogger may import tslog. Depend on LoggingCapability from ./types.ts instead.",
 }
 
 const emittery = {
@@ -20,12 +21,12 @@ export default [
     files: ["src/**/*.ts"],
     rules: {
       "@typescript-eslint/consistent-type-imports": "error",
-      "no-restricted-imports": restrict([guardz, pino, emittery]),
+      "no-restricted-imports": restrict([guardz, tslog, emittery]),
     },
   },
 
   {
-    files: ["src/logging/pino-logger.ts", "src/logging/pino-logger.test.ts"],
+    files: ["src/logging/tslog-logger.ts", "src/logging/tslog-logger.test.ts"],
     rules: {
       "no-restricted-imports": restrict([guardz, emittery]),
     },
@@ -34,7 +35,7 @@ export default [
   {
     files: ["src/events/emittery-events.ts"],
     rules: {
-      "no-restricted-imports": restrict([guardz, pino]),
+      "no-restricted-imports": restrict([guardz, tslog]),
     },
   },
 ]
