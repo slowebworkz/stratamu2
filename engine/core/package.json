@@ -25,7 +25,8 @@
     "@stratamu/primitives": "workspace:*",
     "@stratamu/submission": "workspace:*",
     "@stratamu/task": "workspace:*",
-    "@stratamu/work": "workspace:*"
+    "@stratamu/work": "workspace:*",
+    "mnemonist": "catalog:"
   },
   "devDependencies": {
     "@stratamu/entity": "workspace:*",

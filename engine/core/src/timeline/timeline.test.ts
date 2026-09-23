@@ -22,11 +22,14 @@ describe("Timeline", () => {
 
   it("keeps items due at the same time in insertion order", () => {
     const timeline = new Timeline<string>()
-    timeline.insert("a", 5)
-    timeline.insert("b", 5)
-    timeline.insert("c", 5)
+    // Enough items that a heap's natural pop order, with no tiebreaker, would not coincide with
+    // insertion order by chance: verified separately that as few as three does not expose this.
+    const letters = "abcdefghijklmnop".split("")
+    for (const letter of letters) {
+      timeline.insert(letter, 5)
+    }
 
-    expect(takeAll(timeline, 5)).toEqual(["a", "b", "c"])
+    expect(takeAll(timeline, 5)).toEqual(letters)
   })
 
   it("holds back items that are not yet due", () => {
@@ -48,5 +51,42 @@ describe("Timeline", () => {
     expect(timeline.remove("a")).toBe(false)
     expect(timeline.size).toBe(1)
     expect(takeAll(timeline, 9)).toEqual(["b"])
+  })
+
+  it("reflects a removal in size immediately, before the item would otherwise be looked at", () => {
+    const timeline = new Timeline<string>()
+    timeline.insert("first", 1)
+    timeline.insert("last", 9)
+
+    // "last" sits behind "first" and is never peeked at by this call, but size must already
+    // be accurate: it cannot depend on the removed entry having been discarded from the heap.
+    expect(timeline.remove("last")).toBe(true)
+
+    expect(timeline.size).toBe(1)
+  })
+
+  it("skips a removed item even when it was the earliest, revealing the next one", () => {
+    const timeline = new Timeline<string>()
+    timeline.insert("first", 1)
+    timeline.insert("second", 2)
+    timeline.remove("first")
+
+    expect(timeline.nextDueAt()).toBe(2)
+    expect(timeline.takeDue(2)).toBe("second")
+  })
+
+  it("empties out correctly when every item is removed rather than taken", () => {
+    const timeline = new Timeline<string>()
+    timeline.insert("a", 1)
+    timeline.insert("b", 2)
+    timeline.insert("c", 3)
+
+    timeline.remove("a")
+    timeline.remove("b")
+    timeline.remove("c")
+
+    expect(timeline.size).toBe(0)
+    expect(timeline.nextDueAt()).toBeUndefined()
+    expect(timeline.takeDue(999)).toBeUndefined()
   })
 })
