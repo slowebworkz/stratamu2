@@ -1,0 +1,8 @@
+export type { Control } from "./control.ts"
+export { principalControlling } from "./control.ts"
+export type { Exits } from "./exits.ts"
+export type { SessionInput } from "./session-input.ts"
+export { TestAdapter } from "./test-adapter.ts"
+export type { TestSession } from "./test-session.ts"
+export { testSession } from "./test-session.ts"
+export { look, move, say } from "./work-kinds.ts"
