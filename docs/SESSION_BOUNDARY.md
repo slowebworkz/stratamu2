@@ -2,11 +2,23 @@
 
 ## Status
 
-**Investigation / Design**
+**Investigation / Design — implementation proof complete.**
 
 This document defines the intended boundary between external participants and the game engine. It establishes the identity model, responsibilities of `Session`, input flow, relationship to authoritative engine state, and the questions that remain open before implementation.
 
-The design deliberately does **not** settle the final semantic output model yet. That should be validated through a small implementation proof before becoming an architectural commitment.
+The proof called for in section 15 exists: `engine/core/src/runtime/session-boundary.test.ts`, alongside `SessionId`/`PrincipalId` in `libs/primitives`. See "Findings from the Implementation Proof" below for what it settled. The final semantic output *contract* — what a real `Session`/output type look like as their own package — is still not committed; see that section for why.
+
+## Findings from the Implementation Proof
+
+The proof (`engine/core/src/runtime/session-boundary.test.ts`) ran the whole path — raw input → `Session` → adapter parser → `Work` → `Runtime` → handler → semantic output → `Session` — with a `Session` kept deliberately local to the test, not a package, because its shape was exactly what the proof existed to discover.
+
+**The main finding: `engine/core` needed no changes at all.** Going in, the open question was whether `TaskContext` would need something new the way it needed `world` for `EngineState` (#24). It didn't. Addressing output — to one session, to several, to none — turned out to need no core concept whatsoever: the adapter already owns `Work.input`, so it carries a session reference there, the same way it owns everything else about what a `Work` means. A handler calls `session.send(...)` directly; `Runtime` never knows a session exists.
+
+This settles section 7's open question in a specific way: output is **not** a `Task` result, and needs no new `TaskOutcome` variant or `TaskContext` field. It's an ordinary side effect a handler performs through whatever the adapter handed it in `Work.input` — proven to support zero recipients (input that doesn't parse to a `Work` produces none), one, and several (a `say`-shaped test: one message to the speaker, a different one to each hearer), all without addressing or fan-out logic living anywhere in core.
+
+The identity separation held under a real compile-time check, not just by naming convention: `SessionId`, `PrincipalId`, `EntityId` and (added to the check as a fourth, previously-established identity) `TaskId` all reject being assigned to one another. A reconnect producing a new `SessionId` while `PrincipalId` stays the same round-tripped correctly through the test-local `Session`.
+
+**Still not committed, deliberately:** the exact minimal `Session` interface as a real, reusable type — `{ id, principalId, send(message) }` is what the proof needed, not necessarily everything a real one needs (lifecycle, input receipt, more than one output method). Promoting it into `libs/primitives`/a new package is the next step once something beyond this proof actually consumes it. Authority remains untouched and out of scope, as before.
 
 ---
 
@@ -556,67 +568,35 @@ No two of these identifiers represent the same concept.
 
 # 14. Open Questions
 
-The remaining questions for this investigation are intentionally narrow.
+Updated after the implementation proof (see "Findings from the Implementation Proof" above). Marked `Resolved` where the proof gave a real answer, `Open` where it still doesn't.
 
 ### Session
 
-- What is the minimum protocol-neutral Session interface?
-- How is normalized input represented?
-- How does Session lifecycle interact with engine lifecycle?
-- Where does the Session-to-Principal association live?
-- When does an Entity association become meaningful?
+- What is the minimum protocol-neutral Session interface? — **Resolved for what a handler needs**: `{ id, principalId, send(message) }`. **Open** for what a real, persistent `Session` needs beyond that (lifecycle, receiving input, more than one output channel).
+- How is normalized input represented? — **Open.** The proof fed raw strings straight to the parser; it never modeled a distinct "normalized input" shape between raw protocol bytes and that.
+- How does Session lifecycle interact with engine lifecycle? — **Open.** Not exercised by the proof at all.
+- Where does the Session-to-Principal association live? — **Open** for a real implementation. The proof carried it as a plain field on a test-local object; nothing about where it's authoritatively stored was decided.
+- When does an Entity association become meaningful? — **Open.** The proof never associated a session with a controlled entity; `parse`'s `target` was a fixed room, not "the entity this session controls."
 
 ### Output
 
-- Is output a Task result or a separate emission?
-- Can one Work produce multiple outputs?
-- How are outputs addressed?
-- Is output itself adapter-defined?
-- Does the Session receive semantic output directly, or is another presentation boundary required?
+- Is output a Task result or a separate emission? — **Resolved: a separate emission**, an ordinary side effect through `session.send(...)`, not a `TaskOutcome` variant.
+- Can one Work produce multiple outputs? — **Resolved: yes**, proven with a `say`-shaped test (one message to the speaker, a different one to each hearer).
+- How are outputs addressed? — **Resolved: via `Work.input`**, the same way `Work` already carries anything else adapter-specific. No addressing mechanism lives in core.
+- Is output itself adapter-defined? — **Resolved: yes.**
+- Does the Session receive semantic output directly, or is another presentation boundary required? — **Partially resolved.** The engine side needs nothing more than direct receipt (`session.send`). Whether a presentation/protocol layer sits between that and the actual transport is a transport concern, outside what this proof could settle.
 
 ### State
 
-- Which Session facts belong in `EngineState`?
-- What belongs exclusively to the protocol/session execution layer?
-
-These should be resolved through a small proof rather than by introducing abstractions speculatively.
+- Which Session facts belong in `EngineState`? — **Open.** The proof never put `Session` inside `EngineState` at all; sessions were constructed and used entirely outside it.
+- What belongs exclusively to the protocol/session execution layer? — **Sketched, not finalized.** The proof's `Session` had no connection machinery to speak of, so it didn't have to draw this line for real.
 
 ---
 
 # 15. Next Step
 
-The next implementation should be a focused proof of the Session boundary:
+**Done.** `engine/core/src/runtime/session-boundary.test.ts` is that proof: raw input → `Session` → adapter parser → `Work` → `Runtime` → handler → semantic output → `Session`, with the identity separation (`SessionId ≠ PrincipalId ≠ EntityId ≠ TaskId`) checked at compile time, not just asserted in prose. See "Findings from the Implementation Proof" above for what it settled and what it deliberately still leaves open.
 
-```text
-raw/normalized input
-        ↓
-Session
-        ↓
-adapter parser
-        ↓
-Work
-        ↓
-Runtime
-        ↓
-handler
-        ↓
-semantic output
-        ↓
-Session
-```
+It discovered the smallest contracts for the three things it set out to discover — session input, adapter-owned `Work` construction, semantic output — and, notably, that none of them required a change to `engine/core`.
 
-The proof should also preserve the identity separation:
-
-```text
-SessionId ≠ PrincipalId ≠ EntityId
-```
-
-The purpose of the proof is **not** to build networking or a complete Session subsystem.
-
-Its purpose is to discover the smallest contracts required for:
-
-1. Session input,
-2. adapter-owned Work construction, and
-3. semantic output.
-
-Once that proof is complete, the resulting contracts can be captured as the stable Session boundary and incorporated into the broader engine architecture.
+What it did **not** do, on purpose, matching the same restraint already applied to `WorldState`/`Entity`: build a real, reusable `Session` type, a lifecycle, normalized-input representation, or an `EngineState.sessions`. Those stay open (section 14) until something beyond this proof actually needs them — a second slice, an adapter, or networking work that has a concrete requirement for one of them, not this investigation anticipating it in advance.
