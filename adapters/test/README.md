@@ -7,6 +7,11 @@ See section 9 of [the architecture](../../docs/GAME_ENGINE_ARCHITECTURE.md), and
 Composition" sketch there: `ENGINE CORE` answers "how do I execute this `Work`"; this package
 answers "what kind of game is this, and how does input become `Work`".
 
+Those five probes now live here too (`src/probes/`), relocated from `engine/core` once this
+package existed to give them a real adapter to exercise instead of each one's own throwaway local
+reimplementation -- `engine/core` cannot depend on any one adapter, so a probe that exercises a
+real one has to live where the adapter does. See "Domain probes" below.
+
 **Status:** prototype, deliberately minimal. Private and unpublished.
 
 ## What exists
@@ -33,6 +38,33 @@ answers "what kind of game is this, and how does input become `Work`".
 - `testSession`: the same in-process fake `Session` five probes each declared locally, promoted
   here once enough of them needed the identical thing -- the same reasoning that promoted `Session`
   itself into `@stratamu/engine-sessions`.
+
+## Domain probes
+
+`src/probes/` holds the five domain probes relocated from `engine/core/src/runtime/`, each now
+routing through this adapter's `parse`/`registerHandlers` instead of a local reimplementation:
+
+- `session-boundary.test.ts`: the implementation proof for
+  [SESSION_BOUNDARY.md](../../docs/SESSION_BOUNDARY.md) -- `raw input -> Session -> adapter parser
+  -> Work -> Runtime -> handler -> semantic output -> Session`, and that `engine/core` needed no
+  session-related concept for any of it. Rebased onto this adapter's real, reflexive `look` (the
+  original used a throwaway room lookup, since `Session`'s shape -- not `look`'s -- was what that
+  proof existed to settle). Its original synthetic "one Work, many sessions" test is gone: the
+  real `say`, in `world-messaging.test.ts` and `session-lifecycle.test.ts`, proves that more
+  realistically now, through occupancy, `Control` and `Sessions` rather than an explicit list.
+- `player-control.test.ts`: `PrincipalId -> controlled EntityId -> Session -> Work -> Runtime ->
+  handler -> WorldState -> Session output`, with reflexive `look` as the first real operation.
+  Control resolves correctly across two isolated principals and across a reconnect.
+- `world-movement.test.ts`: the first proof reaching a real `WorldState` mutation, not just a
+  read. Where the movement rule ("is there a valid exit") lives: nowhere in core, an ordinary
+  `if` in the handler before `world.locate` is ever called.
+- `world-messaging.test.ts`: a minimal multi-recipient `say`. The recipient list is exactly
+  `for (const recipient of recipients) { recipient.send(...) }` -- no `MessageBus`/`EventBus`
+  was needed. Reveals fan-out needs *currently connected* sessions, not just ownership.
+- `session-lifecycle.test.ts`: the arc open → `SessionId` assigned → `PrincipalId` associated →
+  `EntityId` controlled → active → receive output → disconnect → inactive, and what a disconnect
+  does and does not do: `Control` keeps its entry, the entity is untouched in `WorldState`, and
+  only the `SessionId` itself stops resolving to anything.
 
 ## Grammar
 

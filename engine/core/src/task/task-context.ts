@@ -21,7 +21,7 @@ export interface TaskContext {
    * Undefined both when there is no `EngineState` at all and when that `EngineState` has no
    * `sessions` -- the same optionality `EngineState.sessions` itself has, threaded through
    * unread, the same as `world`. See `@stratamu/engine-sessions` for what `Sessions` tracks, and
-   * `runtime/session-lifecycle.test.ts` for a handler reading it.
+   * `@stratamu/adapter-test`'s `src/probes/session-lifecycle.test.ts` for a handler reading it.
    */
   readonly sessions: Sessions | undefined
   /**
