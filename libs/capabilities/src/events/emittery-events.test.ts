@@ -22,8 +22,8 @@ interface InterfaceEvents {
 }
 
 interface LogRecord {
-  level: number
-  msg?: string
+  level: string
+  message?: string
   component?: string
   [key: string]: unknown
 }
@@ -32,17 +32,20 @@ async function loadFresh() {
   vi.resetModules()
 
   const records: LogRecord[] = []
-  const destination = {
-    write(chunk: string) {
-      records.push(JSON.parse(chunk) as LogRecord)
+  // The bare-function transport form gets tslog's raw, positional-args "logObj", not the shaped
+  // record; a full transport's `line` parameter carries that shape, the same
+  // `destination.write` -> `JSON.parse` pattern the previous pino-backed test used.
+  const transport = {
+    write(_record: unknown, line: string) {
+      records.push(JSON.parse(line) as LogRecord)
     },
   }
 
-  const { PinoLogger } = await import("../logging/pino-logger.ts")
-  const createReal = PinoLogger.create.bind(PinoLogger)
+  const { TslogLogger } = await import("../logging/tslog-logger.ts")
+  const createReal = TslogLogger.create.bind(TslogLogger)
   const create = vi
-    .spyOn(PinoLogger, "create")
-    .mockImplementation(() => createReal({ level: "trace" }, destination))
+    .spyOn(TslogLogger, "create")
+    .mockImplementation(() => createReal({ type: "hidden", minLevel: "TRACE" }, transport))
 
   const { setRootLogger } = await import("../logging/root-logger.ts")
   const { EmitteryEvents } = await import("./emittery-events.ts")
@@ -466,10 +469,10 @@ describe("EmitteryEvents logging", () => {
     const configured: LogRecord[] = []
     setRootLogger(
       createReal(
-        { level: "info" },
+        { type: "hidden", minLevel: "INFO" },
         {
-          write(chunk: string) {
-            configured.push(JSON.parse(chunk) as LogRecord)
+          write(_record: unknown, line: string) {
+            configured.push(JSON.parse(line) as LogRecord)
           },
         },
       ),
@@ -479,7 +482,7 @@ describe("EmitteryEvents logging", () => {
 
     expect(create).not.toHaveBeenCalled()
     expect(records).toEqual([])
-    expect(configured).toMatchObject([{ component: "Named", msg: "configured" }])
+    expect(configured).toMatchObject([{ component: "Named", message: "configured" }])
   })
 
   it("creates no logger while the bus is used without touching log", async () => {
@@ -522,8 +525,8 @@ describe("EmitteryEvents logging", () => {
     new OtherNamed().exposed.info("from other")
 
     expect(records).toMatchObject([
-      { component: "Named", msg: "from named" },
-      { component: "OtherNamed", msg: "from other" },
+      { component: "Named", message: "from named" },
+      { component: "OtherNamed", message: "from other" },
     ])
   })
 

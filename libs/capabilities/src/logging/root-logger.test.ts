@@ -1,32 +1,36 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
 
 interface LogRecord {
-  level: number
-  msg?: string
+  level: string
+  message?: string
   component?: string
   [key: string]: unknown
 }
 
+/** `attachTransport`'s bare-function form gets tslog's raw, positional-args "logObj", not the
+ * shaped `{message, level, ...}` record `json.messageKey`/etc. describe -- that shape is only
+ * what the formatted line carries, so a full transport parses it, the same `destination.write`
+ * -> `JSON.parse` pattern the previous pino-backed test used. */
 function capture() {
   const records: LogRecord[] = []
-  const destination = {
-    write(chunk: string) {
-      records.push(JSON.parse(chunk) as LogRecord)
+  const transport = {
+    write(_record: unknown, line: string) {
+      records.push(JSON.parse(line) as LogRecord)
     },
   }
 
-  return { records, destination }
+  return { records, transport }
 }
 
 async function loadFresh() {
   vi.resetModules()
 
-  const { PinoLogger } = await import("./pino-logger.ts")
-  const createReal = PinoLogger.create.bind(PinoLogger)
+  const { TslogLogger } = await import("./tslog-logger.ts")
+  const createReal = TslogLogger.create.bind(TslogLogger)
   const fallback = capture()
   const create = vi
-    .spyOn(PinoLogger, "create")
-    .mockImplementation(() => createReal({ level: "trace" }, fallback.destination))
+    .spyOn(TslogLogger, "create")
+    .mockImplementation(() => createReal({ type: "hidden", minLevel: "TRACE" }, fallback.transport))
   const { createContextLogger, setRootLogger } = await import("./root-logger.ts")
 
   return { create, createReal, createContextLogger, fallback, setRootLogger }
@@ -55,8 +59,8 @@ describe("root logger", () => {
     createContextLogger("room").info("entered")
 
     expect(fallback.records).toMatchObject([
-      { component: "world", msg: "loaded" },
-      { component: "room", msg: "entered" },
+      { component: "world", message: "loaded" },
+      { component: "room", message: "entered" },
     ])
   })
 
@@ -70,24 +74,24 @@ describe("root logger", () => {
     const { create, createReal, createContextLogger, fallback, setRootLogger } = await loadFresh()
     const configured = capture()
 
-    setRootLogger(createReal({ level: "info" }, configured.destination))
+    setRootLogger(createReal({ type: "hidden", minLevel: "INFO" }, configured.transport))
     createContextLogger("engine").info("started")
 
     expect(create).not.toHaveBeenCalled()
     expect(fallback.records).toEqual([])
-    expect(configured.records).toMatchObject([{ component: "engine", msg: "started" }])
+    expect(configured.records).toMatchObject([{ component: "engine", message: "started" }])
   })
 
   it("applies the configured logger's level to its context loggers", async () => {
     const { createReal, createContextLogger, setRootLogger } = await loadFresh()
     const configured = capture()
 
-    setRootLogger(createReal({ level: "warn" }, configured.destination))
+    setRootLogger(createReal({ type: "hidden", minLevel: "WARN" }, configured.transport))
     const log = createContextLogger("engine")
     log.info("dropped")
     log.warn("kept")
 
-    expect(configured.records.map(record => record.msg)).toEqual(["kept"])
+    expect(configured.records.map(record => record.message)).toEqual(["kept"])
   })
 
   it("leaves context loggers that already exist on the root they were created from", async () => {
@@ -95,12 +99,12 @@ describe("root logger", () => {
     const configured = capture()
 
     const early = createContextLogger("early")
-    setRootLogger(createReal({ level: "info" }, configured.destination))
+    setRootLogger(createReal({ type: "hidden", minLevel: "INFO" }, configured.transport))
     const late = createContextLogger("late")
     early.info("from early")
     late.info("from late")
 
-    expect(fallback.records).toMatchObject([{ component: "early", msg: "from early" }])
-    expect(configured.records).toMatchObject([{ component: "late", msg: "from late" }])
+    expect(fallback.records).toMatchObject([{ component: "early", message: "from early" }])
+    expect(configured.records).toMatchObject([{ component: "late", message: "from late" }])
   })
 })

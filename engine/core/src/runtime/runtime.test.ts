@@ -1,4 +1,4 @@
-import { PinoLogger, setRootLogger } from "@stratamu/capabilities"
+import { setRootLogger, TslogLogger } from "@stratamu/capabilities"
 import type { Clock } from "@stratamu/clock"
 import { ManualClock, WallClock } from "@stratamu/clock"
 import type { EngineState } from "@stratamu/engine-world"
@@ -30,7 +30,7 @@ function testClock() {
 }
 
 beforeAll(() => {
-  setRootLogger(PinoLogger.create({ level: "silent" }))
+  setRootLogger(TslogLogger.create({ type: "hidden" }))
 })
 
 afterEach(() => {

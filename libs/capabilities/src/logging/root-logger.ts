@@ -1,4 +1,4 @@
-import { PinoLogger } from "./pino-logger.ts"
+import { TslogLogger } from "./tslog-logger.ts"
 import type { LoggingCapability } from "./types.ts"
 
 let root: LoggingCapability | undefined
@@ -13,7 +13,7 @@ export function setRootLogger(logger: LoggingCapability): void {
 
 /** Creates a child of the root logger whose records carry `component`. */
 export function createContextLogger(component: string): LoggingCapability {
-  root ??= PinoLogger.create()
+  root ??= TslogLogger.create()
 
   return root.child({ component })
 }
