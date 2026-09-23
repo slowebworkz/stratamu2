@@ -35,6 +35,13 @@ The rule is to use `bigint` where exact magnitude matters, and a branded number 
 
 - `EntityId`: a string with something in it, the identity of an entity in a `WorldState`. `isEntityId` is the matching guard, and `entityId` uses it. Mirrors `TaskId` exactly: same shape, same reason (an id cannot be confused with a type or any other string).
 
+### Session values (`src/session`)
+
+Two more identities, following the same pattern, added for the session-boundary proof (see [SESSION_BOUNDARY.md](../../docs/SESSION_BOUNDARY.md)). Deliberately three distinct types, not one: a `SessionId` cannot be confused with a `PrincipalId`, an `EntityId`, or a `TaskId` — checked at compile time, not just by convention.
+
+- `SessionId`: the identity of one session — a particular connection instance, not the person using it. A reconnect gets a new one.
+- `PrincipalId`: the identity of an authenticated principal, independent of any connection. Survives reconnects; a session associates with one, it doesn't become one.
+
 ### Namespaced kinds (`src/namespaced`)
 
 `isNamespacedKind` is the guard for a namespaced kind: a dotted name in lower case, such as `diku.command` or `mush.wait`. Every kind in the system has this shape, so a MUSH `command` and a Diku `command` cannot collide. `@stratamu/work` builds `WorkKind` on it. The pattern must not have a `g` or `y` flag, because `RegExp.test` would then keep state between calls, and a test checks that repeated calls give the same answer.
