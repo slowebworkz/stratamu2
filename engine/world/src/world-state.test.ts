@@ -54,4 +54,49 @@ describe("WorldState", () => {
 
     expect([...world.entities()].sort((x, y) => x.id.localeCompare(y.id))).toEqual([a, b])
   })
+
+  it("has no location for an entity until one is recorded", () => {
+    const world = new WorldState()
+    world.add(entity(entityId("player-1"), "test.player"))
+
+    expect(world.locationOf(entityId("player-1"))).toBeUndefined()
+  })
+
+  it("records and reports where an entity is, overwriting on a later move", () => {
+    const world = new WorldState()
+    world.add(entity(entityId("player-1"), "test.player"))
+    world.add(room("room-1"))
+    world.add(room("room-2"))
+
+    world.locate(entityId("player-1"), entityId("room-1"))
+    expect(world.locationOf(entityId("player-1"))).toBe(entityId("room-1"))
+
+    world.locate(entityId("player-1"), entityId("room-2"))
+    expect(world.locationOf(entityId("player-1"))).toBe(entityId("room-2"))
+  })
+
+  it("refuses to locate an entity that does not exist, or move it to one that does not", () => {
+    const world = new WorldState()
+    world.add(entity(entityId("player-1"), "test.player"))
+    world.add(room("room-1"))
+
+    expect(() => world.locate(entityId("nobody"), entityId("room-1"))).toThrow(
+      'Entity "nobody" does not exist',
+    )
+    expect(() => world.locate(entityId("player-1"), entityId("nowhere"))).toThrow(
+      'Entity "nowhere" does not exist',
+    )
+  })
+
+  it("forgets an entity's location when the entity itself is removed", () => {
+    const world = new WorldState()
+    world.add(entity(entityId("player-1"), "test.player"))
+    world.add(room("room-1"))
+    world.locate(entityId("player-1"), entityId("room-1"))
+
+    world.remove(entityId("player-1"))
+    world.add(entity(entityId("player-1"), "test.player"))
+
+    expect(world.locationOf(entityId("player-1"))).toBeUndefined()
+  })
 })
