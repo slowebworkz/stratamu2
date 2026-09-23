@@ -89,4 +89,36 @@ describe("Timeline", () => {
     expect(timeline.nextDueAt()).toBeUndefined()
     expect(timeline.takeDue(999)).toBeUndefined()
   })
+
+  it("is a set of items, not a multiset of entries: rejects scheduling the same item twice", () => {
+    const timeline = new Timeline<string>()
+    timeline.insert("x", 10)
+
+    expect(() => timeline.insert("x", 20)).toThrow("already scheduled")
+    // The rejected call must not have changed anything: still one item, still due at 10.
+    expect(timeline.size).toBe(1)
+    expect(timeline.nextDueAt()).toBe(10)
+  })
+
+  it("allows rescheduling an item by removing it first, then inserting it again", () => {
+    const timeline = new Timeline<string>()
+    timeline.insert("x", 10)
+    timeline.remove("x")
+
+    timeline.insert("x", 20)
+
+    expect(timeline.size).toBe(1)
+    expect(timeline.nextDueAt()).toBe(20)
+  })
+
+  it("allows inserting an item again once it has already been taken", () => {
+    const timeline = new Timeline<string>()
+    timeline.insert("x", 10)
+    expect(timeline.takeDue(10)).toBe("x")
+
+    timeline.insert("x", 20)
+
+    expect(timeline.size).toBe(1)
+    expect(timeline.nextDueAt()).toBe(20)
+  })
 })
