@@ -19,7 +19,7 @@
   },
   "dependencies": {
     "emittery": "catalog:",
-    "pino": "catalog:"
+    "tslog": "catalog:"
   },
   "devDependencies": {
     "@stratamu/eslint": "workspace:*",

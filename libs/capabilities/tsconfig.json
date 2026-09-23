@@ -1,5 +1,8 @@
 {
   "$schema": "https://json.schemastore.org/tsconfig",
-  "extends": ["@stratamu/typescript-config/esm-ts", "@stratamu/typescript-config/skip-lib-check"],
+  "extends": "@stratamu/typescript-config/esm-ts",
+  "compilerOptions": {
+    "types": ["node"]
+  },
   "include": ["src"]
 }

@@ -26,7 +26,7 @@ catalog:
   # Pinned exactly, not ^: 0.40.5 published the day this was added, so an ordinary re-resolve
   # would otherwise pick it up before it has had time for anyone to notice if it were compromised.
   mnemonist: 0.40.4
-  pino: ^10.3.1
+  tslog: ^5.2.0
 
   # Testing
   vitest: ^4.1.11
