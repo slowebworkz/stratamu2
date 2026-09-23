@@ -1,3 +1,4 @@
+import { Sessions } from "@stratamu/engine-sessions"
 import { entity } from "@stratamu/entity"
 import { entityId } from "@stratamu/primitives"
 import { describe, expect, it } from "vitest"
@@ -12,5 +13,13 @@ describe("EngineState", () => {
     const state: EngineState = { world }
 
     expect(state.world.size).toBe(1)
+  })
+
+  it("accepts sessions, but does not require it", () => {
+    const world = new WorldState()
+    const sessions = new Sessions()
+    const state: EngineState = { world, sessions }
+
+    expect(state.sessions?.size).toBe(0)
   })
 })

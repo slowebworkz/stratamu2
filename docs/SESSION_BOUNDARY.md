@@ -6,7 +6,7 @@
 
 This document defines the intended boundary between external participants and the game engine. It establishes the identity model, responsibilities of `Session`, input flow, relationship to authoritative engine state, and the questions that remain open before implementation.
 
-The proof called for in section 15 exists: `engine/core/src/runtime/session-boundary.test.ts`, alongside `SessionId`/`PrincipalId` in `libs/primitives`. See "Findings from the Implementation Proof" below for what it settled. The final semantic output *contract* — what a real `Session`/output type look like as their own package — is still not committed; see that section for why.
+The proof called for in section 15 exists: `engine/core/src/runtime/session-boundary.test.ts`, alongside `SessionId`/`PrincipalId` in `libs/primitives`. See "Findings from the Implementation Proof" below for what it settled. `Session` itself is now a real, reusable type — `@stratamu/engine-sessions` — promoted once session *lifecycle* (`engine/core/src/runtime/session-lifecycle.test.ts`) gave it a concrete consumer beyond this proof; see the "Update, from a later probe" note in that section. What still isn't committed: a normalized-input representation, and anything about receiving more than one kind of output.
 
 ## Findings from the Implementation Proof
 
@@ -19,6 +19,8 @@ This settles section 7's open question in a specific way: output is **not** a `T
 The identity separation held under a real compile-time check, not just by naming convention: `SessionId`, `PrincipalId`, `EntityId` and (added to the check as a fourth, previously-established identity) `TaskId` all reject being assigned to one another. A reconnect producing a new `SessionId` while `PrincipalId` stays the same round-tripped correctly through the test-local `Session`.
 
 **Still not committed, deliberately:** the exact minimal `Session` interface as a real, reusable type — `{ id, principalId, send(message) }` is what the proof needed, not necessarily everything a real one needs (lifecycle, input receipt, more than one output method). Promoting it into `libs/primitives`/a new package is the next step once something beyond this proof actually consumes it. Authority remains untouched and out of scope, as before.
+
+**Update, from a later probe:** that "next step" happened once session *lifecycle* gave a concrete consumer. `engine/core/src/runtime/session-lifecycle.test.ts` promotes exactly this shape into `@stratamu/engine-sessions`'s `Session`, and adds `Sessions` (`open`/`get`/`has`/`disconnect`/`activeFor`) as the real, reusable registry `world-messaging.test.ts`'s test-local `Active` map stood in for. Input receipt and more than one output method are still not exercised by anything. See "Open Questions" (section 14) below for the current status of each question this raised.
 
 ---
 
@@ -572,10 +574,10 @@ Updated after the implementation proof (see "Findings from the Implementation Pr
 
 ### Session
 
-- What is the minimum protocol-neutral Session interface? — **Resolved for what a handler needs**: `{ id, principalId, send(message) }`. **Open** for what a real, persistent `Session` needs beyond that (lifecycle, receiving input, more than one output channel).
+- What is the minimum protocol-neutral Session interface? — **Resolved, and promoted to a real type**: `{ id, principalId, send(message) }`, now `@stratamu/engine-sessions`'s `Session`, not a re-declaration local to each test. **Still open**: receiving input, and more than one output channel — neither has a concrete need yet.
 - How is normalized input represented? — **Open.** The proof fed raw strings straight to the parser; it never modeled a distinct "normalized input" shape between raw protocol bytes and that.
-- How does Session lifecycle interact with engine lifecycle? — **Open.** Not exercised by the proof at all.
-- Where does the Session-to-Principal association live? — **Open** for a real implementation. The proof carried it as a plain field on a test-local object; nothing about where it's authoritatively stored was decided.
+- How does Session lifecycle interact with engine lifecycle? — **Partially resolved** by `engine/core/src/runtime/session-lifecycle.test.ts` and `@stratamu/engine-sessions`'s `Sessions`: `open`/`disconnect` against a real, reusable registry, threaded through `EngineState.sessions` / `TaskContext.sessions` the same way `WorldState` is. Proves the arc open → active → receive output → disconnect → inactive, and that a disconnect touches only `Sessions` — never `Control`, never `WorldState`. **Still open**: the engine lifecycle proper (the wall-clock driver and startup/shutdown sequencing `engine/core`'s README lists as not yet built) — this resolves session lifecycle against `Runtime`/`EngineState`, not against that.
+- Where does the Session-to-Principal association live? — **Still open** for a real implementation, but narrowed: `Sessions` (the registry) does not assign or store it — a `Session`'s `principalId` is set once, at construction, by whoever authenticated it, and the registry only ever reads it back (`activeFor`). Where that authentication itself lives remains undecided.
 - When does an Entity association become meaningful? — **Resolved by a second proof**, `engine/core/src/runtime/player-control.test.ts`: `PrincipalId -> controlled EntityId`, kept as a plain `Map<PrincipalId, EntityId>`, external to `Session` and keyed on the principal (not the session) specifically so a reconnect — new `SessionId`, same `PrincipalId` — keeps controlling the same entity. Proven, not just asserted: two principals' control stays isolated, a reconnect resolves to the same entity, and a session with no principal or an unmapped principal degrades to "not controlling anything" rather than crashing.
 
 ### Output
@@ -588,8 +590,8 @@ Updated after the implementation proof (see "Findings from the Implementation Pr
 
 ### State
 
-- Which Session facts belong in `EngineState`? — **Open.** The proof never put `Session` inside `EngineState` at all; sessions were constructed and used entirely outside it.
-- What belongs exclusively to the protocol/session execution layer? — **Sketched, not finalized.** The proof's `Session` had no connection machinery to speak of, so it didn't have to draw this line for real.
+- Which Session facts belong in `EngineState`? — **Resolved, narrowly**: `EngineState.sessions: Sessions | undefined` — which sessions are currently active, nothing more. Individual `Session` objects are still never stored inside `EngineState`/`WorldState`; only the registry tracking which ids are active lives there. `sessions` is optional, so an `EngineState` with only `world` still compiles unchanged.
+- What belongs exclusively to the protocol/session execution layer? — **Sketched, not finalized.** `Sessions` still has no connection machinery to speak of (no assigning a `SessionId`, no authenticating a `principalId`), so this line still hasn't had to be drawn for real.
 
 ---
 
