@@ -12,6 +12,18 @@ export const guardz = {
     "guardz is an implementation detail of @stratamu/primitives. Import its guards, such as isTaskId, from @stratamu/primitives instead.",
 }
 
+/**
+ * `mnemonist` is for internal implementation only: a data structure package uses it to build its
+ * own concept (`Timeline` uses a heap, say), and exposes that concept, not the structure. This
+ * keeps the dependency replaceable and keeps `Heap`/`Deque`/`LRUCache` out of the architecture's
+ * own vocabulary, the same way `guardz` is kept out of it.
+ */
+export const mnemonist = {
+  group: ["mnemonist", "mnemonist/*"],
+  message:
+    "mnemonist is for internal implementation only. Expose the concept it backs (such as Timeline), not the structure itself.",
+}
+
 /** @type {import("eslint").Linter.Config[]} */
 export const config = [
   {
@@ -41,7 +53,7 @@ export const config = [
 
   {
     rules: {
-      "no-restricted-imports": ["error", { patterns: [guardz] }],
+      "no-restricted-imports": ["error", { patterns: [guardz, mnemonist] }],
     },
   },
 ]
