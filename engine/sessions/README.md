@@ -38,8 +38,8 @@ The two have different lifetimes on purpose:
 - It never touches `WorldState`: the entity still exists, unchanged.
 
 Only the disconnected `SessionId` itself stops resolving to anything. See
-`@stratamu/engine-core`'s `runtime/session-lifecycle.test.ts` for the proof: principal survives,
-entity survives, `SessionId` does not.
+`@stratamu/adapter-test`'s `src/probes/session-lifecycle.test.ts` for the proof: principal
+survives, entity survives, `SessionId` does not.
 
 ## Not yet
 
