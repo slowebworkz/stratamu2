@@ -576,7 +576,7 @@ Updated after the implementation proof (see "Findings from the Implementation Pr
 - How is normalized input represented? — **Open.** The proof fed raw strings straight to the parser; it never modeled a distinct "normalized input" shape between raw protocol bytes and that.
 - How does Session lifecycle interact with engine lifecycle? — **Open.** Not exercised by the proof at all.
 - Where does the Session-to-Principal association live? — **Open** for a real implementation. The proof carried it as a plain field on a test-local object; nothing about where it's authoritatively stored was decided.
-- When does an Entity association become meaningful? — **Open.** The proof never associated a session with a controlled entity; `parse`'s `target` was a fixed room, not "the entity this session controls."
+- When does an Entity association become meaningful? — **Resolved by a second proof**, `engine/core/src/runtime/player-control.test.ts`: `PrincipalId -> controlled EntityId`, kept as a plain `Map<PrincipalId, EntityId>`, external to `Session` and keyed on the principal (not the session) specifically so a reconnect — new `SessionId`, same `PrincipalId` — keeps controlling the same entity. Proven, not just asserted: two principals' control stays isolated, a reconnect resolves to the same entity, and a session with no principal or an unmapped principal degrades to "not controlling anything" rather than crashing.
 
 ### Output
 
