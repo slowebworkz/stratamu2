@@ -232,6 +232,9 @@ importers:
       '@stratamu/clock':
         specifier: workspace:*
         version: link:../../libs/clock
+      '@stratamu/engine-world':
+        specifier: workspace:*
+        version: link:../world
       '@stratamu/primitives':
         specifier: workspace:*
         version: link:../../libs/primitives
@@ -245,6 +248,9 @@ importers:
         specifier: workspace:*
         version: link:../../libs/work
     devDependencies:
+      '@stratamu/entity':
+        specifier: workspace:*
+        version: link:../../libs/entity
       '@stratamu/eslint':
         specifier: workspace:*
         version: link:../../libs/eslint-config

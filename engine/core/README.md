@@ -36,6 +36,7 @@ TaskAdmission   Submission + this runtime's own admission-time extras   (this pa
 - Task states: `pending` (waiting for its time, before ever running), `ready`, `running`, `scheduled` (ran at least once and asked to become eligible again at a scheduled time), `waiting` (suspended on something other than time), and the final `completed`, `failed` and `cancelled`. A new task is immediately ready, pending or waiting, never scheduled: that state is only reached from running.
 - A handler suspends a task with `suspend(continuation?)`, and `Runtime.wake(id)` returns it to ready with that continuation. Core stores no reason for the wait; an adapter maps its own reason (a semaphore, an event, a prompt) to task ids. A handler reschedules a task with `reschedule(schedule, continuation?)`, reusing `Schedule`: the same one-time "when should this become eligible" instruction as admission, just made by the task itself rather than whoever submitted it. A rescheduled task keeps its `TaskId` and `sequence` — it is the same `Task` running again, not a new admission. Recurring work is not a separate concept: a handler that returns `reschedule` every time it runs is recurring work.
 - `ExecutionPolicy`: the seam that chooses which ready task runs next and whether inline execution is allowed. `oldestReady` is the default policy. Nothing reads a task's `priority` yet.
+- `TaskContext.world`: the authoritative `WorldState` a handler executes against, if the `Runtime` was constructed with an `EngineState` (`RuntimeOptions.engineState`, optional — undefined otherwise). `Runtime` threads it through unread: it has no opinion about game state, only about running work. See [`@stratamu/engine-world`](../world) for what `WorldState`/`EngineState` actually are, and `runtime/vertical-slice.test.ts` for the whole path proven end to end, from a submitted `Work` to a handler reading `context.world` to an observable result.
 
 Source folders each hold one concept, with an `index.ts` barrel: `clock`, `lane`, `policy`, `runtime`, `schedule`, `task`, `timeline`.
 
@@ -45,7 +46,8 @@ Source folders each hold one concept, with an `index.ts` barrel: `clock`, `lane`
 - Phases and boundaries, fairness and budgets, and a policy that reads `priority` (the work model in section 16).
 - A persistent task model. `Task` (in `@stratamu/task`) is plain data, but `TaskRecord`'s runtime-only `TaskExecution` and its `lane`/`tags` are not stored anywhere.
 - The engine lifecycle, and the wall-clock driver that feeds clocks. Both belong to the environment side and have no workspace yet.
-- World, rules, sessions and persistence.
+- Authority: nothing stops a handler with `context.world` from mutating it directly, bypassing whatever rules a game would want to apply first. `WorldState` is an internal authoritative data structure today, not a public game API with rule-checking in front of it.
+- Sessions and persistence.
 
 ## Determinism
 
@@ -53,4 +55,4 @@ The runtime reads time only from injected clocks and never reads wall time or ra
 
 ## Depends on
 
-`@stratamu/base` (logging), `@stratamu/clock`, `@stratamu/primitives`, `@stratamu/work`, `@stratamu/submission`, `@stratamu/task`, and `@stratamu/capabilities`.
+`@stratamu/base` (logging), `@stratamu/clock`, `@stratamu/engine-world`, `@stratamu/primitives`, `@stratamu/work`, `@stratamu/submission`, `@stratamu/task`, and `@stratamu/capabilities`.

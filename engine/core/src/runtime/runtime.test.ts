@@ -1,8 +1,11 @@
 import { PinoLogger, setRootLogger } from "@stratamu/capabilities"
 import type { Clock } from "@stratamu/clock"
 import { ManualClock, WallClock } from "@stratamu/clock"
+import type { EngineState } from "@stratamu/engine-world"
+import { WorldState } from "@stratamu/engine-world"
+import { entity } from "@stratamu/entity"
 import type { TaskId } from "@stratamu/primitives"
-import { Duration, Instant, taskId, taskPriority } from "@stratamu/primitives"
+import { Duration, entityId, Instant, taskId, taskPriority } from "@stratamu/primitives"
 import { work, workKind } from "@stratamu/work"
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest"
 
@@ -34,8 +37,8 @@ afterEach(() => {
   vi.restoreAllMocks()
 })
 
-function setup(policy?: ExecutionPolicy) {
-  const runtime = new Runtime(policy ? { policy } : {})
+function setup(policy?: ExecutionPolicy, engineState?: EngineState) {
+  const runtime = new Runtime({ ...(policy && { policy }), ...(engineState && { engineState }) })
   const clock = testClock()
   runtime.attachClock("time", clock)
   const seen: string[] = []
@@ -785,6 +788,69 @@ describe("inline execution", () => {
 
     expect(seen).toEqual(["outer", "middle"])
     expect(requests.map(request => request.depth)).toEqual([1, 2])
+  })
+})
+
+describe("engine state", () => {
+  it("is undefined for a Runtime constructed without one", async () => {
+    const { runtime } = setup()
+    const seen: unknown[] = []
+    runtime.handle(k("check"), (_task, context) => {
+      seen.push(context.world)
+    })
+
+    runtime.submit({ work: work(k("check"), undefined) })
+    await runtime.drain()
+
+    expect(seen).toEqual([undefined])
+  })
+
+  it("gives a handler the same WorldState instance the Runtime was given", async () => {
+    const world = new WorldState()
+    const engineState: EngineState = { world }
+    const { runtime } = setup(undefined, engineState)
+    const seen: (WorldState | undefined)[] = []
+    runtime.handle(k("check"), (_task, context) => {
+      seen.push(context.world)
+    })
+
+    runtime.submit({ work: work(k("check"), undefined) })
+    await runtime.drain()
+
+    expect(seen).toEqual([world])
+    expect(seen[0]).toBe(world)
+  })
+
+  it("gives an inline task the same world its parent sees", async () => {
+    const world = new WorldState()
+    const { runtime } = setup(undefined, { world })
+    const seen: (WorldState | undefined)[] = []
+    runtime.handle(k("inner"), (_task, context) => {
+      seen.push(context.world)
+    })
+    runtime.handle(k("outer"), async (_task, context) => {
+      seen.push(context.world)
+      await context.run({ work: work(k("inner"), undefined) })
+    })
+
+    runtime.submit({ work: work(k("outer"), undefined) })
+    await runtime.drain()
+
+    expect(seen).toEqual([world, world])
+  })
+
+  it("lets a handler read and write the world through the context it is given", async () => {
+    const world = new WorldState()
+    const { runtime } = setup(undefined, { world })
+    runtime.handle(k("spawn"), (_task, context) => {
+      context.world?.add(entity(entityId("goblin-1"), "test.mobile"))
+    })
+
+    runtime.submit({ work: work(k("spawn"), undefined) })
+    await runtime.drain()
+
+    expect(world.has(entityId("goblin-1"))).toBe(true)
+    expect(world.size).toBe(1)
   })
 })
 
