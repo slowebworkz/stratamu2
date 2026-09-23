@@ -99,4 +99,38 @@ describe("WorldState", () => {
 
     expect(world.locationOf(entityId("player-1"))).toBeUndefined()
   })
+
+  it("has no occupants for a room nobody is in", () => {
+    const world = new WorldState()
+    world.add(room("room-1"))
+
+    expect([...world.occupants(entityId("room-1"))]).toEqual([])
+  })
+
+  it("lists the id of every entity currently at a location, in no particular order", () => {
+    const world = new WorldState()
+    world.add(room("room-1"))
+    const alice = entity(entityId("alice-player"), "test.player")
+    const bob = entity(entityId("bob-player"), "test.player")
+    world.add(alice)
+    world.add(bob)
+    world.locate(alice.id, entityId("room-1"))
+    world.locate(bob.id, entityId("room-1"))
+
+    expect([...world.occupants(entityId("room-1"))].sort()).toEqual([alice.id, bob.id].sort())
+  })
+
+  it("stops listing an entity once it has moved elsewhere", () => {
+    const world = new WorldState()
+    world.add(room("room-1"))
+    world.add(room("room-2"))
+    const alice = entity(entityId("alice-player"), "test.player")
+    world.add(alice)
+    world.locate(alice.id, entityId("room-1"))
+
+    world.locate(alice.id, entityId("room-2"))
+
+    expect([...world.occupants(entityId("room-1"))]).toEqual([])
+    expect([...world.occupants(entityId("room-2"))]).toEqual([alice.id])
+  })
 })
