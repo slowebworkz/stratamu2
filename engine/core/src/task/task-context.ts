@@ -1,3 +1,4 @@
+import type { Sessions } from "@stratamu/engine-sessions"
 import type { WorldState } from "@stratamu/engine-world"
 
 import type { TaskAdmission } from "./task-admission.ts"
@@ -15,6 +16,14 @@ export interface TaskContext {
    * `Runtime` threads it through without reading or interpreting it; only a handler does that.
    */
   readonly world: WorldState | undefined
+  /**
+   * Which sessions are currently active, if the `Runtime`'s `EngineState` was given one.
+   * Undefined both when there is no `EngineState` at all and when that `EngineState` has no
+   * `sessions` -- the same optionality `EngineState.sessions` itself has, threaded through
+   * unread, the same as `world`. See `@stratamu/engine-sessions` for what `Sessions` tracks, and
+   * `runtime/session-lifecycle.test.ts` for a handler reading it.
+   */
+  readonly sessions: Sessions | undefined
   /**
    * Runs a task inline, as part of the current step, without queueing it. An inline task cannot
    * suspend or reschedule, because there is nothing for it to wait inside of: it fails if it

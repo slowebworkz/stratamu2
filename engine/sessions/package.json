@@ -1,5 +1,5 @@
 {
-  "name": "@stratamu/engine-core",
+  "name": "@stratamu/engine-sessions",
   "version": "0.0.0",
   "private": true,
   "type": "module",
@@ -18,19 +18,9 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@stratamu/base": "workspace:*",
-    "@stratamu/capabilities": "workspace:*",
-    "@stratamu/clock": "workspace:*",
-    "@stratamu/engine-sessions": "workspace:*",
-    "@stratamu/engine-world": "workspace:*",
-    "@stratamu/primitives": "workspace:*",
-    "@stratamu/submission": "workspace:*",
-    "@stratamu/task": "workspace:*",
-    "@stratamu/work": "workspace:*",
-    "mnemonist": "catalog:"
+    "@stratamu/primitives": "workspace:*"
   },
   "devDependencies": {
-    "@stratamu/entity": "workspace:*",
     "@stratamu/eslint": "workspace:*",
     "@stratamu/typescript-config": "workspace:*",
     "@types/node": "catalog:",

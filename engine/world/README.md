@@ -7,7 +7,7 @@ The engine's **authoritative game state**: what the `Runtime` executes against, 
 ## What exists
 
 - `WorldState`: the authoritative entities in the world — what exists, each thing's identity, and where it is. `add`, `get`, `has`, `remove`, `entities()`, `size`, `locate`, `locationOf`, `occupants`. Location was the first thing an actual feature (movement) revealed was needed; it stays the only relationship `WorldState` knows about. `occupants(id)` doesn't add a second one — it's a query over that same location data, not a maintained index, revealed by the next feature (multi-recipient messaging) needing "who is here" rather than "where is this one entity". It returns `EntityId`s (`IterableIterator<EntityId>`), not `Entity` records, to match `locationOf`/`locate`'s own model and stay a plain fact rather than a lookup — and takes no options: everyone at a location comes back, including whoever asked, so a filter like "exclude the speaker" stays the caller's concern, not `WorldState`'s. Containment beyond location, ownership, anything else is still an `Entity` attribute an adapter would add, discovered from what a game actually needs — `WorldState` doesn't even know that a location is a "room": `locate(id, at)` just records that `at` is another entity's id, and `locationOf`/`occupants` hand that back unchanged.
-- `EngineState`: `{ readonly world: WorldState }`. What the engine executes against. Deliberately just `world` for now — `Sessions` and `Authority`, named alongside `WorldState` in the architecture document's `Engine` sketch, are not here because neither exists yet. This grows by adding fields as those are built, not by reserving space for them now.
+- `EngineState`: `{ readonly world: WorldState; readonly sessions?: Sessions }`. What the engine executes against. `world` is required; `sessions` (`@stratamu/engine-sessions`, see its README) is optional, so every earlier proof that builds an `EngineState` with only `world` keeps compiling unchanged — session lifecycle is a capability a `Runtime` can have, not one this interface now requires. `Authority`, named alongside both in the architecture document's `Engine` sketch, is still not here because it does not exist yet. This grows by adding fields as those are built, not by reserving space for them now.
 
 `Entity` and `EntityType` live in [`@stratamu/entity`](../../libs/entity), not here: this package owns the authoritative *container*, not the shape of what it contains.
 
@@ -25,4 +25,4 @@ The engine's **authoritative game state**: what the `Runtime` executes against, 
 
 ## Depends on
 
-`@stratamu/entity`, `@stratamu/primitives`.
+`@stratamu/engine-sessions` (only for `EngineState.sessions`'s type — `WorldState` itself has no session concept), `@stratamu/entity`, `@stratamu/primitives`.

@@ -409,6 +409,7 @@ export class Runtime extends Base {
         signal: record.execution.signal,
         continuation,
         world: this.#engineState?.world,
+        sessions: this.#engineState?.sessions,
         run: admission => this.#runInline(record, admission),
       })
       if (isTaskSuspend(result)) {
