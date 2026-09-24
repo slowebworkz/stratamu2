@@ -1,0 +1,6 @@
+export { exits, registerExits } from "./exits.ts"
+export { describeRoom, look, registerLook, resolveActor, roomOf } from "./look.ts"
+export { move, registerMove, resolveDirection } from "./move.ts"
+export { registerSay, say } from "./say.ts"
+export { registerTell, tell } from "./tell.ts"
+export { registerWho, who } from "./who.ts"

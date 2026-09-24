@@ -1,0 +1,9 @@
+{
+  "$schema": "https://json.schemastore.org/tsconfig",
+  "extends": "@stratamu/typescript-config/esm-ts",
+  "compilerOptions": {
+    "types": ["node"],
+    "rootDir": "."
+  },
+  "include": ["src", "test"]
+}
