@@ -9,3 +9,4 @@ export type {
   AberObjectDefinition,
   AberRoomDefinition,
 } from "./world/index.ts"
+export type { AberMUDSex } from "./character/index.ts"

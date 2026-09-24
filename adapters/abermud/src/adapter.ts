@@ -1,5 +1,7 @@
 import type { EngineAdapter, Runtime } from "@stratamu/engine-core"
+import type { Session } from "@stratamu/engine-sessions"
 import type { EntityId } from "@stratamu/primitives"
+import type { WorldState } from "@stratamu/engine-world"
 import type { Work } from "@stratamu/work"
 
 import {
@@ -12,6 +14,7 @@ import {
   registerWho,
 } from "./commands/index.ts"
 import type { Control } from "./control.ts"
+import { loginCharacter, type AberMUDSex } from "./character/index.ts"
 import type { SessionInput } from "./parser.ts"
 import { parseAberMUD } from "./parser.ts"
 import type { AberMUDPersona, AberMUDPersonaStore } from "./persistence/index.ts"
@@ -55,6 +58,22 @@ export class AberMUDAdapter implements EngineAdapter<SessionInput> {
 
   parse(input: SessionInput): readonly Work[] {
     return parseAberMUD(input)
+  }
+
+  /**
+   * Initializes a character for an already-authenticated session. This is the game-side half of
+   * LOGIN/load, corresponding to AberMUD's `initme()`; network/account authentication is outside
+   * this adapter.
+   */
+  async login(world: WorldState, session: Session, name: string, sex?: AberMUDSex): Promise<EntityId> {
+    if (this.#personaStore === undefined) {
+      throw new Error("character persistence is not available")
+    }
+    return loginCharacter(world, this.control, this.charactersByName, this.personas, this.#personaStore, {
+      session,
+      name,
+      sex,
+    })
   }
 
   registerHandlers(runtime: Runtime): void {
