@@ -7,26 +7,37 @@ import { TestAdapter } from "./test-adapter.ts"
 import { testSession } from "./test-session.ts"
 
 /**
- * The architectural seam that was still missing after the adapter contract: every probe so far,
+ * The architectural seam that was still missing after the adapter contract: every probe,
  * including this adapter's own `test-adapter.test.ts`, assembled a `Runtime` and its
- * engine-owned state (`WorldState`, `Sessions`) by hand, in its own `setup()`:
+ * engine-owned state (`WorldState`, `Sessions`) by hand, in its own `setup()`, then routed input
+ * through the adapter itself, one step at a time:
  *
  *   const world = new WorldState()
  *   const sessions = new Sessions()
  *   const runtime = new Runtime({ engineState: { world, sessions } })
  *   adapter.registerHandlers(runtime)
+ *   for (const item of adapter.parse(input)) { runtime.submit({ work: item }) }
  *
  * `@stratamu/engine-core`'s `Engine` is exactly that composition, made real and reusable --
- * proven here against a real adapter's real handlers, not a stub. The question this file answers
- * is not "does `look`/`move`/`say` still work" (settled already); it is "does composing through
- * `Engine` change anything about that". It does not:
+ * proven here against a real adapter's real handlers, not a stub:
  *
- *   transport/session -> Engine -> Adapter -> Work -> Runtime -> handlers -> WorldState/Sessions
+ *   create Engine(TestAdapter)
+ *     -> session receives "look"
+ *     -> engine.receive(input)
+ *     -> adapter.parse(...)
+ *     -> Work
+ *     -> Runtime
+ *     -> look handler
+ *     -> WorldState
+ *     -> session output
  *
- * `Engine` never calls `adapter.parse` and never sees a raw input string -- composing the pieces
- * so a handler can run is its whole job. Routing input through the adapter to get `Work`, then
- * submitting it, stays the caller's concern here, the same as it always has: `Engine` does not
- * own that step, only `runtime`/`world`/`sessions` and calling `registerHandlers` once.
+ * A configured game can now actually run on the engine -- through one constructor and one
+ * `receive` call -- rather than only ever being invoked manually inside a test's own `setup()`.
+ * The three cases below (`look`, `move`, `say`) are not new findings; the point is that composing
+ * them through `Engine` changes nothing about how they behave. `Engine` still never owns the
+ * adapter's grammar -- `receive` calls straight into `adapter.parse`, whatever that adapter's own
+ * `Input` type turns out to be (`SessionInput` here, inferred, never named by `Engine` itself) --
+ * and `Runtime` still never learns any of it.
  */
 
 function setup() {
@@ -36,21 +47,19 @@ function setup() {
 }
 
 describe("engine composition proof", () => {
-  it('"look" -> adapter -> test.look -> Runtime -> output', async () => {
+  it('"look" -> Engine.receive -> adapter -> test.look -> Runtime -> output', async () => {
     const { engine, adapter } = setup()
     engine.world.add(entity(entityId("player-1"), "test.player"))
     adapter.control.set(principalId("alice"), entityId("player-1"))
     const session = testSession("session-1", "alice")
 
-    for (const item of adapter.parse({ session, raw: "look" })) {
-      engine.runtime.submit({ work: item })
-    }
+    engine.receive({ session, raw: "look" })
     await engine.runtime.drain()
 
     expect(session.output).toEqual(["you are player-1, a test.player"])
   })
 
-  it('"move north" -> adapter -> test.move -> Runtime -> WorldState mutation', async () => {
+  it('"move north" -> Engine.receive -> adapter -> test.move -> Runtime -> WorldState mutation', async () => {
     const { engine, adapter } = setup()
     const roomA = entityId("room-a")
     const roomB = entityId("room-b")
@@ -62,16 +71,14 @@ describe("engine composition proof", () => {
     adapter.control.set(principalId("alice"), entityId("player-1"))
     const session = testSession("session-1", "alice")
 
-    for (const item of adapter.parse({ session, raw: "move north" })) {
-      engine.runtime.submit({ work: item })
-    }
+    engine.receive({ session, raw: "move north" })
     await engine.runtime.drain()
 
     expect(engine.world.locationOf(entityId("player-1"))).toBe(roomB)
     expect(session.output).toEqual(["you go north"])
   })
 
-  it('"say hello" -> adapter -> test.say -> Runtime -> recipient output', async () => {
+  it('"say hello" -> Engine.receive -> adapter -> test.say -> Runtime -> recipient output', async () => {
     const { engine, adapter } = setup()
     const room = entityId("room-1")
     engine.world.add(entity(room, "test.room"))
@@ -88,12 +95,20 @@ describe("engine composition proof", () => {
     engine.sessions.open(alice)
     engine.sessions.open(bob)
 
-    for (const item of adapter.parse({ session: alice, raw: "say hello" })) {
-      engine.runtime.submit({ work: item })
-    }
+    engine.receive({ session: alice, raw: "say hello" })
     await engine.runtime.drain()
 
     expect(alice.output).toEqual(['You say, "hello"'])
     expect(bob.output).toEqual(['alice says, "hello"'])
+  })
+
+  it("routes input the adapter's grammar does not recognize to nothing, through the same entry point", () => {
+    const { engine } = setup()
+    const session = testSession("session-1", "alice")
+
+    engine.receive({ session, raw: "xyzzy" })
+
+    expect(engine.runtime.pending).toBe(0)
+    expect(session.output).toEqual([])
   })
 })

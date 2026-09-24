@@ -69,13 +69,16 @@ routing through this adapter's `parse`/`registerHandlers` instead of a local rei
 ## Engine composition
 
 `engine-composition.test.ts` proves this adapter through `@stratamu/engine-core`'s `Engine` --
-the composition of `Runtime` + `WorldState` + `Sessions` + an adapter's `registerHandlers`, made
-real once every probe (including this package's own `test-adapter.test.ts`) had assembled those
-four things by hand in its own `setup()`. Three focused cases -- `"look"`, `"move north"`,
-`"say hello"` -- each still going through `adapter.parse` and `engine.runtime.submit` exactly as
-before; composing through `Engine` changes nothing about how `look`/`move`/`say` behave, which is
-the point: `Engine` only owns wiring `runtime`/`world`/`sessions` together and registering
-handlers once, never `parse` or input routing, so that step stays the caller's, same as always.
+the composition of `Runtime` + `WorldState` + `Sessions` + an adapter's `registerHandlers`, plus
+the entry point (`engine.receive(input)`) that routes input through the adapter's own `parse` and
+submits every resulting `Work`, made real once every probe (including this package's own
+`test-adapter.test.ts`) had assembled all of that by hand in its own `setup()`. Four cases:
+`"look"`, `"move north"`, `"say hello"`, and one input the grammar does not recognize -- each now
+just `new Engine(adapter)` then `engine.receive({ session, raw })`. Composing through `Engine`
+changes nothing about how `look`/`move`/`say` behave, which is the point: a configured game can
+now actually run on the engine, through one constructor and one `receive` call, rather than only
+ever being invoked manually inside a test. `receive` does not drain the `Runtime` -- running it
+stays the caller's own concern, decoupled from any one piece of input arriving.
 
 ## Grammar
 
