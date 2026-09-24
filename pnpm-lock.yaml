@@ -224,6 +224,46 @@ importers:
         specifier: 'catalog:'
         version: 6.0.3
 
+  adapters/abermud:
+    dependencies:
+      '@stratamu/engine-core':
+        specifier: workspace:*
+        version: link:../../engine/core
+      '@stratamu/engine-sessions':
+        specifier: workspace:*
+        version: link:../../engine/sessions
+      '@stratamu/engine-world':
+        specifier: workspace:*
+        version: link:../../engine/world
+      '@stratamu/primitives':
+        specifier: workspace:*
+        version: link:../../libs/primitives
+      '@stratamu/work':
+        specifier: workspace:*
+        version: link:../../libs/work
+    devDependencies:
+      '@stratamu/entity':
+        specifier: workspace:*
+        version: link:../../libs/entity
+      '@stratamu/eslint':
+        specifier: workspace:*
+        version: link:../../libs/eslint-config
+      '@stratamu/typescript-config':
+        specifier: workspace:*
+        version: link:../../libs/typescript-config
+      '@types/node':
+        specifier: 'catalog:'
+        version: 26.6.2
+      eslint:
+        specifier: 'catalog:'
+        version: 10.11.0
+      typescript:
+        specifier: 'catalog:'
+        version: 6.0.3
+      vitest:
+        specifier: 'catalog:'
+        version: 4.1.11(@types/node@26.6.2)(vite@8.3.0(@types/node@26.6.2))
+
   adapters/test:
     dependencies:
       '@stratamu/engine-core':
