@@ -1,3 +1,5 @@
+export type { EngineAdapter } from "./composition/index.ts"
+export { Engine } from "./composition/index.ts"
 export type { LaneId } from "./lane/index.ts"
 export { GLOBAL_LANE } from "./lane/index.ts"
 export type {

@@ -66,6 +66,17 @@ routing through this adapter's `parse`/`registerHandlers` instead of a local rei
   does and does not do: `Control` keeps its entry, the entity is untouched in `WorldState`, and
   only the `SessionId` itself stops resolving to anything.
 
+## Engine composition
+
+`engine-composition.test.ts` proves this adapter through `@stratamu/engine-core`'s `Engine` --
+the composition of `Runtime` + `WorldState` + `Sessions` + an adapter's `registerHandlers`, made
+real once every probe (including this package's own `test-adapter.test.ts`) had assembled those
+four things by hand in its own `setup()`. Three focused cases -- `"look"`, `"move north"`,
+`"say hello"` -- each still going through `adapter.parse` and `engine.runtime.submit` exactly as
+before; composing through `Engine` changes nothing about how `look`/`move`/`say` behave, which is
+the point: `Engine` only owns wiring `runtime`/`world`/`sessions` together and registering
+handlers once, never `parse` or input routing, so that step stays the caller's, same as always.
+
 ## Grammar
 
 Deliberately the smallest thing that exercises three already-proven operations, not a real MU*
