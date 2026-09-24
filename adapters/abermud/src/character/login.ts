@@ -67,7 +67,15 @@ export async function loginCharacter(
     return existingCharacter
   }
 
-  return createCharacter(world, charactersByName, personas, control, principal, options.name, persona)
+  return createCharacter(
+    world,
+    charactersByName,
+    personas,
+    control,
+    principal,
+    options.name,
+    persona,
+  )
 }
 
 function requirePrincipal(session: Session): PrincipalId {

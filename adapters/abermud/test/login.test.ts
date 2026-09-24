@@ -95,9 +95,9 @@ describe("AberMUD character login/load", () => {
     const { world, adapter } = abermudFixture({ personaStore: store })
     await adapter.login(world, testSession("session-1", "carol"), "alice")
 
-    await expect(
-      adapter.login(world, testSession("session-2", "bob"), "carol"),
-    ).rejects.toThrow('Character "carol" is already controlled')
+    await expect(adapter.login(world, testSession("session-2", "bob"), "carol")).rejects.toThrow(
+      'Character "carol" is already controlled',
+    )
   })
 
   it("requires an authenticated principal", async () => {

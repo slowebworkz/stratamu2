@@ -65,15 +65,27 @@ export class AberMUDAdapter implements EngineAdapter<SessionInput> {
    * LOGIN/load, corresponding to AberMUD's `initme()`; network/account authentication is outside
    * this adapter.
    */
-  async login(world: WorldState, session: Session, name: string, sex?: AberMUDSex): Promise<EntityId> {
+  async login(
+    world: WorldState,
+    session: Session,
+    name: string,
+    sex?: AberMUDSex,
+  ): Promise<EntityId> {
     if (this.#personaStore === undefined) {
       throw new Error("character persistence is not available")
     }
-    return loginCharacter(world, this.control, this.charactersByName, this.personas, this.#personaStore, {
-      session,
-      name,
-      sex,
-    })
+    return loginCharacter(
+      world,
+      this.control,
+      this.charactersByName,
+      this.personas,
+      this.#personaStore,
+      {
+        session,
+        name,
+        sex,
+      },
+    )
   }
 
   registerHandlers(runtime: Runtime): void {
