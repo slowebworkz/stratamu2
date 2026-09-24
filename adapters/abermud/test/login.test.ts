@@ -93,9 +93,9 @@ describe("AberMUD character login/load", () => {
     await store.save({ name: "carol", score: 10, strength: 40, sex: 0, level: 1 })
 
     const { world, adapter } = abermudFixture({ personaStore: store })
-    await adapter.login(world, testSession("session-1", "carol"), "alice")
+    await adapter.login(world, testSession("session-1", "dave"), "carol")
 
-    await expect(adapter.login(world, testSession("session-2", "bob"), "carol")).rejects.toThrow(
+    await expect(adapter.login(world, testSession("session-2", "eve"), "carol")).rejects.toThrow(
       'Character "carol" is already controlled',
     )
   })
