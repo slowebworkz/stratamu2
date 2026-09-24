@@ -46,6 +46,7 @@ well-established against the source:
 - TELL
 - WHO
 - SAVE
+- character initialization/load (adapter `login()`; not network/account authentication)
 
 **Needs target-specific verification** (present here as conventional MUD syntax, not yet checked
 against the AberMUD II source itself):
@@ -70,7 +71,7 @@ name genuinely *is* `""`, found by the exact same scan used to find anything els
 `saveme()`/`initme()` (SAVE and a future LOGIN go through the same file, not separate load/save
 abstractions; SAVE's exact message, `"Saving %s"`, is `saveme()`'s own, not invented here),
 `validname()` (the 10-character name rule, plus reserved words and a check against object names
-this adapter does not implement yet), and `mud/makeuaf.c` (a fresh run of it produces a single
+this adapter does not implement yet), and `mud/makeuaf.c` (a fresh installation's single
 "Debugger" record).
 
 `mud/makeuaf.c` was also compiled and actually run (x86_64, LP64, little-endian), not just read:
@@ -152,6 +153,7 @@ genuine garbage bytes, not a synthetic example.
     exactly how `putpers()` itself finds a free slot (`personactl("",&s,PCTL_FIND)`); `delete`
     blanks every record matching a name (cleared name, level set to `-1`) in place rather than
     compacting the file, looping the way `delpers()` does rather than assuming only one match.
+  - `character/login.ts` -- character initialization for an already-authenticated `Session`: loads an existing persona or reproduces `initme()`'s new-character defaults (`score=0`, `strength=40`, `level=1`, sex supplied by the caller), then establishes `PrincipalId -> EntityId` control and adapter-owned live persona state. It deliberately does not implement the historical password/account authentication path.
   - `file-persona-store.ts` -- `AberMUDPersonaStore` (the narrow `save`/`load` contract SAVE, and
     eventually LOGIN, both need -- no `delete`, since no command needs one yet) and
     `FilePersonaStore`, a thin wrapper over one `UafRandFile`.
@@ -168,10 +170,12 @@ is running? Here, adapter-owned, the same way `rooms`/`control` already are -- n
 `Entity`.
 
 Deliberately minimal beyond that: no containment or equipment (`get`/`drop`/`wear`/`put`), no
-combat, no LOGIN/QUIT/RESET, no world-file or account persistence. The natural next slice is
-LOGIN/load, since it proves the other half of the persistence boundary SAVE only writes into.
-Each is meant to force whatever the next real abstraction turns out to be, rather than be
-designed in ahead of that evidence.
+combat, no QUIT/RESET, no world-file or account persistence, and no password/account
+authentication. Character initialization/load is now implemented as the other half of the
+`uaf.rand` persistence boundary; the transport/account-login path remains outside this adapter
+until the recovered source gives us a concrete boundary to reproduce. Each further slice is meant
+to force whatever the next real abstraction turns out to be, rather than be designed in ahead of
+that evidence.
 
 ## Public API
 
