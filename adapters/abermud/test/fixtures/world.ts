@@ -5,11 +5,11 @@ import { WorldState } from "@stratamu/engine-world"
 import { entity } from "@stratamu/entity"
 import { entityId, principalId } from "@stratamu/primitives"
 
-import { AberMUDAdapter } from "../../src/adapter.ts"
+import { AberMUDAdapter, type AberMUDAdapterOptions } from "../../src/adapter.ts"
 
 /**
  * A tiny test world, not AberMUD's own -- see the package README's "Non-goals". Just enough
- * topology to exercise look/exits/move/say/tell/who:
+ * topology to exercise look/exits/move/say/tell/who/save:
  *
  *   here --north--> there --south--> here
  *
@@ -18,12 +18,12 @@ import { AberMUDAdapter } from "../../src/adapter.ts"
  *
  * A sword exists (registered, not located) for a later slice that can place and pick it up.
  */
-export function abermudFixture() {
+export function abermudFixture(options: AberMUDAdapterOptions = {}) {
   const world = new WorldState()
   const sessions = new Sessions()
   const engineState: EngineState = { world, sessions }
   const runtime = new Runtime({ engineState })
-  const adapter = new AberMUDAdapter()
+  const adapter = new AberMUDAdapter(options)
   adapter.registerHandlers(runtime)
 
   const here = entityId("here")
@@ -50,12 +50,14 @@ export function abermudFixture() {
   world.locate(alicePlayer, here)
   adapter.control.set(principalId("alice"), alicePlayer)
   adapter.charactersByName.set("alice", alicePlayer)
+  adapter.personas.set(alicePlayer, { name: "alice", score: 0, strength: 10, sex: 0, level: 1 })
 
   const bobPlayer = entityId("bob-player")
   world.add(entity(bobPlayer, "abermud.player"))
   world.locate(bobPlayer, there)
   adapter.control.set(principalId("bob"), bobPlayer)
   adapter.charactersByName.set("bob", bobPlayer)
+  adapter.personas.set(bobPlayer, { name: "bob", score: 0, strength: 10, sex: 1, level: 1 })
 
   const goblin = entityId("goblin")
   world.add(entity(goblin, "abermud.mobile"))

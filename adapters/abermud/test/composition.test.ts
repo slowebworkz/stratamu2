@@ -1,9 +1,14 @@
+import { mkdtempSync, rmSync } from "node:fs"
+import { tmpdir } from "node:os"
+import { join } from "node:path"
+
 import { Engine } from "@stratamu/engine-core"
 import { entity } from "@stratamu/entity"
 import { entityId, principalId } from "@stratamu/primitives"
-import { describe, expect, it } from "vitest"
+import { afterEach, beforeEach, describe, expect, it } from "vitest"
 
 import { AberMUDAdapter } from "../src/adapter.ts"
+import { FilePersonaStore } from "../src/persistence/index.ts"
 import { testSession } from "./fixtures/session.ts"
 
 /**
@@ -20,6 +25,16 @@ import { testSession } from "./fixtures/session.ts"
  *     -> session output
  */
 describe("AberMUD engine composition", () => {
+  let dir: string
+
+  beforeEach(() => {
+    dir = mkdtempSync(join(tmpdir(), "abermud-composition-"))
+  })
+
+  afterEach(() => {
+    rmSync(dir, { recursive: true, force: true })
+  })
+
   it('"look" -> Engine.receive -> abermud.look -> Runtime -> room description', async () => {
     const adapter = new AberMUDAdapter()
     const engine = new Engine(adapter)
@@ -100,6 +115,35 @@ describe("AberMUD engine composition", () => {
 
     expect(alice.output).toEqual(['You say, "hello"'])
     expect(bob.output).toEqual(['alice says, "hello"'])
+  })
+
+  it('"save" -> Engine.receive -> abermud.save -> Runtime -> FilePersonaStore', async () => {
+    const personaStore = new FilePersonaStore(join(dir, "uaf.rand"))
+    const adapter = new AberMUDAdapter({ personaStore })
+    const engine = new Engine(adapter)
+    const alicePlayer = entityId("alice-player")
+    engine.world.add(entity(alicePlayer, "abermud.player"))
+    adapter.control.set(principalId("alice"), alicePlayer)
+    adapter.personas.set(alicePlayer, {
+      name: "alice",
+      score: 100,
+      strength: 10,
+      sex: 0,
+      level: 2,
+    })
+    const session = testSession("session-1", "alice")
+
+    engine.receive({ session, raw: "save" })
+    await engine.runtime.drain()
+
+    expect(session.output).toEqual(["Saving alice"])
+    expect(await personaStore.load("alice")).toEqual({
+      name: "alice",
+      score: 100,
+      strength: 10,
+      sex: 0,
+      level: 2,
+    })
   })
 
   it("routes input the grammar does not recognize to nothing, through the same entry point", () => {

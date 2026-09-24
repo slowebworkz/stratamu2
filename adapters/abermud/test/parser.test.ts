@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 
-import { exits, look, move, say, tell } from "../src/commands/index.ts"
+import { exits, look, move, save, say, tell } from "../src/commands/index.ts"
 import { parseAberMUD } from "../src/parser.ts"
 import { testSession } from "./fixtures/session.ts"
 
@@ -62,6 +62,10 @@ describe("parseAberMUD", () => {
 
   it("produces no Work for TELL with no message", () => {
     expect(parseAberMUD({ session, raw: "tell bob" })).toEqual([])
+  })
+
+  it("parses SAVE", () => {
+    expect(parseAberMUD({ session, raw: "save" })).toEqual([{ kind: save, input: { session } }])
   })
 
   it("produces no Work for input the grammar does not recognize", () => {
