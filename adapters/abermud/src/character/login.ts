@@ -7,7 +7,7 @@ import type { AberMUDPersona, AberMUDPersonaStore } from "../persistence/index.t
 import { createCharacter } from "./create-character.ts"
 import type { AberMUDSex } from "./create-persona.ts"
 import { establishControl } from "./establish-control.ts"
-import { loadOrCreatePersona } from "./load-persona.ts"
+import { loadOrCreatePersona, loadPersona } from "./load-persona.ts"
 
 export type { AberMUDSex } from "./create-persona.ts"
 
@@ -56,16 +56,21 @@ export async function loginCharacter(
     throw new Error(`Principal "${principal}" already controls "${control.get(principal)}"`)
   }
 
-  // For a new character this persists to `store` before the world/control state below exists;
-  // a failure in between leaves the persona saved with no matching character. Not atomic, and
-  // deliberately not made so here -- revisit once persistence/recovery semantics are developed.
-  const persona = await loadOrCreatePersona(store, options.name, options.sex)
-
   if (existingCharacter !== undefined) {
+    const persona = await loadPersona(store, options.name)
+    if (persona === undefined) {
+      throw new Error(`Character "${options.name}" has no persisted persona`)
+    }
+
     personas.set(existingCharacter, persona)
     establishControl(control, principal, existingCharacter)
     return existingCharacter
   }
+
+  // For a new character this persists to `store` before the world/control state below exists;
+  // a failure in between leaves the persona saved with no matching character. Not atomic, and
+  // deliberately not made so here -- revisit once persistence/recovery semantics are developed.
+  const persona = await loadOrCreatePersona(store, options.name, options.sex)
 
   return createCharacter(
     world,
