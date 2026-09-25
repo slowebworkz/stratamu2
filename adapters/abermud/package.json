@@ -18,6 +18,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@stratamu/base": "workspace:*",
     "@stratamu/engine-core": "workspace:*",
     "@stratamu/engine-sessions": "workspace:*",
     "@stratamu/engine-world": "workspace:*",

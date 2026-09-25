@@ -1,6 +1,6 @@
 import type { EngineAdapter, Runtime } from "@stratamu/engine-core"
 import type { Session } from "@stratamu/engine-sessions"
-import type { EntityId } from "@stratamu/primitives"
+import type { EntityId, PrincipalId } from "@stratamu/primitives"
 import type { WorldState } from "@stratamu/engine-world"
 import type { Work } from "@stratamu/work"
 
@@ -13,6 +13,8 @@ import {
   registerTell,
   registerWho,
 } from "./commands/index.ts"
+import type { AberMUDAccountStore } from "./account/index.ts"
+import { authenticate } from "./account/index.ts"
 import type { Control } from "./control.ts"
 import { loginCharacter, type AberMUDSex } from "./character/index.ts"
 import type { SessionInput } from "./parser.ts"
@@ -27,6 +29,7 @@ import type {
 /** Configuration for `AberMUDAdapter`. Everything is optional; SAVE tells the player saving
  * isn't available when no `personaStore` is given. */
 export interface AberMUDAdapterOptions {
+  readonly accountStore?: AberMUDAccountStore
   readonly personaStore?: AberMUDPersonaStore
 }
 
@@ -50,14 +53,27 @@ export class AberMUDAdapter implements EngineAdapter<SessionInput> {
    * it is actively played. SAVE persists whatever is recorded here; nothing populates it yet on
    * its own, so composing this adapter means seeding it directly, the same as `rooms`. */
   readonly personas: Map<EntityId, AberMUDPersona> = new Map()
+  readonly #accountStore: AberMUDAccountStore | undefined
   readonly #personaStore: AberMUDPersonaStore | undefined
 
   constructor(options: AberMUDAdapterOptions = {}) {
+    this.#accountStore = options.accountStore
     this.#personaStore = options.personaStore
   }
 
   parse(input: SessionInput): readonly Work[] {
     return parseAberMUD(input)
+  }
+
+  /**
+   * Authenticates an AberMUD account. Authentication returns the principal for the caller to use
+   * when constructing a new Session; Session itself deliberately remains immutable after creation.
+   */
+  async authenticate(name: string, password: string): Promise<PrincipalId | undefined> {
+    if (this.#accountStore === undefined) {
+      throw new Error("account authentication is not available")
+    }
+    return authenticate(this.#accountStore, name, password)
   }
 
   /**
