@@ -58,10 +58,6 @@ export async function loginCharacter(
 
   if (existingCharacter !== undefined) {
     const persona = await loadPersona(store, options.name)
-    if (persona === undefined) {
-      throw new Error(`Character "${options.name}" has no persisted persona`)
-    }
-
     personas.set(existingCharacter, persona)
     establishControl(control, principal, existingCharacter)
     return existingCharacter
