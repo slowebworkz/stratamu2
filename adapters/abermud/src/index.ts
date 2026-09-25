@@ -1,5 +1,7 @@
 export type { AberMUDAdapterOptions } from "./adapter.ts"
 export { AberMUDAdapter } from "./adapter.ts"
+export type { AberMUDAccount, AberMUDAccountStore } from "./account/index.ts"
+export { authenticate, FileAccountStore } from "./account/index.ts"
 export type { Control } from "./control.ts"
 export type { SessionInput } from "./parser.ts"
 export type { AberMUDPersona, AberMUDPersonaStore } from "./persistence/index.ts"

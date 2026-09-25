@@ -226,6 +226,9 @@ importers:
 
   adapters/abermud:
     dependencies:
+      '@stratamu/base':
+        specifier: workspace:*
+        version: link:../../libs/base
       '@stratamu/engine-core':
         specifier: workspace:*
         version: link:../../engine/core
