@@ -41,7 +41,9 @@ Entity
 - normalized lower-case account name;
 - random per-account salt;
 - scrypt-derived password hash;
-- explicit format version `1`.
+- explicit format version `1`;
+- owner-only file permissions (`0600`) on the credential file;
+- atomic replacement on writes and in-process serialization of concurrent account creation.
 
 This is an implementation boundary, **not a historical `user_file` compatibility format**.
 

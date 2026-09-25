@@ -1,5 +1,5 @@
 import { randomBytes, scrypt as scryptCallback, timingSafeEqual } from "node:crypto"
-import { mkdir, readFile, rename, writeFile } from "node:fs/promises"
+import { chmod, mkdir, readFile, rename, unlink, writeFile } from "node:fs/promises"
 import { dirname } from "node:path"
 import { promisify } from "node:util"
 
@@ -13,6 +13,7 @@ const scrypt = promisify(scryptCallback)
 const VERSION = 1
 const KEY_LENGTH = 64
 const SALT_LENGTH = 16
+const DUMMY_SALT = Buffer.alloc(SALT_LENGTH)
 
 interface AccountRecord {
   readonly version: typeof VERSION
@@ -37,27 +38,29 @@ export class FileAccountStore extends Base implements AberMUDAccountStore {
     const normalizedName = normalizeName(name)
     validatePassword(password)
 
-    const records = await this.readRecords()
+    return withFileLock(this.file, async () => {
+      const records = await this.readRecords()
 
-    if (records.some(record => record.name === normalizedName)) {
-      throw new Error(`Account "${name}" already exists`)
-    }
+      if (records.some(record => record.name === normalizedName)) {
+        throw new Error(`Account "${name}" already exists`)
+      }
 
-    const salt = randomBytes(SALT_LENGTH)
-    const hash = await derivePassword(password, salt)
+      const salt = randomBytes(SALT_LENGTH)
+      const hash = await derivePassword(password, salt)
 
-    records.push({
-      version: VERSION,
-      name: normalizedName,
-      salt: salt.toString("base64url"),
-      hash: hash.toString("base64url"),
+      records.push({
+        version: VERSION,
+        name: normalizedName,
+        salt: salt.toString("base64url"),
+        hash: hash.toString("base64url"),
+      })
+
+      await this.writeRecords(records)
+
+      this.log.info({ account: normalizedName }, "Account created")
+
+      return account(normalizedName)
     })
-
-    await this.writeRecords(records)
-
-    this.log.info({ account: normalizedName }, "Account created")
-
-    return account(normalizedName)
   }
 
   async authenticate(name: string, password: string): Promise<AberMUDAccount | undefined> {
@@ -65,6 +68,9 @@ export class FileAccountStore extends Base implements AberMUDAccountStore {
     const record = (await this.readRecords()).find(candidate => candidate.name === normalizedName)
 
     if (record === undefined) {
+      // Perform the same expensive password derivation used for a known account so that an
+      // unknown account does not immediately reveal its existence through timing alone.
+      await derivePassword(password, DUMMY_SALT)
       this.log.debug({ account: normalizedName }, "Account authentication failed")
       return undefined
     }
@@ -110,11 +116,41 @@ export class FileAccountStore extends Base implements AberMUDAccountStore {
   private async writeRecords(records: readonly AccountRecord[]): Promise<void> {
     await mkdir(dirname(this.file), { recursive: true })
 
-    const temporaryFile = `${this.file}.tmp`
+    const temporaryFile = `${this.file}.${randomBytes(16).toString("hex")}.tmp`
+    const contents = `${JSON.stringify(records, null, 2)}\n`
 
-    await writeFile(temporaryFile, `${JSON.stringify(records, null, 2)}\n`, "utf8")
+    try {
+      await writeFile(temporaryFile, contents, { encoding: "utf8", mode: 0o600 })
+      await chmod(temporaryFile, 0o600)
+      await rename(temporaryFile, this.file)
+      await chmod(this.file, 0o600)
+    } finally {
+      // A failed write or rename must not leave credentials in a predictable temporary file.
+      await unlinkIfPresent(temporaryFile)
+    }
+  }
+}
 
-    await rename(temporaryFile, this.file)
+const fileLocks = new Map<string, Promise<void>>()
+
+async function withFileLock<T>(file: string, action: () => Promise<T>): Promise<T> {
+  const previous = fileLocks.get(file) ?? Promise.resolve()
+  let release!: () => void
+  const gate = new Promise<void>(resolve => {
+    release = resolve
+  })
+  const current = previous.then(() => gate)
+  fileLocks.set(file, current)
+
+  await previous
+
+  try {
+    return await action()
+  } finally {
+    release()
+    if (fileLocks.get(file) === current) {
+      fileLocks.delete(file)
+    }
   }
 }
 
@@ -174,10 +210,26 @@ function parseRecord(value: unknown): AccountRecord {
 }
 
 function decodeBase64(value: string, field: string): Buffer {
-  try {
-    return Buffer.from(value, "base64url")
-  } catch {
+  if (!/^[A-Za-z0-9_-]+$/.test(value)) {
     throw new Error(`Invalid account ${field}`)
+  }
+
+  const decoded = Buffer.from(value, "base64url")
+
+  if (decoded.toString("base64url") !== value) {
+    throw new Error(`Invalid account ${field}`)
+  }
+
+  return decoded
+}
+
+async function unlinkIfPresent(file: string): Promise<void> {
+  try {
+    await unlink(file)
+  } catch (error) {
+    if (!isMissingFile(error)) {
+      throw error
+    }
   }
 }
 
