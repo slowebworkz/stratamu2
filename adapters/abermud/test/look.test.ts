@@ -52,7 +52,7 @@ describe("EXITS", () => {
     }
     await runtime.drain()
 
-    expect(session.output).toEqual(["obvious exits: north"])
+    expect(session.output).toEqual([{ kind: "exits", directions: ["north"] }])
   })
 
   it("reports no obvious exits from a room with none", async () => {
@@ -71,6 +71,6 @@ describe("EXITS", () => {
     }
     await runtime.drain()
 
-    expect(session.output).toEqual(["there are no obvious exits"])
+    expect(session.output).toEqual([{ kind: "exits", directions: [] }])
   })
 })

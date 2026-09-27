@@ -3,8 +3,8 @@ import type { EntityId } from "@stratamu/primitives"
 /**
  * What a character sees of the room they are in: a game fact, not wording. Occupants are entity
  * ids because `WorldState` holds no names yet; who resolves them to something displayable is an
- * open question (docs/OUTPUT_BOUNDARY.md). Room views, refusals and speech are semantic so far. Every other
- * command still sends a finished string, and `Session.send` still accepts `unknown`.
+ * open question (docs/OUTPUT_BOUNDARY.md). Every command now sends one of the `AberOutput` variants. `Session.send` still
+ * accepts `unknown`: the engine cannot name an adapter's output type.
  */
 export interface RoomOutput {
   readonly kind: "room"
@@ -48,6 +48,33 @@ export interface SpeechOutput {
   readonly addressee?: string
 }
 
+/** The directions out of the current room, in the order the room lists them. */
+export interface ExitsOutput {
+  readonly kind: "exits"
+  readonly directions: readonly string[]
+}
+
+/** Who is online. Names are the character names as WHO has always listed them. */
+export interface PlayersOutput {
+  readonly kind: "players"
+  readonly names: readonly string[]
+}
+
+/** A character was saved. */
+export interface SavedOutput {
+  readonly kind: "saved"
+  readonly name: string
+}
+
+/** Everything an AberMUD command can send a session. */
+export type AberOutput =
+  | RoomOutput
+  | RefusalOutput
+  | SpeechOutput
+  | ExitsOutput
+  | PlayersOutput
+  | SavedOutput
+
 /** How a room view reads as text: the presentation half of what `describeRoom` used to do. */
 export function renderRoom(room: RoomOutput): string {
   const text = `${room.name}\n${room.description}`
@@ -82,4 +109,38 @@ export function renderSpeech(output: SpeechOutput): string {
   return output.channel === "say"
     ? `${output.speaker} says, "${output.text}"`
     : `${output.speaker} tells you, "${output.text}"`
+}
+
+export function renderExits(output: ExitsOutput): string {
+  return output.directions.length === 0
+    ? "there are no obvious exits"
+    : `obvious exits: ${output.directions.join(", ")}`
+}
+
+export function renderPlayers(output: PlayersOutput): string {
+  return output.names.length === 0
+    ? "no one else is online"
+    : `online: ${output.names.join(", ")}`
+}
+
+export function renderSaved(output: SavedOutput): string {
+  return `Saving ${output.name}`
+}
+
+/** Any AberMUD output as plain text. Exhaustive: a new variant fails to compile until worded. */
+export function renderOutput(output: AberOutput): string {
+  switch (output.kind) {
+    case "room":
+      return renderRoom(output)
+    case "refusal":
+      return renderRefusal(output)
+    case "speech":
+      return renderSpeech(output)
+    case "exits":
+      return renderExits(output)
+    case "players":
+      return renderPlayers(output)
+    case "saved":
+      return renderSaved(output)
+  }
 }

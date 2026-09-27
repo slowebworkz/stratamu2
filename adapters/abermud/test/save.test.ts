@@ -29,7 +29,7 @@ describe("SAVE", () => {
     }
     await runtime.drain()
 
-    expect(session.output).toEqual(["Saving alice"])
+    expect(session.output).toEqual([{ kind: "saved", name: "alice" }])
     expect(await personaStore.load("alice")).toEqual({
       name: "alice",
       score: 0,

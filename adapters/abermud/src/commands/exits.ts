@@ -4,7 +4,7 @@ import type { EntityId } from "@stratamu/primitives"
 import { workKind } from "@stratamu/work"
 
 import type { Control } from "../control.ts"
-import { refusal } from "../output.ts"
+import { type ExitsOutput, refusal } from "../output.ts"
 import type { AberRoomDefinition } from "../world/index.ts"
 import { resolveActor, roomOf } from "./look.ts"
 
@@ -29,10 +29,6 @@ export function registerExits(
       return
     }
     const directions = [...room.exits.keys()]
-    session?.send(
-      directions.length === 0
-        ? "there are no obvious exits"
-        : `obvious exits: ${directions.join(", ")}`,
-    )
+    session?.send({ kind: "exits", directions } satisfies ExitsOutput)
   })
 }

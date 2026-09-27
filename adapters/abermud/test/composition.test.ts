@@ -136,7 +136,7 @@ describe("AberMUD engine composition", () => {
     engine.receive({ session, raw: "save" })
     await engine.runtime.drain()
 
-    expect(session.output).toEqual(["Saving alice"])
+    expect(session.output).toEqual([{ kind: "saved", name: "alice" }])
     expect(await personaStore.load("alice")).toEqual({
       name: "alice",
       score: 100,

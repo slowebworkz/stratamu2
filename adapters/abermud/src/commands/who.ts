@@ -5,6 +5,7 @@ import { workKind } from "@stratamu/work"
 
 import type { Control } from "../control.ts"
 import { principalControlling } from "../control.ts"
+import type { PlayersOutput } from "../output.ts"
 
 export const who = workKind("abermud.who")
 
@@ -22,6 +23,6 @@ export function registerWho(
         return principal !== undefined && context.sessions?.activeFor(principal) !== undefined
       })
       .map(([name]) => name)
-    session?.send(online.length === 0 ? "no one else is online" : `online: ${online.join(", ")}`)
+    session?.send({ kind: "players", names: online } satisfies PlayersOutput)
   })
 }

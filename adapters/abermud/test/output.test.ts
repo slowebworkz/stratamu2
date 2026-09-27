@@ -1,7 +1,7 @@
 import { entityId } from "@stratamu/primitives"
 import { describe, expect, it } from "vitest"
 
-import { refusal, renderRefusal, renderRoom, renderSpeech } from "../src/output.ts"
+import { refusal, renderRefusal, renderOutput, renderRoom, renderSpeech } from "../src/output.ts"
 
 describe("renderRoom", () => {
   it("renders a room with nobody else in it", () => {
@@ -50,5 +50,27 @@ describe("renderSpeech", () => {
     expect(renderSpeech({ ...base, channel: "tell", perspective: "listener" })).toBe(
       'alice tells you, "hi"',
     )
+  })
+})
+
+describe("renderOutput", () => {
+  it("words exits, players and saves", () => {
+    expect(renderOutput({ kind: "exits", directions: ["north", "east"] })).toBe(
+      "obvious exits: north, east",
+    )
+    expect(renderOutput({ kind: "exits", directions: [] })).toBe("there are no obvious exits")
+    expect(renderOutput({ kind: "players", names: ["alice", "bob"] })).toBe("online: alice, bob")
+    expect(renderOutput({ kind: "players", names: [] })).toBe("no one else is online")
+    expect(renderOutput({ kind: "saved", name: "alice" })).toBe("Saving alice")
+  })
+
+  it("dispatches every variant to its own wording", () => {
+    expect(renderOutput(refusal("nowhere"))).toBe("you are nowhere")
+    expect(
+      renderOutput({ kind: "speech", channel: "say", perspective: "speaker", speaker: "a", text: "x" }),
+    ).toBe('You say, "x"')
+    expect(
+      renderOutput({ kind: "room", name: "Here", description: "Small.", occupants: [] }),
+    ).toBe("Here\nSmall.")
   })
 })

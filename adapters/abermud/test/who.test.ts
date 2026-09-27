@@ -16,7 +16,7 @@ describe("WHO", () => {
     }
     await runtime.drain()
 
-    expect(alice.output).toEqual(["online: alice, bob"])
+    expect(alice.output).toEqual([{ kind: "players", names: ["alice", "bob"] }])
   })
 
   it("lists the caller when they are the only one online", async () => {
@@ -29,7 +29,7 @@ describe("WHO", () => {
     }
     await runtime.drain()
 
-    expect(alice.output).toEqual(["online: alice"])
+    expect(alice.output).toEqual([{ kind: "players", names: ["alice"] }])
   })
 
   it("reports no one online when no character is connected", async () => {
@@ -41,6 +41,6 @@ describe("WHO", () => {
     }
     await runtime.drain()
 
-    expect(session.output).toEqual(["no one else is online"])
+    expect(session.output).toEqual([{ kind: "players", names: [] }])
   })
 })

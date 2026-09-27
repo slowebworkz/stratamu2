@@ -4,7 +4,7 @@ import type { EntityId } from "@stratamu/primitives"
 import { workKind } from "@stratamu/work"
 
 import type { Control } from "../control.ts"
-import { refusal } from "../output.ts"
+import { refusal, type SavedOutput } from "../output.ts"
 import type { AberMUDPersona, AberMUDPersonaStore } from "../persistence/index.ts"
 import { resolveActor } from "./look.ts"
 
@@ -37,6 +37,6 @@ export function registerSave(
       return
     }
     await store.save(persona)
-    session?.send(`Saving ${persona.name}`)
+    session?.send({ kind: "saved", name: persona.name } satisfies SavedOutput)
   })
 }

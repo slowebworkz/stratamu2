@@ -2,7 +2,7 @@
 
 ## Status
 
-**Investigation; room views, refusals and speech implemented.** This inventories the output the engine actually produces today, classifies what it communicates, and proposes a candidate vocabulary. `Session.send(message: unknown)` is unchanged.
+**Investigation; implemented for every AberMUD command.** This inventories the output the engine actually produces today, classifies what it communicates, and proposes a candidate vocabulary. `Session.send(message: unknown)` is unchanged.
 
 Scope is deliberately narrow: semantic output, not a presentation framework. Telnet/ANSI/web rendering, line wrapping, colour and prompts-as-transport stay out of the engine. See [SESSION_BOUNDARY.md](SESSION_BOUNDARY.md) for why output is a handler side effect through `Session.send` rather than a `Task` result; that decision is not reopened here.
 
@@ -112,6 +112,18 @@ What it answered:
 
 Still prose: EXITS, WHO and the SAVE confirmation, plus the whole `adapters/test` adapter, which is a separate, deliberately trivial adapter and was not touched.
 
-## Next step
+## Fourth step, done: the rest of AberMUD
 
-Finish the abermud handlers (EXITS, WHO, SAVE confirmation), then decide names and whether `Session.send` should stop being `unknown`. With every abermud output semantic, a single `GameOutput` union is justified by real code rather than by this document.
+EXITS, WHO and the SAVE confirmation now send `ExitsOutput`, `PlayersOutput` and `SavedOutput`. No AberMUD handler sends a string any more, and the six variants form one `AberOutput` union with an exhaustive `renderOutput`, so a new variant fails to compile until someone words it.
+
+What it settled:
+
+- **The union is real.** Six kinds, each needed by an existing command. Nothing in it is speculative.
+- **`Session.send` stays `unknown`.** The engine cannot name an adapter's output type, and the only consumers are test sessions that record what they are given. Making `send` generic is deferred until a transport actually receives output. The `adapters/test` adapter still sends strings, which is fine while it is a separate, trivial adapter.
+- **Nothing consumes `renderOutput` yet.** It is the presentation seam waiting for a transport; the tests exercise it directly.
+
+## Open
+
+- **Names.** `occupants`, `speaker` and `players.names` remain ids or as-typed strings. Decide when `WorldState` or the adapter holds displayable names.
+- **Typing `send`.** Revisit when the first real transport is built.
+- **Multiple sessions per principal.** Unchanged, and still deliberately unsolved.
