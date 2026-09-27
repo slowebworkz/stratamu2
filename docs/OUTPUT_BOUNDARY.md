@@ -2,17 +2,21 @@
 
 ## Status
 
-**Investigation; implemented for every AberMUD command.** This inventories the output the engine actually produces today, classifies what it communicates, and proposes a candidate vocabulary. `Session.send(message: unknown)` is unchanged.
+**Investigation; implemented for every AberMUD command.** This inventoried the output the engine produced, classified what it communicates, and proposed a vocabulary, which every AberMUD command now uses. `Session.send(message: unknown)` is unchanged.
 
 Scope is deliberately narrow: semantic output, not a presentation framework. Telnet/ANSI/web rendering, line wrapping, colour and prompts-as-transport stay out of the engine. See [SESSION_BOUNDARY.md](SESSION_BOUNDARY.md) for why output is a handler side effect through `Session.send` rather than a `Task` result; that decision is not reopened here.
 
 ## The seam
 
-`Session.send(message: unknown)` in `@stratamu/engine-sessions`. Every handler builds a finished English string and passes it to `send`, so **the handlers currently do the presentation**: wording, punctuation, line breaks and list formatting live inside game logic. Any transport receives prose and can only print it.
+`Session.send(message: unknown)` in `@stratamu/engine-sessions` is the current transport-independent output seam.
+
+AberMUD handlers now emit `AberOutput` semantic values rather than finished English strings. The adapter's output renderer (`renderOutput`) owns the current text presentation. `Session.send` remains `unknown` because the generic engine cannot name an adapter-specific output vocabulary.
+
+Before this work, every handler built a finished English string and passed it to `send`, so the handlers did the presentation: wording, punctuation, line breaks and list formatting lived inside game logic, and a transport could only print prose. The inventory below describes that starting point, and is kept as the record of what the investigation found.
 
 ## Inventory
 
-Everything below is what handlers send today (`adapters/abermud/src/commands/`, plus `adapters/test/src/test-adapter.ts`, which mirrors the same shapes).
+Everything below is what handlers sent when the investigation began (`adapters/abermud/src/commands/`, plus `adapters/test/src/test-adapter.ts`, which mirrors the same shapes).
 
 | Command | Recipient | Output | Kind |
 | --- | --- | --- | --- |
