@@ -18,7 +18,7 @@ describe("Telnet ECHO negotiation over a real socket", () => {
     server = undefined
   })
 
-  it("suppresses and restores the client's echo through Connection.setEcho", async () => {
+  it("suppresses and restores the client's echo through TelnetConnection.setEcho", async () => {
     server = createLineServer(connection => {
       connection.setEcho(false)
       connection.onLine(() => connection.setEcho(true))

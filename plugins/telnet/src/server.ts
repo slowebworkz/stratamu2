@@ -8,28 +8,37 @@ import { TelnetNegotiator } from "./telnet-negotiator.ts"
 /**
  * One client connection, as everything above the transport sees it: lines in, text out. Nothing
  * here says what is on the wire, so an adapter's session, login flow or renderer can be written
- * against it without knowing about sockets.
+ * against it without knowing about sockets -- and nothing here says Telnet either. `setEcho` is a
+ * Telnet-specific capability (see `TelnetConnection` below); a `Connection` on its own promises
+ * only line-oriented input and output, the shape any line transport could offer.
+ */
+export interface Connection {
+  readonly id: string
+  /** Called once per complete line the client sends, without its terminator. */
+  onLine(handler: (line: string) => void): void
+  /** Called once when the connection ends, whichever side ended it. */
+  onClose(handler: () => void): void
+  /** Sends text as given. Line endings are the caller's concern. */
+  write(text: string): void
+  close(): void
+}
+
+/**
+ * A `Connection` over Telnet specifically, adding the two things only Telnet's own protocol
+ * makes possible: seeing the commands the wire carried, and controlling the client's echo.
  *
  * Telnet commands are parsed out before a line ever reaches `onLine` -- negotiation never mixes
  * with application text. Every command still reaches `onCommand`, but option negotiation is
  * already answered by a `TelnetNegotiator` before that: `onCommand` is for watching, not for
  * implementing another option, which belongs in the negotiator instead.
  */
-export interface Connection {
-  readonly id: string
-  /** Called once per complete line the client sends, without its terminator. */
-  onLine(handler: (line: string) => void): void
+export interface TelnetConnection extends Connection {
   /** Called once per Telnet command the client sends (a DO/DONT/WILL/WONT, a subnegotiation, or a
    * bare signal such as Go Ahead). Informational: see the interface note above. */
   onCommand(handler: (command: TelnetCommand) => void): void
-  /** Called once when the connection ends, whichever side ended it. */
-  onClose(handler: () => void): void
   /** Suppresses or restores the client's local echo, for a password prompt. See
    * `TelnetNegotiator`. */
   setEcho(active: boolean): void
-  /** Sends text as given. Line endings are the caller's concern. */
-  write(text: string): void
-  close(): void
 }
 
 export interface LineServer {
@@ -39,13 +48,13 @@ export interface LineServer {
 }
 
 /**
- * Telnet transport: accepts connections and hands each one to `onConnection` as a `Connection`.
- * `TelnetCodec` sits between the socket and `LineBuffer`, so a client's option negotiation is
- * parsed out before it ever reaches application text, and a `TelnetNegotiator` answers it: ECHO
- * for `setEcho`, everything else refused per RFC 854 so a real Telnet client's negotiation always
- * gets a reply instead of hanging.
+ * Telnet transport: accepts connections and hands each one to `onConnection` as a
+ * `TelnetConnection`. `TelnetCodec` sits between the socket and `LineBuffer`, so a client's
+ * option negotiation is parsed out before it ever reaches application text, and a
+ * `TelnetNegotiator` answers it: ECHO for `setEcho`, everything else refused per RFC 854 so a
+ * real Telnet client's negotiation always gets a reply instead of hanging.
  */
-export function createLineServer(onConnection: (connection: Connection) => void): LineServer {
+export function createLineServer(onConnection: (connection: TelnetConnection) => void): LineServer {
   let nextId = 1
   const sockets = new Set<Socket>()
   const server: Server = createServer(socket => {
