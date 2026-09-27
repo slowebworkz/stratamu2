@@ -4,6 +4,7 @@ import type { EntityId } from "@stratamu/primitives"
 import { workKind } from "@stratamu/work"
 
 import type { Control } from "../control.ts"
+import { refusal } from "../output.ts"
 import { principalControlling } from "../control.ts"
 import { resolveActor } from "./look.ts"
 
@@ -25,7 +26,7 @@ export function registerTell(
     }
     const actor = resolveActor(control, session)
     if (actor === undefined) {
-      session?.send("you are not controlling a character")
+      session?.send(refusal("not-controlling"))
       return
     }
     const targetEntity = charactersByName.get(target.toLowerCase())
@@ -34,7 +35,7 @@ export function registerTell(
     const targetSession =
       targetPrincipal === undefined ? undefined : context.sessions?.activeFor(targetPrincipal)
     if (targetSession === undefined) {
-      session?.send(`${target} is not here`)
+      session?.send(refusal("target-absent", target))
       return
     }
     const speaker = session?.principalId ?? actor

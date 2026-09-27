@@ -29,7 +29,7 @@ describe("TELL", () => {
     }
     await runtime.drain()
 
-    expect(alice.output).toEqual(["bob is not here"])
+    expect(alice.output).toEqual([{ kind: "refusal", reason: "target-absent", target: "bob" }])
   })
 
   it("reports an unknown character as not here", async () => {
@@ -41,6 +41,6 @@ describe("TELL", () => {
     }
     await runtime.drain()
 
-    expect(alice.output).toEqual(["carol is not here"])
+    expect(alice.output).toEqual([{ kind: "refusal", reason: "target-absent", target: "carol" }])
   })
 })

@@ -28,7 +28,7 @@ describe("MOVE", () => {
     await runtime.drain()
 
     expect(world.locationOf(alicePlayer)).toBe(here)
-    expect(session.output).toEqual(["you can't go that way"])
+    expect(session.output).toEqual([{ kind: "refusal", reason: "no-exit" }])
   })
 
   it("resolves a single-letter alias to the canonical direction", async () => {

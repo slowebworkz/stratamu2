@@ -4,6 +4,7 @@ import type { EntityId } from "@stratamu/primitives"
 import { workKind } from "@stratamu/work"
 
 import type { Control } from "../control.ts"
+import { refusal } from "../output.ts"
 import type { AberRoomDefinition } from "../world/index.ts"
 import { resolveActor, roomOf } from "./look.ts"
 
@@ -19,12 +20,12 @@ export function registerExits(
     const { session } = task.work.input as { session: Session | undefined }
     const actor = resolveActor(control, session)
     if (actor === undefined) {
-      session?.send("you are not controlling a character")
+      session?.send(refusal("not-controlling"))
       return
     }
     const room = roomOf(context.world, rooms, actor)
     if (room === undefined) {
-      session?.send("you are nowhere")
+      session?.send(refusal("nowhere"))
       return
     }
     const directions = [...room.exits.keys()]

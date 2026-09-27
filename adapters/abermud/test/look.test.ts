@@ -38,7 +38,7 @@ describe("LOOK", () => {
     }
     await runtime.drain()
 
-    expect(session.output).toEqual(["you are not controlling a character"])
+    expect(session.output).toEqual([{ kind: "refusal", reason: "not-controlling" }])
   })
 })
 

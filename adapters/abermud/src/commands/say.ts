@@ -3,6 +3,7 @@ import type { Session } from "@stratamu/engine-sessions"
 import { workKind } from "@stratamu/work"
 
 import type { Control } from "../control.ts"
+import { refusal } from "../output.ts"
 import { principalControlling } from "../control.ts"
 import { resolveActor } from "./look.ts"
 
@@ -16,7 +17,7 @@ export function registerSay(runtime: Runtime, control: Control): void {
     }
     const actor = resolveActor(control, session)
     if (actor === undefined) {
-      session?.send("you are not controlling a character")
+      session?.send(refusal("not-controlling"))
       return
     }
     session?.send(`You say, "${message}"`)

@@ -2,7 +2,7 @@
 
 ## Status
 
-**Investigation; first step implemented for room views only.** This inventories the output the engine actually produces today, classifies what it communicates, and proposes a candidate vocabulary. `Session.send(message: unknown)` is unchanged.
+**Investigation; room views and refusals implemented.** This inventories the output the engine actually produces today, classifies what it communicates, and proposes a candidate vocabulary. `Session.send(message: unknown)` is unchanged.
 
 Scope is deliberately narrow: semantic output, not a presentation framework. Telnet/ANSI/web rendering, line wrapping, colour and prompts-as-transport stay out of the engine. See [SESSION_BOUNDARY.md](SESSION_BOUNDARY.md) for why output is a handler side effect through `Session.send` rather than a `Task` result; that decision is not reopened here.
 
@@ -90,6 +90,16 @@ What real code answered:
 - **Names:** unanswered. Occupants are still entity ids, exactly as before, and `RoomOutput` carries them as `EntityId`s, so resolving names remains presentation's or the adapter's job later.
 - **"You are nowhere":** left as a string. It is a refusal and moves with the refusal vocabulary, not with `room`.
 
+## Second step, done: refusals
+
+All six refusals now send a `RefusalOutput` (`{ kind: "refusal", reason }`) built by `refusal(...)`, and `renderRefusal` in `adapters/abermud/src/output.ts` holds the wording. "you are nowhere" is now a `nowhere` refusal in LOOK, MOVE and EXITS.
+
+What it answered:
+
+- **A closed reason set holds.** Five reasons are bare codes. `target-absent` is the exception: it carries the target as the player typed it, because the refusal is about that input, not a resolved entity. `refusal()` is overloaded so a target can only be supplied for that reason.
+- **Shared reasons are now shared.** `not-controlling` was six copies of one string; it is one code, worded once.
+- **Handlers no longer contain any refusal wording.** Only confirmations, speech, exits and the player list are still prose.
+
 ## Next step
 
-Convert one more group to check the vocabulary holds beyond rooms. Refusals are the best candidate: six reason codes, three of them shared by every command, so one change touches all handlers and tests the closed-set idea directly.
+Convert speech (SAY, TELL). It is the harder test: one event, two recipients, different wording, so it decides whether `speech` carries a speaker and a direction, and where "You" vs "X" gets decided.

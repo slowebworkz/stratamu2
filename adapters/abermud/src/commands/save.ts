@@ -4,6 +4,7 @@ import type { EntityId } from "@stratamu/primitives"
 import { workKind } from "@stratamu/work"
 
 import type { Control } from "../control.ts"
+import { refusal } from "../output.ts"
 import type { AberMUDPersona, AberMUDPersonaStore } from "../persistence/index.ts"
 import { resolveActor } from "./look.ts"
 
@@ -23,16 +24,16 @@ export function registerSave(
     const { session } = task.work.input as { session: Session | undefined }
     const actor = resolveActor(control, session)
     if (actor === undefined) {
-      session?.send("you are not controlling a character")
+      session?.send(refusal("not-controlling"))
       return
     }
     if (store === undefined) {
-      session?.send("saving is not available")
+      session?.send(refusal("save-unavailable"))
       return
     }
     const persona = personas.get(actor)
     if (persona === undefined) {
-      session?.send("you have no status to save")
+      session?.send(refusal("nothing-to-save"))
       return
     }
     await store.save(persona)

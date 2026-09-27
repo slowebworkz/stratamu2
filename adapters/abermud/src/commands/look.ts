@@ -5,6 +5,7 @@ import type { EntityId } from "@stratamu/primitives"
 import { workKind } from "@stratamu/work"
 
 import type { Control } from "../control.ts"
+import { refusal } from "../output.ts"
 import type { RoomOutput } from "../output.ts"
 import type { AberRoomDefinition } from "../world/index.ts"
 
@@ -20,10 +21,10 @@ export function registerLook(
     const { session } = task.work.input as { session: Session | undefined }
     const actor = resolveActor(control, session)
     if (actor === undefined) {
-      session?.send("you are not controlling a character")
+      session?.send(refusal("not-controlling"))
       return
     }
-    session?.send(describeRoom(context.world, rooms, actor) ?? "you are nowhere")
+    session?.send(describeRoom(context.world, rooms, actor) ?? refusal("nowhere"))
   })
 }
 
