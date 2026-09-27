@@ -2,7 +2,7 @@
 
 ## Status
 
-**Investigation only — nothing implemented.** This inventories the output the engine actually produces today, classifies what it communicates, and proposes a candidate vocabulary. `Session.send(message: unknown)` is unchanged.
+**Investigation; first step implemented for room views only.** This inventories the output the engine actually produces today, classifies what it communicates, and proposes a candidate vocabulary. `Session.send(message: unknown)` is unchanged.
 
 Scope is deliberately narrow: semantic output, not a presentation framework. Telnet/ANSI/web rendering, line wrapping, colour and prompts-as-transport stay out of the engine. See [SESSION_BOUNDARY.md](SESSION_BOUNDARY.md) for why output is a handler side effect through `Session.send` rather than a `Task` result; that decision is not reopened here.
 
@@ -80,6 +80,16 @@ The engine states what happened. Presentation decides how it reads.
 3. **Migration order.** Converting one command (LOOK/MOVE share `describeRoom`, so they move together) before touching the rest keeps each step reviewable.
 4. **Multiple sessions per principal.** Still deliberately unsolved; it only matters to output once fan-out to a principal's several sessions is real.
 
+## First step, done: room views
+
+`describeRoom` (shared by LOOK and MOVE) now returns a `RoomOutput` (`{ kind: "room", name, description, occupants }`) and the handlers send that object. `renderRoom` in `adapters/abermud/src/output.ts` is the presentation half and reproduces the old text exactly. Every other command still sends a string, so `send` still takes `unknown` and sessions currently see a mix.
+
+What real code answered:
+
+- **Where the type lives:** adapter-owned. The vocabulary is game-level, and `RoomOutput` needed nothing from the engine. `Session.send` stays `unknown` until a second adapter or several output kinds justify a shared envelope.
+- **Names:** unanswered. Occupants are still entity ids, exactly as before, and `RoomOutput` carries them as `EntityId`s, so resolving names remains presentation's or the adapter's job later.
+- **"You are nowhere":** left as a string. It is a refusal and moves with the refusal vocabulary, not with `room`.
+
 ## Next step
 
-Convert `describeRoom` (LOOK and MOVE) to emit a `room` output and give the test session and AberMUD tests something to assert on other than a formatted string. That is the smallest change that forces the open questions above to get answers from real code.
+Convert one more group to check the vocabulary holds beyond rooms. Refusals are the best candidate: six reason codes, three of them shared by every command, so one change touches all handlers and tests the closed-set idea directly.

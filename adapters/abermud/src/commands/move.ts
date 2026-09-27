@@ -55,6 +55,6 @@ export function registerMove(
     }
     context.world?.locate(actor, destination)
     // Same description LOOK gives, for wherever the character ended up.
-    session?.send(describeRoom(context.world, rooms, actor))
+    session?.send(describeRoom(context.world, rooms, actor) ?? "you are nowhere")
   })
 }

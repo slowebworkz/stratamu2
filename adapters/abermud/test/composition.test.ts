@@ -56,7 +56,7 @@ describe("AberMUD engine composition", () => {
     engine.receive({ session, raw: "look" })
     await engine.runtime.drain()
 
-    expect(session.output).toEqual(["Here\nA small starting room."])
+    expect(session.output).toEqual([{ kind: "room", name: "Here", description: "A small starting room.", occupants: [] }])
   })
 
   it('"north" -> Engine.receive -> abermud.move -> Runtime -> WorldState mutation', async () => {

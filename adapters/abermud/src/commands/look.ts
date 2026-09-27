@@ -5,6 +5,7 @@ import type { EntityId } from "@stratamu/primitives"
 import { workKind } from "@stratamu/work"
 
 import type { Control } from "../control.ts"
+import type { RoomOutput } from "../output.ts"
 import type { AberRoomDefinition } from "../world/index.ts"
 
 /** LOOK: the full room description. */
@@ -22,7 +23,7 @@ export function registerLook(
       session?.send("you are not controlling a character")
       return
     }
-    session?.send(describeRoom(context.world, rooms, actor))
+    session?.send(describeRoom(context.world, rooms, actor) ?? "you are nowhere")
   })
 }
 
@@ -42,19 +43,21 @@ export function roomOf(
   return location === undefined ? undefined : rooms.get(location)
 }
 
-/** What LOOK shows, and what a successful MOVE shows for the room arrived in. */
+/** What LOOK shows, and what a successful MOVE shows for the room arrived in. `undefined` when the
+ * actor is not in a known room. */
 export function describeRoom(
   world: WorldState | undefined,
   rooms: ReadonlyMap<EntityId, AberRoomDefinition>,
   actor: EntityId,
-): string {
+): RoomOutput | undefined {
   const room = roomOf(world, rooms, actor)
   if (room === undefined) {
-    return "you are nowhere"
+    return undefined
   }
-  const occupantIds = [...(world?.occupants(room.id) ?? [])].filter(id => id !== actor)
-  const description = `${room.name}\n${room.description}`
-  return occupantIds.length === 0
-    ? description
-    : `${description}\nAlso here: ${occupantIds.join(", ")}.`
+  return {
+    kind: "room",
+    name: room.name,
+    description: room.description,
+    occupants: [...(world?.occupants(room.id) ?? [])].filter(id => id !== actor),
+  }
 }

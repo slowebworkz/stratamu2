@@ -1,3 +1,4 @@
+import { entityId } from "@stratamu/primitives"
 import { describe, expect, it } from "vitest"
 
 import { testSession } from "./fixtures/session.ts"
@@ -13,7 +14,7 @@ describe("LOOK", () => {
     }
     await runtime.drain()
 
-    expect(session.output).toEqual(["Here\nA small starting room."])
+    expect(session.output).toEqual([{ kind: "room", name: "Here", description: "A small starting room.", occupants: [] }])
   })
 
   it("describes the room and who else is there", async () => {
@@ -25,7 +26,7 @@ describe("LOOK", () => {
     }
     await runtime.drain()
 
-    expect(session.output).toEqual(["There\nA room further along.\nAlso here: goblin."])
+    expect(session.output).toEqual([{ kind: "room", name: "There", description: "A room further along.", occupants: [entityId("goblin")] }])
   })
 
   it("has no output for a session controlling nothing", async () => {
