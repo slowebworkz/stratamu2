@@ -4,6 +4,7 @@ import type { EntityId } from "@stratamu/primitives"
 import { workKind } from "@stratamu/work"
 
 import type { Control } from "../control.ts"
+import { refusal } from "../output.ts"
 import type { AberRoomDefinition } from "../world/index.ts"
 import { describeRoom, resolveActor, roomOf } from "./look.ts"
 
@@ -43,18 +44,18 @@ export function registerMove(
     }
     const actor = resolveActor(control, session)
     if (actor === undefined) {
-      session?.send("you are not controlling a character")
+      session?.send(refusal("not-controlling"))
       return
     }
     // Is there an exit from here, in this direction?
     const room = roomOf(context.world, rooms, actor)
     const destination = room?.exits.get(direction)
     if (destination === undefined) {
-      session?.send("you can't go that way")
+      session?.send(refusal("no-exit"))
       return
     }
     context.world?.locate(actor, destination)
     // Same description LOOK gives, for wherever the character ended up.
-    session?.send(describeRoom(context.world, rooms, actor))
+    session?.send(describeRoom(context.world, rooms, actor) ?? refusal("nowhere"))
   })
 }

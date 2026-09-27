@@ -16,8 +16,25 @@ describe("TELL", () => {
     }
     await runtime.drain()
 
-    expect(alice.output).toEqual(['You tell bob, "hi there"'])
-    expect(bob.output).toEqual(['alice tells you, "hi there"'])
+    expect(alice.output).toEqual([
+      {
+        kind: "speech",
+        channel: "tell",
+        perspective: "speaker",
+        speaker: "alice",
+        text: "hi there",
+        addressee: "bob",
+      },
+    ])
+    expect(bob.output).toEqual([
+      {
+        kind: "speech",
+        channel: "tell",
+        perspective: "listener",
+        speaker: "alice",
+        text: "hi there",
+      },
+    ])
   })
 
   it("reports the target as not here when they have no active session", async () => {
@@ -29,7 +46,7 @@ describe("TELL", () => {
     }
     await runtime.drain()
 
-    expect(alice.output).toEqual(["bob is not here"])
+    expect(alice.output).toEqual([{ kind: "refusal", reason: "target-absent", target: "bob" }])
   })
 
   it("reports an unknown character as not here", async () => {
@@ -41,6 +58,6 @@ describe("TELL", () => {
     }
     await runtime.drain()
 
-    expect(alice.output).toEqual(["carol is not here"])
+    expect(alice.output).toEqual([{ kind: "refusal", reason: "target-absent", target: "carol" }])
   })
 })

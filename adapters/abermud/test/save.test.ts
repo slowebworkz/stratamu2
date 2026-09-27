@@ -29,7 +29,7 @@ describe("SAVE", () => {
     }
     await runtime.drain()
 
-    expect(session.output).toEqual(["Saving alice"])
+    expect(session.output).toEqual([{ kind: "saved", name: "alice" }])
     expect(await personaStore.load("alice")).toEqual({
       name: "alice",
       score: 0,
@@ -48,7 +48,7 @@ describe("SAVE", () => {
     }
     await runtime.drain()
 
-    expect(session.output).toEqual(["saving is not available"])
+    expect(session.output).toEqual([{ kind: "refusal", reason: "save-unavailable" }])
   })
 
   it("says there is nothing to save for a character with no persona recorded", async () => {
@@ -62,6 +62,6 @@ describe("SAVE", () => {
     }
     await runtime.drain()
 
-    expect(session.output).toEqual(["you have no status to save"])
+    expect(session.output).toEqual([{ kind: "refusal", reason: "nothing-to-save" }])
   })
 })

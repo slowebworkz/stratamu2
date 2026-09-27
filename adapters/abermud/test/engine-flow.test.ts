@@ -1,6 +1,6 @@
 import { Engine } from "@stratamu/engine-core"
 import type { Session } from "@stratamu/engine-sessions"
-import { entityId, principalId, sessionId } from "@stratamu/primitives"
+import { entityId, type PrincipalId, principalId, sessionId } from "@stratamu/primitives"
 import { mkdtemp, rm } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
@@ -14,11 +14,11 @@ interface TestSession extends Session {
   readonly output: unknown[]
 }
 
-function testSession(id: string, principal: string): TestSession {
+function testSession(id: string, principal: PrincipalId): TestSession {
   const output: unknown[] = []
   return {
     id: sessionId(id),
-    principalId: principalId(principal),
+    principalId: principal,
     output,
     send(message) {
       output.push(message)
@@ -49,20 +49,25 @@ describe("AberMUD engine flow", () => {
 
       const principal = await adapter.authenticate("alice", "secret")
       expect(principal).toBe(principalId("alice"))
+      if (principal === undefined) {
+        throw new Error("expected authentication to succeed")
+      }
 
-      const session = testSession("session-1", "alice")
+      const session = testSession("session-1", principal)
       engine.sessions.open(session)
 
       const character = await adapter.login(engine.world, session, "alice", 0)
       engine.world.locate(character, here)
 
-      expect(engine.sessions.activeFor(principal!)).toBe(session)
-      expect(adapter.control.get(principal!)).toBe(character)
+      expect(engine.sessions.activeFor(principal)).toBe(session)
+      expect(adapter.control.get(principal)).toBe(character)
 
       engine.receive({ session, raw: "look" })
       await engine.runtime.drain()
 
-      expect(session.output).toEqual(["Here\nA small starting room."])
+      expect(session.output).toEqual([
+        { kind: "room", name: "Here", description: "A small starting room.", occupants: [] },
+      ])
     } finally {
       await rm(dir, { recursive: true, force: true })
     }
@@ -75,7 +80,7 @@ describe("AberMUD engine flow", () => {
       const personaStore = new FilePersonaStore(join(dir, "uaf.rand"))
       const adapter = new AberMUDAdapter({ personaStore })
       const engine = new Engine(adapter)
-      const session = testSession("session-1", "alice")
+      const session = testSession("session-1", principalId("alice"))
       engine.sessions.open(session)
 
       const character = await adapter.login(engine.world, session, "alice", 0)

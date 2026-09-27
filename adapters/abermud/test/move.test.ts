@@ -1,3 +1,4 @@
+import { entityId } from "@stratamu/primitives"
 import { describe, expect, it } from "vitest"
 
 import { testSession } from "./fixtures/session.ts"
@@ -14,7 +15,14 @@ describe("MOVE", () => {
     await runtime.drain()
 
     expect(world.locationOf(alicePlayer)).toBe(there)
-    expect(session.output).toEqual(["There\nA room further along.\nAlso here: bob-player, goblin."])
+    expect(session.output).toEqual([
+      {
+        kind: "room",
+        name: "There",
+        description: "A room further along.",
+        occupants: [entityId("bob-player"), entityId("goblin")],
+      },
+    ])
   })
 
   it("refuses an exit that doesn't exist", async () => {
@@ -27,7 +35,7 @@ describe("MOVE", () => {
     await runtime.drain()
 
     expect(world.locationOf(alicePlayer)).toBe(here)
-    expect(session.output).toEqual(["you can't go that way"])
+    expect(session.output).toEqual([{ kind: "refusal", reason: "no-exit" }])
   })
 
   it("resolves a single-letter alias to the canonical direction", async () => {
