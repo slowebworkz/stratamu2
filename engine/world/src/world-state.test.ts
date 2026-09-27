@@ -88,6 +88,21 @@ describe("WorldState", () => {
     )
   })
 
+  it("refuses to remove an entity that another entity is located at", () => {
+    const world = new WorldState()
+    const player = entity(entityId("player-1"), "test.player")
+    const roomEntity = room("room-1")
+    world.add(player)
+    world.add(roomEntity)
+    world.locate(player.id, roomEntity.id)
+
+    expect(() => world.remove(roomEntity.id)).toThrow(
+      'Cannot remove entity "room-1": entity "player-1" is located there',
+    )
+    expect(world.has(roomEntity.id)).toBe(true)
+    expect(world.locationOf(player.id)).toBe(roomEntity.id)
+  })
+
   it("forgets an entity's location when the entity itself is removed", () => {
     const world = new WorldState()
     world.add(entity(entityId("player-1"), "test.player"))

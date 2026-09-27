@@ -42,8 +42,24 @@ export class WorldState {
     return this.#entities.has(id)
   }
 
-  /** Removes an entity. Returns whether it was present. */
+  /**
+   * Removes an entity. Returns whether it was present. An entity cannot be removed while another
+   * entity is located there, because that would leave a dangling location reference. Removing an
+   * entity also clears its own location, so ordinary entities can be removed without requiring a
+   * separate `locate` cleanup step. Whether a game operation is allowed to remove a populated
+   * location is the caller's concern; this check only preserves `WorldState`'s data integrity.
+   */
   remove(id: EntityId): boolean {
+    if (!this.#entities.has(id)) {
+      return false
+    }
+
+    for (const [entityId, locationId] of this.#locations) {
+      if (entityId !== id && locationId === id) {
+        throw new Error(`Cannot remove entity "${id}": entity "${entityId}" is located there`)
+      }
+    }
+
     this.#locations.delete(id)
     return this.#entities.delete(id)
   }
