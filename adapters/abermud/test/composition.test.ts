@@ -113,8 +113,8 @@ describe("AberMUD engine composition", () => {
     engine.receive({ session: alice, raw: "say hello" })
     await engine.runtime.drain()
 
-    expect(alice.output).toEqual(['You say, "hello"'])
-    expect(bob.output).toEqual(['alice says, "hello"'])
+    expect(alice.output).toEqual([{ kind: "speech", channel: "say", perspective: "speaker", speaker: "alice", text: "hello" }])
+    expect(bob.output).toEqual([{ kind: "speech", channel: "say", perspective: "listener", speaker: "alice", text: "hello" }])
   })
 
   it('"save" -> Engine.receive -> abermud.save -> Runtime -> FilePersonaStore', async () => {

@@ -3,7 +3,7 @@ import type { Session } from "@stratamu/engine-sessions"
 import { workKind } from "@stratamu/work"
 
 import type { Control } from "../control.ts"
-import { refusal } from "../output.ts"
+import { refusal, type SpeechOutput } from "../output.ts"
 import { principalControlling } from "../control.ts"
 import { resolveActor } from "./look.ts"
 
@@ -20,13 +20,19 @@ export function registerSay(runtime: Runtime, control: Control): void {
       session?.send(refusal("not-controlling"))
       return
     }
-    session?.send(`You say, "${message}"`)
+    const speaker = session?.principalId ?? actor
+    session?.send({
+      kind: "speech",
+      channel: "say",
+      perspective: "speaker",
+      speaker,
+      text: message,
+    } satisfies SpeechOutput)
 
     const location = context.world?.locationOf(actor)
     if (location === undefined) {
       return
     }
-    const speaker = session?.principalId ?? actor
     const occupantIds = [...(context.world?.occupants(location) ?? [])]
     const recipients = occupantIds
       .filter(occupantId => occupantId !== actor)
@@ -35,7 +41,13 @@ export function registerSay(runtime: Runtime, control: Control): void {
       .map(principal => context.sessions?.activeFor(principal))
       .filter((recipient): recipient is Session => recipient !== undefined)
     for (const recipient of recipients) {
-      recipient.send(`${speaker} says, "${message}"`)
+      recipient.send({
+        kind: "speech",
+        channel: "say",
+        perspective: "listener",
+        speaker,
+        text: message,
+      } satisfies SpeechOutput)
     }
   })
 }

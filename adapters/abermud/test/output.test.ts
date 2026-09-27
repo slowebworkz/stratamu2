@@ -1,7 +1,7 @@
 import { entityId } from "@stratamu/primitives"
 import { describe, expect, it } from "vitest"
 
-import { refusal, renderRefusal, renderRoom } from "../src/output.ts"
+import { refusal, renderRefusal, renderRoom, renderSpeech } from "../src/output.ts"
 
 describe("renderRoom", () => {
   it("renders a room with nobody else in it", () => {
@@ -30,5 +30,25 @@ describe("renderRefusal", () => {
     expect(renderRefusal(refusal("target-absent", "bob"))).toBe("bob is not here")
     expect(renderRefusal(refusal("save-unavailable"))).toBe("saving is not available")
     expect(renderRefusal(refusal("nothing-to-save"))).toBe("you have no status to save")
+  })
+})
+
+describe("renderSpeech", () => {
+  const base = { kind: "speech", speaker: "alice", text: "hi" } as const
+
+  it("words say from either side", () => {
+    expect(renderSpeech({ ...base, channel: "say", perspective: "speaker" })).toBe('You say, "hi"')
+    expect(renderSpeech({ ...base, channel: "say", perspective: "listener" })).toBe(
+      'alice says, "hi"',
+    )
+  })
+
+  it("words tell from either side", () => {
+    expect(
+      renderSpeech({ ...base, channel: "tell", perspective: "speaker", addressee: "bob" }),
+    ).toBe('You tell bob, "hi"')
+    expect(renderSpeech({ ...base, channel: "tell", perspective: "listener" })).toBe(
+      'alice tells you, "hi"',
+    )
   })
 })

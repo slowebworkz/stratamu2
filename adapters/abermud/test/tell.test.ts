@@ -16,8 +16,8 @@ describe("TELL", () => {
     }
     await runtime.drain()
 
-    expect(alice.output).toEqual(['You tell bob, "hi there"'])
-    expect(bob.output).toEqual(['alice tells you, "hi there"'])
+    expect(alice.output).toEqual([{ kind: "speech", channel: "tell", perspective: "speaker", speaker: "alice", text: "hi there", addressee: "bob" }])
+    expect(bob.output).toEqual([{ kind: "speech", channel: "tell", perspective: "listener", speaker: "alice", text: "hi there" }])
   })
 
   it("reports the target as not here when they have no active session", async () => {

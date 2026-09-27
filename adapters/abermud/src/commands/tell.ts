@@ -4,7 +4,7 @@ import type { EntityId } from "@stratamu/primitives"
 import { workKind } from "@stratamu/work"
 
 import type { Control } from "../control.ts"
-import { refusal } from "../output.ts"
+import { refusal, type SpeechOutput } from "../output.ts"
 import { principalControlling } from "../control.ts"
 import { resolveActor } from "./look.ts"
 
@@ -39,7 +39,20 @@ export function registerTell(
       return
     }
     const speaker = session?.principalId ?? actor
-    session?.send(`You tell ${target}, "${message}"`)
-    targetSession.send(`${speaker} tells you, "${message}"`)
+    session?.send({
+      kind: "speech",
+      channel: "tell",
+      perspective: "speaker",
+      speaker,
+      text: message,
+      addressee: target,
+    } satisfies SpeechOutput)
+    targetSession.send({
+      kind: "speech",
+      channel: "tell",
+      perspective: "listener",
+      speaker,
+      text: message,
+    } satisfies SpeechOutput)
   })
 }

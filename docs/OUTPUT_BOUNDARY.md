@@ -2,7 +2,7 @@
 
 ## Status
 
-**Investigation; room views and refusals implemented.** This inventories the output the engine actually produces today, classifies what it communicates, and proposes a candidate vocabulary. `Session.send(message: unknown)` is unchanged.
+**Investigation; room views, refusals and speech implemented.** This inventories the output the engine actually produces today, classifies what it communicates, and proposes a candidate vocabulary. `Session.send(message: unknown)` is unchanged.
 
 Scope is deliberately narrow: semantic output, not a presentation framework. Telnet/ANSI/web rendering, line wrapping, colour and prompts-as-transport stay out of the engine. See [SESSION_BOUNDARY.md](SESSION_BOUNDARY.md) for why output is a handler side effect through `Session.send` rather than a `Task` result; that decision is not reopened here.
 
@@ -100,6 +100,18 @@ What it answered:
 - **Shared reasons are now shared.** `not-controlling` was six copies of one string; it is one code, worded once.
 - **Handlers no longer contain any refusal wording.** Only confirmations, speech, exits and the player list are still prose.
 
+## Third step, done: speech
+
+SAY and TELL send a `SpeechOutput` (`{ kind: "speech", channel, perspective, speaker, text, addressee? }`), and `renderSpeech` holds the wording.
+
+What it answered:
+
+- **"You" vs "X" is a `perspective` flag, not two event types.** The speaker gets `perspective: "speaker"`, each hearer `"listener"`, both carrying the same speaker and text. The handler still decides who receives what (that is game logic: who is in earshot); presentation decides how each side reads.
+- **`addressee` is only for `tell` sent to the speaker**, as typed, mirroring `target-absent`. The listener already knows it was them.
+- **`speaker` is still an id-shaped string** (the principal, else the entity id), the same value the old prose printed. It is the same open naming question as room occupants.
+
+Still prose: EXITS, WHO and the SAVE confirmation, plus the whole `adapters/test` adapter, which is a separate, deliberately trivial adapter and was not touched.
+
 ## Next step
 
-Convert speech (SAY, TELL). It is the harder test: one event, two recipients, different wording, so it decides whether `speech` carries a speaker and a direction, and where "You" vs "X" gets decided.
+Finish the abermud handlers (EXITS, WHO, SAVE confirmation), then decide names and whether `Session.send` should stop being `unknown`. With every abermud output semantic, a single `GameOutput` union is justified by real code rather than by this document.

@@ -12,5 +12,5 @@ export type {
   AberRoomDefinition,
 } from "./world/index.ts"
 export type { AberMUDSex } from "./character/index.ts"
-export type { RefusalOutput, RefusalReason, RoomOutput } from "./output.ts"
-export { refusal, renderRefusal, renderRoom } from "./output.ts"
+export type { RefusalOutput, RefusalReason, RoomOutput, SpeechOutput } from "./output.ts"
+export { refusal, renderRefusal, renderRoom, renderSpeech } from "./output.ts"
