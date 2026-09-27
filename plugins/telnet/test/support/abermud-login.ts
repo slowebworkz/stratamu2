@@ -31,7 +31,7 @@ export interface AberMUDLoginOptions {
   readonly onLoggedIn?: (character: EntityId, session: Session) => void
 }
 
-type Stage = "name" | "password" | "playing"
+type Stage = "name" | "password" | "authenticating" | "playing"
 
 /**
  * Starts the login flow on a freshly accepted `connection`: prompts for a name, then a password
@@ -70,7 +70,17 @@ export function runAberMUDLogin(options: AberMUDLoginOptions): void {
       return
     }
 
+    if (stage === "authenticating") {
+      // `authenticate` is async; nothing stops another line arriving before it resolves, and a
+      // network connection can't be assumed to behave like an interactive client that waits for
+      // its own prompt. Dropped rather than queued: there is nothing yet to do with a line sent
+      // before the account it would apply to is even decided, and a real client sends one at a
+      // time anyway.
+      return
+    }
+
     // stage === "password"
+    stage = "authenticating"
     const password = raw
     // The client's own local echo was off for that line, so nothing moved the cursor to a new
     // line the way it normally would on Enter; move it now, before anything else is written.

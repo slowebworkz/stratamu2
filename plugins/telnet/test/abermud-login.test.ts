@@ -130,4 +130,38 @@ describe("AberMUD login over Telnet", () => {
       socket.destroy()
     }
   })
+
+  it("ignores a line that arrives while authentication is still in flight", async () => {
+    const { adapter, engine } = await fixture()
+    server = createLineServer(connection => {
+      runAberMUDLogin({ connection, engine, adapter })
+    })
+    const port = await server.listen(0, "127.0.0.1")
+    const socket = connect(port, "127.0.0.1")
+    try {
+      const { received, until } = receiver(socket)
+
+      await until("Name: ")
+      socket.write("alice\r\n")
+      await until("Password: ")
+      // Both lines in one write, so `LineBuffer` hands both to `onLine` synchronously, before
+      // `adapter.authenticate("alice", "secret")` has any chance to resolve: without a guard for
+      // this, "second" would still be read as stage "password" and start a second, concurrent
+      // `authenticate` call with the wrong password. It must be dropped instead.
+      socket.write("secret\r\nsecond\r\n")
+      await until("ready")
+      // Without the guard, "second" would still start its own `authenticate("alice", "second")`
+      // call, concurrently with the real one -- and that call fails, but not necessarily before
+      // "ready" for the real one already arrived. Waiting past "ready" gives that stray call
+      // room to finish and write "Login incorrect." if the guard weren't there, rather than the
+      // assertions below racing it and passing by accident.
+      await new Promise(resolve => setTimeout(resolve, 100))
+
+      const text = received().toString("utf8")
+      expect(text).not.toContain("Login incorrect.")
+      expect(text.split("ready").length - 1).toBe(1)
+    } finally {
+      socket.destroy()
+    }
+  })
 })
