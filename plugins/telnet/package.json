@@ -1,0 +1,32 @@
+{
+  "name": "@stratamu/plugin-telnet",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "license": "MIT",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "test": "vitest run --passWithNoTests",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@stratamu/adapter-abermud": "workspace:*",
+    "@stratamu/engine-core": "workspace:*",
+    "@stratamu/engine-sessions": "workspace:*",
+    "@stratamu/eslint": "workspace:*",
+    "@stratamu/primitives": "workspace:*",
+    "@stratamu/typescript-config": "workspace:*",
+    "@types/node": "catalog:",
+    "eslint": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  }
+}
