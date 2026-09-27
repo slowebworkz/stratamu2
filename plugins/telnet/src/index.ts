@@ -10,3 +10,5 @@ export type {
   TelnetUnknownCommand,
 } from "./telnet-codec.ts"
 export { TelnetCodec } from "./telnet-codec.ts"
+export type { TelnetWriter } from "./telnet-negotiator.ts"
+export { TelnetNegotiator } from "./telnet-negotiator.ts"
