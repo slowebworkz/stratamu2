@@ -72,7 +72,6 @@ export function runAberMUDLogin(options: AberMUDLoginOptions): void {
 
     // stage === "password"
     const password = raw
-    connection.setEcho(true)
     // The client's own local echo was off for that line, so nothing moved the cursor to a new
     // line the way it normally would on Enter; move it now, before anything else is written.
     connection.write("\r\n")
@@ -81,6 +80,10 @@ export function runAberMUDLogin(options: AberMUDLoginOptions): void {
 
   function authenticate(password: string): Promise<void> {
     return adapter.authenticate(name, password).then(principal => {
+      // Echo stays suppressed for the whole authentication call, not just while the password was
+      // being typed: restoring it earlier would be correct for typing but leaves it off for no
+      // reason during whatever `authenticate` itself takes to resolve.
+      connection.setEcho(true)
       if (principal === undefined) {
         connection.write("Login incorrect.\r\n")
         stage = "name"
