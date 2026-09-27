@@ -118,9 +118,7 @@ export function renderExits(output: ExitsOutput): string {
 }
 
 export function renderPlayers(output: PlayersOutput): string {
-  return output.names.length === 0
-    ? "no one else is online"
-    : `online: ${output.names.join(", ")}`
+  return output.names.length === 0 ? "no one else is online" : `online: ${output.names.join(", ")}`
 }
 
 export function renderSaved(output: SavedOutput): string {

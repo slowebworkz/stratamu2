@@ -65,7 +65,9 @@ describe("AberMUD engine flow", () => {
       engine.receive({ session, raw: "look" })
       await engine.runtime.drain()
 
-      expect(session.output).toEqual([{ kind: "room", name: "Here", description: "A small starting room.", occupants: [] }])
+      expect(session.output).toEqual([
+        { kind: "room", name: "Here", description: "A small starting room.", occupants: [] },
+      ])
     } finally {
       await rm(dir, { recursive: true, force: true })
     }

@@ -14,7 +14,9 @@ describe("LOOK", () => {
     }
     await runtime.drain()
 
-    expect(session.output).toEqual([{ kind: "room", name: "Here", description: "A small starting room.", occupants: [] }])
+    expect(session.output).toEqual([
+      { kind: "room", name: "Here", description: "A small starting room.", occupants: [] },
+    ])
   })
 
   it("describes the room and who else is there", async () => {
@@ -26,7 +28,14 @@ describe("LOOK", () => {
     }
     await runtime.drain()
 
-    expect(session.output).toEqual([{ kind: "room", name: "There", description: "A room further along.", occupants: [entityId("goblin")] }])
+    expect(session.output).toEqual([
+      {
+        kind: "room",
+        name: "There",
+        description: "A room further along.",
+        occupants: [entityId("goblin")],
+      },
+    ])
   })
 
   it("has no output for a session controlling nothing", async () => {

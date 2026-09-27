@@ -56,7 +56,9 @@ describe("AberMUD engine composition", () => {
     engine.receive({ session, raw: "look" })
     await engine.runtime.drain()
 
-    expect(session.output).toEqual([{ kind: "room", name: "Here", description: "A small starting room.", occupants: [] }])
+    expect(session.output).toEqual([
+      { kind: "room", name: "Here", description: "A small starting room.", occupants: [] },
+    ])
   })
 
   it('"north" -> Engine.receive -> abermud.move -> Runtime -> WorldState mutation', async () => {
@@ -113,8 +115,12 @@ describe("AberMUD engine composition", () => {
     engine.receive({ session: alice, raw: "say hello" })
     await engine.runtime.drain()
 
-    expect(alice.output).toEqual([{ kind: "speech", channel: "say", perspective: "speaker", speaker: "alice", text: "hello" }])
-    expect(bob.output).toEqual([{ kind: "speech", channel: "say", perspective: "listener", speaker: "alice", text: "hello" }])
+    expect(alice.output).toEqual([
+      { kind: "speech", channel: "say", perspective: "speaker", speaker: "alice", text: "hello" },
+    ])
+    expect(bob.output).toEqual([
+      { kind: "speech", channel: "say", perspective: "listener", speaker: "alice", text: "hello" },
+    ])
   })
 
   it('"save" -> Engine.receive -> abermud.save -> Runtime -> FilePersonaStore', async () => {

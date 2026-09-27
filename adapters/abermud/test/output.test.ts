@@ -6,7 +6,12 @@ import { refusal, renderRefusal, renderOutput, renderRoom, renderSpeech } from "
 describe("renderRoom", () => {
   it("renders a room with nobody else in it", () => {
     expect(
-      renderRoom({ kind: "room", name: "Here", description: "A small starting room.", occupants: [] }),
+      renderRoom({
+        kind: "room",
+        name: "Here",
+        description: "A small starting room.",
+        occupants: [],
+      }),
     ).toBe("Here\nA small starting room.")
   })
 
@@ -67,10 +72,16 @@ describe("renderOutput", () => {
   it("dispatches every variant to its own wording", () => {
     expect(renderOutput(refusal("nowhere"))).toBe("you are nowhere")
     expect(
-      renderOutput({ kind: "speech", channel: "say", perspective: "speaker", speaker: "a", text: "x" }),
+      renderOutput({
+        kind: "speech",
+        channel: "say",
+        perspective: "speaker",
+        speaker: "a",
+        text: "x",
+      }),
     ).toBe('You say, "x"')
-    expect(
-      renderOutput({ kind: "room", name: "Here", description: "Small.", occupants: [] }),
-    ).toBe("Here\nSmall.")
+    expect(renderOutput({ kind: "room", name: "Here", description: "Small.", occupants: [] })).toBe(
+      "Here\nSmall.",
+    )
   })
 })

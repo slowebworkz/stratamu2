@@ -15,7 +15,14 @@ describe("MOVE", () => {
     await runtime.drain()
 
     expect(world.locationOf(alicePlayer)).toBe(there)
-    expect(session.output).toEqual([{ kind: "room", name: "There", description: "A room further along.", occupants: [entityId("bob-player"), entityId("goblin")] }])
+    expect(session.output).toEqual([
+      {
+        kind: "room",
+        name: "There",
+        description: "A room further along.",
+        occupants: [entityId("bob-player"), entityId("goblin")],
+      },
+    ])
   })
 
   it("refuses an exit that doesn't exist", async () => {

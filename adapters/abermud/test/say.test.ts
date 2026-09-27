@@ -17,8 +17,12 @@ describe("SAY", () => {
     }
     await runtime.drain()
 
-    expect(alice.output).toEqual([{ kind: "speech", channel: "say", perspective: "speaker", speaker: "alice", text: "hello" }])
-    expect(bob.output).toEqual([{ kind: "speech", channel: "say", perspective: "listener", speaker: "alice", text: "hello" }])
+    expect(alice.output).toEqual([
+      { kind: "speech", channel: "say", perspective: "speaker", speaker: "alice", text: "hello" },
+    ])
+    expect(bob.output).toEqual([
+      { kind: "speech", channel: "say", perspective: "listener", speaker: "alice", text: "hello" },
+    ])
   })
 
   it("says nothing to an occupant with no active session", async () => {
@@ -31,6 +35,8 @@ describe("SAY", () => {
     }
     await runtime.drain()
 
-    expect(alice.output).toEqual([{ kind: "speech", channel: "say", perspective: "speaker", speaker: "alice", text: "hello" }])
+    expect(alice.output).toEqual([
+      { kind: "speech", channel: "say", perspective: "speaker", speaker: "alice", text: "hello" },
+    ])
   })
 })
