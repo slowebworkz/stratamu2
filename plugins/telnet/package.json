@@ -17,6 +17,9 @@
     "test": "vitest run --passWithNoTests",
     "typecheck": "tsc --noEmit"
   },
+  "dependencies": {
+    "@stratamu/base": "workspace:*"
+  },
   "devDependencies": {
     "@stratamu/adapter-abermud": "workspace:*",
     "@stratamu/engine-core": "workspace:*",

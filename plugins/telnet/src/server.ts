@@ -2,16 +2,24 @@ import { createServer, type Server, type Socket } from "node:net"
 import { StringDecoder } from "node:string_decoder"
 
 import { LineBuffer } from "./line-buffer.ts"
+import { TelnetCodec, type TelnetCommand } from "./telnet-codec.ts"
 
 /**
  * One client connection, as everything above the transport sees it: lines in, text out. Nothing
  * here says what is on the wire, so an adapter's session, login flow or renderer can be written
  * against it without knowing about sockets.
+ *
+ * Telnet commands are parsed out before a line ever reaches `onLine` -- negotiation never mixes
+ * with application text -- but nothing here answers them. `onCommand` exists so a future
+ * negotiation layer has somewhere to listen; this package has no option policy yet.
  */
 export interface Connection {
   readonly id: string
   /** Called once per complete line the client sends, without its terminator. */
   onLine(handler: (line: string) => void): void
+  /** Called once per Telnet command the client sends (a DO/DONT/WILL/WONT, a subnegotiation, or a
+   * bare signal such as Go Ahead). Unanswered: see the interface note above. */
+  onCommand(handler: (command: TelnetCommand) => void): void
   /** Called once when the connection ends, whichever side ended it. */
   onClose(handler: () => void): void
   /** Sends text as given. Line endings are the caller's concern. */
@@ -26,9 +34,11 @@ export interface LineServer {
 }
 
 /**
- * Raw TCP line transport: accepts connections and hands each one to `onConnection` as a
- * `Connection`. Deliberately not Telnet yet: no option negotiation, and IAC bytes pass through
- * untouched, so it works with `nc` but a real Telnet client's negotiation will show up as text.
+ * Telnet transport: accepts connections and hands each one to `onConnection` as a `Connection`.
+ * `TelnetCodec` sits between the socket and `LineBuffer`, so a client's option negotiation is
+ * parsed out and reported through `onCommand` rather than reaching `onLine` as text. There is no
+ * negotiation policy yet -- nothing here answers a `DO`, `WILL` or subnegotiation -- so a real
+ * Telnet client will keep offering options that never get a reply.
  */
 export function createLineServer(onConnection: (connection: Connection) => void): LineServer {
   let nextId = 1
@@ -36,13 +46,23 @@ export function createLineServer(onConnection: (connection: Connection) => void)
   const server: Server = createServer(socket => {
     sockets.add(socket)
     const decoder = new StringDecoder("utf8")
+    const telnet = new TelnetCodec()
     const lines = new LineBuffer()
     const lineHandlers: Array<(line: string) => void> = []
+    const commandHandlers: Array<(command: TelnetCommand) => void> = []
     const closeHandlers: Array<() => void> = []
-    socket.on("data", chunk => {
-      for (const line of lines.push(decoder.write(chunk))) {
-        for (const handler of lineHandlers) {
-          handler(line)
+    socket.on("data", (chunk: Buffer) => {
+      for (const event of telnet.push(chunk)) {
+        if (event.kind === "command") {
+          for (const handler of commandHandlers) {
+            handler(event.command)
+          }
+          continue
+        }
+        for (const line of lines.push(decoder.write(Buffer.from(event.bytes)))) {
+          for (const handler of lineHandlers) {
+            handler(line)
+          }
         }
       }
     })
@@ -58,6 +78,7 @@ export function createLineServer(onConnection: (connection: Connection) => void)
     onConnection({
       id: `connection-${nextId++}`,
       onLine: handler => lineHandlers.push(handler),
+      onCommand: handler => commandHandlers.push(handler),
       onClose: handler => closeHandlers.push(handler),
       write: text => {
         socket.write(text)
