@@ -12,10 +12,13 @@ import {
   registerLook,
   registerMove,
   registerQuit,
+  registerRemove,
   registerSave,
   registerSay,
   registerTell,
+  registerWear,
   registerWho,
+  registerWield,
 } from "./commands/index.ts"
 import type { AberMUDAccountStore } from "./account/index.ts"
 import { authenticate } from "./account/index.ts"
@@ -57,6 +60,15 @@ export class AberMUDAdapter implements EngineAdapter<SessionInput> {
    * it is actively played. SAVE persists whatever is recorded here; nothing populates it yet on
    * its own, so composing this adapter means seeding it directly, the same as `rooms`. */
   readonly personas: Map<EntityId, AberMUDPersona> = new Map()
+  /** Character -> the object it currently wields, from WIELD. Adapter-owned live state, the same
+   * category `personas` already is -- not a `WorldState` fact, since it's about what a carried
+   * object *means*, not where anything is. */
+  readonly wielding: Map<EntityId, EntityId> = new Map()
+  /** Every object currently worn, from WEAR. A `Set` of object ids, not per-character, matching
+   * AberMUD II's own carry-flag: "worn" is a fact about the object (see `commands/drop.ts`'s note
+   * on `setoloc`), not about who is wearing it -- an object can only be carried by one entity at
+   * a time anyway, so nothing is lost by not keying this on the wearer too. */
+  readonly worn: Set<EntityId> = new Set()
   readonly #accountStore: AberMUDAccountStore | undefined
   readonly #personaStore: AberMUDPersonaStore | undefined
 
@@ -117,8 +129,11 @@ export class AberMUDAdapter implements EngineAdapter<SessionInput> {
     registerWho(runtime, this.control, this.charactersByName)
     registerSave(runtime, this.control, this.personas, this.#personaStore)
     registerGet(runtime, this.control, this.objects)
-    registerDrop(runtime, this.control, this.objects)
+    registerDrop(runtime, this.control, this.objects, this.worn)
     registerInventory(runtime, this.control, this.objects)
-    registerQuit(runtime, this.control, this.personas, this.#personaStore)
+    registerWield(runtime, this.control, this.objects, this.wielding)
+    registerWear(runtime, this.control, this.objects, this.worn)
+    registerRemove(runtime, this.control, this.objects, this.worn)
+    registerQuit(runtime, this.control, this.personas, this.#personaStore, this.worn)
   }
 }

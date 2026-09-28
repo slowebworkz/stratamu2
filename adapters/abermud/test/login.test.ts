@@ -86,7 +86,7 @@ describe("AberMUD character login/load", () => {
     const second = await adapter.login(world, session, "carol")
 
     expect(second).toBe(first)
-    expect([...world.entities()]).toHaveLength(8)
+    expect([...world.entities()]).toHaveLength(9)
   })
 
   it("preserves newer live persona state when the same principal logs in again", async () => {
