@@ -22,9 +22,11 @@ TCP chunks -> TelnetCodec -> application bytes -> StringDecoder (UTF-8) -> LineB
 
 Telnet parsing happens before UTF-8 decoding, deliberately: `IAC` is a byte value (`0xff`) that can appear inside a multi-byte UTF-8 sequence, so decoding first would risk splitting a command out of the wrong place. `StringDecoder` only ever sees application bytes, and stays responsible for a UTF-8 sequence split across TCP chunks, same as before the codec existed.
 
-**Implemented:** TCP transport, line framing, UTF-8 decoding, Telnet IAC parsing, Telnet command and subnegotiation extraction (`TelnetCodec`), Telnet option-negotiation policy for ECHO with a default refusal for everything else (`TelnetNegotiator`), a Name/Password login flow that uses `setEcho` around the password (`test/support/abermud-login.ts`, proven over a real socket in `test/abermud-login.test.ts`).
+**Implemented:** TCP transport, line framing, UTF-8 decoding, Telnet IAC parsing, Telnet command and subnegotiation extraction (`TelnetCodec`), Telnet option-negotiation policy for ECHO with a default refusal for everything else (`TelnetNegotiator`).
 
-**Not yet:** SGA, NAWS, TTYPE, interactive new-character creation (the login flow only works for a name with an existing persona), negotiated client capabilities exposed to an adapter, output negotiation.
+**Not yet:** SGA, NAWS, TTYPE, negotiated client capabilities exposed to an adapter, output negotiation.
+
+This package no longer contains any AberMUD- or Engine-specific code -- see "The AberMUD login flow moved out" below.
 
 ## The boundary this is meant to keep
 
@@ -38,7 +40,7 @@ TCP socket -> TelnetCodec (wire grammar, state machine, escaping) -> TelnetEvent
                                                           ECHO implemented; SGA, NAWS, TTYPE not yet)
                                                                           |
                                                                           v
-                                                                     Connection -> Engine
+                                                                TelnetConnection -> Engine
 ```
 
 `TelnetCodec` and `TelnetNegotiator` are both frozen for now: no more abstraction in either, and their current tests are the protocol contract. `TelnetCodec` reports every command shape RFC 854 and the option-negotiation RFCs define, distinguishes a genuinely unrecognized command byte (`unknown`) from a known signal, and recovers from malformed input (an `IAC` inside a subnegotiation followed by neither `IAC` nor `SE`) without hanging or corrupting later input. `TelnetNegotiator` has exactly one option implemented, tracking only what was last *sent*, not what the client *agreed to* -- the simplified state model this is intentionally left at; RFC 1143/Q-method tracking is not being built ahead of a real need for it. Adding SGA, NAWS or TTYPE is adding a case to the negotiator, not a new design.
@@ -48,30 +50,33 @@ A subtlety `TelnetNegotiator`'s tests exist to pin down: sending `IAC WILL ECHO`
 The renderer sits on the `Session` the transport builds, so an adapter's semantic output is worded at the edge:
 
 ```text
-bytes -> Connection -> engine.receive -> handler -> AberOutput
+bytes -> TelnetConnection -> engine.receive -> handler -> AberOutput
       -> session.send -> renderOutput -> connection.write -> bytes
 ```
 
-`test/engine-flow.test.ts` proves that whole path over a real socket. It is the composition an app will eventually own; it lives here only because no app exists yet, which is why this package has the adapter as a dev dependency.
+`test/engine-flow.test.ts` and `test/telnet-vertical-slice.test.ts` prove that whole path over a real socket -- see below. It is the composition an app will eventually own; both live here only because no app exists yet, which is why this package has the adapter as a dev dependency.
 
-`test/support/abermud-login.ts` is that same kind of composition, one layer up: `runAberMUDLogin` prompts for a name, then a password with `TelnetConnection.setEcho(false)` held through the whole authentication call (not just while the password is being typed -- see "Findings" below), calls `AberMUDAdapter.authenticate`, and on success opens a `Session` and switches the connection over to `engine.receive` -- the hand-off `engine-flow.test.ts` used to do by authenticating up front. It stays in `test/support`, not `src`, for the same reason: it is AberMUD- and Engine-specific composition, not a generic `Connection` or Telnet concern, and no app exists yet to own it.
+## The AberMUD login flow moved out
 
-`test/telnet-vertical-slice.test.ts` is the complete path in one connection: a client's own option negotiation (an unsupported `TTYPE` offer), interleaved with the Name/Password exchange rather than arriving neatly before or after it, followed by authentication, character control, and a rendered `LOOK` response. Nothing in the test wires the codec, negotiator, decoder or login flow together by hand -- `createLineServer` already does that, and this is what proves the result is one coherent path, not each piece merely tested in isolation.
+`runAberMUDLogin` used to live here, in `test/support/abermud-login.ts`. It now lives in `@stratamu/adapter-abermud` (`src/login/`), because it is AberMUD- and `Engine`-specific composition, not a Telnet concern: prompting wording, when to authenticate, what "logged in" means for a character, all game/account policy, none of it about the wire. This package should be usable by any adapter, not carry one adapter's login flow.
+
+The move needed no new dependency either direction. `AberMUDLoginConnection` (declared in `adapter-abermud`) is a small structural interface -- line-oriented input/output plus `setEcho` -- and `TelnetConnection` already satisfies it. `adapter-abermud` never imports this package; this package's tests import `runAberMUDLogin` from `adapter-abermud` (a dev dependency, same as before) to prove the seam actually works, since this package has no socket of its own to prove it with:
+
+- `test/abermud-login.test.ts`: prompts, echo suppression bracketing only the password, a full login through `LOOK`, a wrong-password retry, and the concurrent-input guard -- all over a real socket. The login *logic* itself (state transitions, the guard, the echo-timing fix) has its own faster tests against a fake connection in `adapter-abermud`; what belongs here is that a real `TelnetConnection` actually satisfies what the login flow needs.
+- `test/telnet-vertical-slice.test.ts`: the complete path in one connection -- a client's own option negotiation (an unsupported `TTYPE` offer), interleaved with the Name/Password exchange rather than arriving neatly before or after it, followed by authentication, character control, and a rendered `LOOK` response. Nothing in the test wires the codec, negotiator, decoder or login flow together by hand -- `createLineServer` already does that, and `adapter-abermud` already does the rest -- and this is what proves the result is one coherent path, not each piece merely tested in isolation, with the Telnet plugin importing nothing AberMUD-specific to make it happen.
 
 ## Findings from the spike
 
-- **`Engine.receive` does not run anything.** It parses and submits; the `Runtime` has to be stepped by someone. `Runtime.drain()` is documented as a test convenience, "not a model of a server loop". The composition here calls it after each line, which is enough for a proof but is not a design. Who steps the runtime, and how often, is the next I/O question.
-- **Input can arrive before login finishes.** No longer true once a connection actually goes through `runAberMUDLogin`: a line sent before the name/password exchange finishes is consumed by the login state machine, not lost or misrouted to game commands.
+- **`Engine.receive` does not run anything.** It parses and submits; the `Runtime` has to be stepped by someone. `Runtime.drain()` is documented as a test convenience, "not a model of a server loop", and runs to exhaustion -- never returning for a handler that keeps rescheduling itself. `runAberMUDLogin` (now in `adapter-abermud`) uses `Runtime.pump(maxSteps)` instead: a bounded sibling that always returns. See `docs/EXECUTION_POLICY.md` in the main repository for why bounded execution needed no new mechanism in `Runtime` itself, and `engine-core`'s own README for `pump`.
+- **Input can arrive before login finishes.** Not an issue once a connection actually goes through `runAberMUDLogin`: a line sent before the name/password exchange finishes is consumed by the login state machine, not lost or misrouted to game commands.
 - **Two writes sent back to back can arrive as one TCP chunk.** `test/abermud-login.test.ts`'s reprompt case (`"Login incorrect.\r\n"` immediately followed by `"Name: "`) exposed this: a test helper computing "the position to search after" from the *buffer's length once everything has arrived* is wrong once the next prompt is already in that same chunk. The fix is to have the helper return where its own match ended, not read the buffer's length back out afterward (see `test/support/receiver.ts`).
-- **Echo was being restored too early.** The first version of `runAberMUDLogin` called `setEcho(true)` immediately on receiving the password line, before `AberMUDAdapter.authenticate` was even called -- correct for "stop hiding what's typed", but it left echo restored for the whole (async) authentication call for no reason. It now restores echo once `authenticate` resolves, whichever way, so suppression actually brackets the full password/authentication window.
-- **A line sent while `authenticate` is still pending was a real bug, not a theoretical one.** `authenticate` is async, and nothing stopped a second line -- even one arriving in the very same TCP chunk as the password, so no timing luck involved -- from being read as stage `"password"` too, starting a second, concurrent `authenticate` call. Confirmed by reverting the fix locally: the test then genuinely fails, with a stray `"Login incorrect."` and reprompt landing after `"ready"`. Fixed with an explicit `"authenticating"` stage that drops any line arriving before the pending call (both `authenticate` and the `adapter.login` that follows it) resolves, rather than trying to queue it.
-- **`Connection` was doing two jobs.** `setEcho` and `onCommand` are Telnet-specific, but they lived on the one `Connection` type every caller saw, so nothing distinguished "this needs Telnet" from "this only needs lines." Split into `Connection` (the generic shape) and `TelnetConnection extends Connection` (adds the two Telnet-only members); `createLineServer` hands out a `TelnetConnection`, and anything -- `runAberMUDLogin`, say -- that specifically needs `setEcho` now says so in its own parameter type.
+- **Echo was being restored too early, and a line sent while authentication was pending was a real bug.** Both fixed in `runAberMUDLogin`, now documented in `adapter-abermud`'s own README alongside the code.
+- **`Connection` was doing two jobs.** `setEcho` and `onCommand` are Telnet-specific, but they lived on the one `Connection` type every caller saw, so nothing distinguished "this needs Telnet" from "this only needs lines." Split into `Connection` (the generic shape) and `TelnetConnection extends Connection` (adds the two Telnet-only members).
 
 ## Not yet
 
 - SGA, NAWS, TTYPE in `TelnetNegotiator`.
-- Interactive new-character creation. `runAberMUDLogin` always passes `sex: 0` to `AberMUDAdapter.login`, so it only actually succeeds for a name with an existing persona; prompting for `sex` to create a new one is a separate, larger flow.
-- A retry limit on login; a wrong password reprompts indefinitely rather than eventually disconnecting.
 - Negotiated client capabilities (terminal type, window size) exposed to an adapter.
 - A generic `Session.send`, or a renderer signature that takes client capabilities.
 - Backpressure and write buffering.
+- An app to own the composition `test/engine-flow.test.ts` and `test/telnet-vertical-slice.test.ts` currently prove by real-socket test instead.

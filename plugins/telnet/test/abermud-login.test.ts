@@ -3,13 +3,17 @@ import { connect } from "node:net"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 
-import { AberMUDAdapter, FileAccountStore, FilePersonaStore } from "@stratamu/adapter-abermud"
+import {
+  AberMUDAdapter,
+  FileAccountStore,
+  FilePersonaStore,
+  runAberMUDLogin,
+} from "@stratamu/adapter-abermud"
 import { Engine } from "@stratamu/engine-core"
 import { entityId } from "@stratamu/primitives"
 import { afterEach, describe, expect, it } from "vitest"
 
 import { createLineServer, type LineServer } from "../src/index.ts"
-import { runAberMUDLogin } from "./support/abermud-login.ts"
 import { receiver } from "./support/receiver.ts"
 
 const IAC = 255
