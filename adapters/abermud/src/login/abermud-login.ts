@@ -111,8 +111,17 @@ export function runAberMUDLogin(options: AberMUDLoginOptions): void {
       const newSession: Session = {
         id: sessionId(connection.id),
         principalId: principal,
-        // The renderer lives on the session, so the engine and adapter never see the wire.
-        send: message => connection.write(`${renderOutput(message as AberOutput)}\r\n`),
+        // The renderer lives on the session, so the engine and adapter never see the wire. QUIT
+        // sends its own confirmation through this same channel; closing the connection after
+        // writing it is this composition's job, not the handler's -- the handler has no
+        // reference to `connection`, only to `session`, and never should.
+        send: message => {
+          const output = message as AberOutput
+          connection.write(`${renderOutput(output)}\r\n`)
+          if (output.kind === "quit" && output.perspective === "actor") {
+            connection.close()
+          }
+        },
       }
       session = newSession
       engine.sessions.open(newSession)

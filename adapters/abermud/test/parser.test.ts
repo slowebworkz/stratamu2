@@ -1,6 +1,17 @@
 import { describe, expect, it } from "vitest"
 
-import { drop, exits, get, inventory, look, move, save, say, tell } from "../src/commands/index.ts"
+import {
+  drop,
+  exits,
+  get,
+  inventory,
+  look,
+  move,
+  quit,
+  save,
+  say,
+  tell,
+} from "../src/commands/index.ts"
 import { parseAberMUD } from "../src/parser.ts"
 import { testSession } from "./fixtures/session.ts"
 
@@ -66,6 +77,10 @@ describe("parseAberMUD", () => {
 
   it("parses SAVE", () => {
     expect(parseAberMUD({ session, raw: "save" })).toEqual([{ kind: save, input: { session } }])
+  })
+
+  it("parses QUIT", () => {
+    expect(parseAberMUD({ session, raw: "quit" })).toEqual([{ kind: quit, input: { session } }])
   })
 
   it("parses GET, and its TAKE synonym", () => {
