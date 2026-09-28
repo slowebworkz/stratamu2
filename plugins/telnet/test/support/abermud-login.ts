@@ -3,12 +3,12 @@ import type { Engine } from "@stratamu/engine-core"
 import type { Session } from "@stratamu/engine-sessions"
 import { type EntityId, sessionId } from "@stratamu/primitives"
 
-import type { Connection } from "../../src/index.ts"
+import type { TelnetConnection } from "../../src/index.ts"
 
 /**
  * The Name/Password login flow, and the hand-off from it into ordinary game input. This is
  * composition, not a `TelnetCodec`/`TelnetNegotiator` concern and not a generic `Connection`
- * concern either: it exists to prove `Connection.setEcho` actually gets used around a real
+ * concern either: it exists to prove `TelnetConnection.setEcho` actually gets used around a real
  * password prompt, the seam the whole Telnet plugin exists to reach. It lives in this package's
  * test support, not `src`, for the same reason `engine-flow.test.ts` does -- see that file and
  * the README: no app exists yet to own this composition, so a real-socket test proves it instead.
@@ -23,7 +23,7 @@ import type { Connection } from "../../src/index.ts"
  *   presentation concern, same as `AberOutput`'s `renderOutput`.
  */
 export interface AberMUDLoginOptions {
-  readonly connection: Connection
+  readonly connection: TelnetConnection
   readonly engine: Engine<{ readonly session: Session; readonly raw: string }>
   readonly adapter: AberMUDAdapter
   /** Called once login succeeds, so a caller can do whatever placing a fresh character needs
