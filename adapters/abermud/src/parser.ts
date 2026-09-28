@@ -1,5 +1,5 @@
 import type { Session } from "@stratamu/engine-sessions"
-import type { Work } from "@stratamu/work"
+import type { Work, WorkKind } from "@stratamu/work"
 import { work } from "@stratamu/work"
 
 import {
@@ -25,6 +25,31 @@ export interface SessionInput {
   readonly raw: string
 }
 
+/** Commands that take no argument beyond the session itself: every spelling of one maps straight
+ * to its `WorkKind`. */
+const simpleCommands: ReadonlyMap<string, WorkKind> = new Map([
+  ["look", look],
+  ["l", look],
+  ["exits", exits],
+  ["ex", exits],
+  ["who", who],
+  ["save", save],
+  ["i", inventory],
+  ["inv", inventory],
+  ["inventory", inventory],
+])
+
+/** Commands that take one optional name, as the rest of the line after the verb -- a synonym
+ * (GET/TAKE) is just two entries pointing at the same `handler`. */
+const namedCommands: ReadonlyArray<{ readonly prefix: string; readonly handler: WorkKind }> = [
+  { prefix: "get", handler: get },
+  { prefix: "take", handler: get },
+  { prefix: "drop", handler: drop },
+  { prefix: "wield", handler: wield },
+  { prefix: "wear", handler: wear },
+  { prefix: "remove", handler: remove },
+]
+
 /**
  * `SessionInput -> AberMUD command interpretation -> Work[]`. This is the only place raw command
  * text is read; `commands/` never parses, it only handles the `Work` this produces.
@@ -32,45 +57,33 @@ export interface SessionInput {
  * The command vocabulary recognized here is deliberately small -- see the package README's
  * "Compatibility scope" for which of these are confirmed AberMUD II behavior versus still needing
  * verification against the source. Anything not recognized produces no `Work` at all.
+ *
+ * SAY/TELL and movement stay their own explicit checks below, not entries in either table: their
+ * argument grammar (a whole message; a target then a message; a direction word, possibly behind
+ * GO/JUMP) is genuinely different from "one optional name", not a third table worth building for
+ * three commands.
  */
 export function parseAberMUD(input: SessionInput): readonly Work[] {
   const { session, raw } = input
   const command = raw.trim()
   const lower = command.toLowerCase()
 
-  if (lower === "look" || lower === "l") {
-    return [work(look, { session })]
+  const simpleKind = simpleCommands.get(lower)
+  if (simpleKind !== undefined) {
+    return [work(simpleKind, { session })]
   }
-  if (lower === "exits" || lower === "ex") {
-    return [work(exits, { session })]
+
+  for (const { prefix, handler } of namedCommands) {
+    if (lower === prefix || lower.startsWith(`${prefix} `)) {
+      return [
+        work(handler, {
+          session,
+          name: lower === prefix ? "" : command.slice(prefix.length + 1),
+        }),
+      ]
+    }
   }
-  if (lower === "who") {
-    return [work(who, { session })]
-  }
-  if (lower === "save") {
-    return [work(save, { session })]
-  }
-  if (lower === "i" || lower === "inv" || lower === "inventory") {
-    return [work(inventory, { session })]
-  }
-  if (lower === "get" || lower.startsWith("get ")) {
-    return [work(get, { session, name: lower === "get" ? "" : command.slice(4) })]
-  }
-  if (lower === "take" || lower.startsWith("take ")) {
-    return [work(get, { session, name: lower === "take" ? "" : command.slice(5) })]
-  }
-  if (lower === "drop" || lower.startsWith("drop ")) {
-    return [work(drop, { session, name: lower === "drop" ? "" : command.slice(5) })]
-  }
-  if (lower === "wield" || lower.startsWith("wield ")) {
-    return [work(wield, { session, name: lower === "wield" ? "" : command.slice(6) })]
-  }
-  if (lower === "wear" || lower.startsWith("wear ")) {
-    return [work(wear, { session, name: lower === "wear" ? "" : command.slice(5) })]
-  }
-  if (lower === "remove" || lower.startsWith("remove ")) {
-    return [work(remove, { session, name: lower === "remove" ? "" : command.slice(7) })]
-  }
+
   if (lower.startsWith("say ")) {
     return [work(say, { session, message: command.slice(4) })]
   }
