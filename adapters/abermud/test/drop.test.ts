@@ -55,6 +55,35 @@ describe("DROP", () => {
     expect(adapter.worn.has(shield)).toBe(false)
   })
 
+  it("clears wielding when the dropped object was the actor's wielded weapon", async () => {
+    const { runtime, world, adapter, alicePlayer, sword } = abermudFixture()
+    world.locate(sword, alicePlayer)
+    adapter.wielding.set(alicePlayer, sword)
+    const session = testSession("session-1", "alice")
+
+    for (const item of adapter.parse({ session, raw: "drop sword" })) {
+      runtime.submit({ work: item })
+    }
+    await runtime.drain()
+
+    expect(adapter.wielding.has(alicePlayer)).toBe(false)
+  })
+
+  it("leaves wielding alone when the dropped object is not what's wielded", async () => {
+    const { runtime, world, adapter, alicePlayer, sword, shield } = abermudFixture()
+    world.locate(sword, alicePlayer)
+    world.locate(shield, alicePlayer)
+    adapter.wielding.set(alicePlayer, sword)
+    const session = testSession("session-1", "alice")
+
+    for (const item of adapter.parse({ session, raw: "drop shield" })) {
+      runtime.submit({ work: item })
+    }
+    await runtime.drain()
+
+    expect(adapter.wielding.get(alicePlayer)).toBe(sword)
+  })
+
   it("asks what, given no object", async () => {
     const { runtime, adapter } = abermudFixture()
     const session = testSession("session-1", "alice")

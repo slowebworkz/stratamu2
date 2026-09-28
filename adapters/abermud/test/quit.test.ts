@@ -42,6 +42,23 @@ describe("QUIT", () => {
     })
   })
 
+  it("un-wears and un-wields whatever it dumps into the room", async () => {
+    const { runtime, world, adapter, alicePlayer, sword, shield } = abermudFixture()
+    world.locate(sword, alicePlayer)
+    world.locate(shield, alicePlayer)
+    adapter.worn.add(shield)
+    adapter.wielding.set(alicePlayer, sword)
+    const session = testSession("session-1", "alice")
+
+    for (const item of adapter.parse({ session, raw: "quit" })) {
+      runtime.submit({ work: item })
+    }
+    await runtime.drain()
+
+    expect(adapter.worn.has(shield)).toBe(false)
+    expect(adapter.wielding.has(alicePlayer)).toBe(false)
+  })
+
   it("still quits without a configured store -- saving is a side effect, not what was asked for", async () => {
     const { runtime, adapter } = abermudFixture()
     const session = testSession("session-1", "alice")
