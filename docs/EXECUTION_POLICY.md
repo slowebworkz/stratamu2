@@ -2,7 +2,9 @@
 
 ## Status
 
-**Investigation only — nothing implemented.** `engine/core`'s README already lists this as deferred ("Not yet: ... the engine *lifecycle* (start/stop/run-loop sequencing) ... Phases and boundaries, fairness and budgets, and a policy that reads `priority`"), and this document does not revise that. It exists because a concrete composition — the Telnet login/game flow in `plugins/telnet/test` — ran into the gap directly: `runAberMUDLogin` calls `void engine.runtime.drain()` after every line, and `Runtime.drain()`'s own docstring says plainly that it is "not a model of a server loop."
+**Investigated, and the proposed fix is implemented.** `Runtime.pump(maxSteps)` exists (see "What was built" below) and `runAberMUDLogin` (now in `adapter-abermud/src/login/`, moved out of `plugins/telnet` after this was written) calls it instead of `drain()`. `engine/core`'s README still lists the *bigger* items this document deliberately left deferred ("Phases and boundaries, fairness and budgets, and a policy that reads `priority`", the autonomous engine lifecycle) as not yet done, and this document does not revise that -- see "Two different problems that look like one" below, which is exactly the distinction that let (1) ship without (2).
+
+It exists because a concrete composition — the Telnet login/game flow — ran into the gap directly: `runAberMUDLogin` called `void engine.runtime.drain()` after every line, and `Runtime.drain()`'s own docstring says plainly that it is "not a model of a server loop."
 
 Scope: whether `Runtime` needs a new capability at all to be driven safely by a real transport, and if so, the smallest one. Not in scope: an autonomous `Runtime.start()`/`stop()` loop, a wall-clock driver, or designing fairness/phases for a game family that doesn't need them yet. Those stay deferred, per the README.
 
@@ -32,9 +34,9 @@ The architecture document's undesigned list — "priority, fairness and executio
 
 This document only addresses (1).
 
-## Proposed next step
+## What was built
 
-Add a bounded sibling to `drain()`:
+A bounded sibling to `drain()`, added to `Runtime` in `engine/core`:
 
 ```ts
 /**
@@ -56,22 +58,24 @@ while (steps < maxSteps && (await runtime.step())) {
 
 `pump` only exists to give that loop a name and a place, the same relationship `drain()` already has to calling `step()` in an unbounded loop. It needs no change to `ExecutionPolicy`, `Lane`, or anything about ordering. It does not touch `priority`, phases, or fairness between lanes — a budget that has to choose *fairly* among several sessions competing for the same bounded steps is squarely tomorrow's problem (2), not this one.
 
-The Telnet composition would then read:
+The Telnet composition now reads (`adapter-abermud/src/login/abermud-login.ts`):
 
 ```ts
 engine.receive({ session, raw })
-void engine.runtime.pump(SOME_BOUND)
+void engine.runtime.pump(STEP_BUDGET_PER_LINE)
 ```
 
-replacing the unbounded `drain()`. `SOME_BOUND` is itself a small open question — a constant is honest about how little is known yet about what a "step budget per line" should be, versus a config value that implies more design than exists.
+replacing the unbounded `drain()`. `STEP_BUDGET_PER_LINE` is a plain constant (currently `100`), not a config value -- honest about how little is known yet about what a "step budget per line" should actually be, per open question 2 below, which is still open.
+
+`Runtime.pump` has its own tests in `engine/core` (`runtime.test.ts`, `describe("pump", ...)`): a bounded count, stopping early the same as `drain` once nothing is ready, a zero bound, always returning for a handler that reschedules itself forever (the case `drain` cannot survive), and that bounded-off work stays ready for a later call to pick up.
 
 ## Open questions
 
-1. **Is a bound even the right shape**, versus, say, a time budget (stop after N milliseconds of wall time)? A step count is simpler and keeps `Runtime` reading no wall clock, consistent with `DETERMINISM.md`; a time budget would need one, and reading wall time for scheduling is explicitly the thing `Runtime` avoids. Step count is recommended for that reason, not just simplicity.
-2. **What bound.** Not answerable in the abstract; likely answered once `pump` exists and gets used, the same way ECHO taught `TelnetNegotiator` what it actually needed.
-3. **Whether `pump` belongs on `Runtime` or one level up** (a small helper in `engine-core`'s `composition/`, next to `Engine`). Putting it on `Runtime` matches `step`/`drain` living there already; a composition-level helper would keep `Runtime` itself smaller. Leaning `Runtime`, for symmetry with `drain`, but not decided.
+1. **Is a bound even the right shape**, versus, say, a time budget (stop after N milliseconds of wall time)? A step count is simpler and keeps `Runtime` reading no wall clock, consistent with `DETERMINISM.md`; a time budget would need one, and reading wall time for scheduling is explicitly the thing `Runtime` avoids. Step count is recommended for that reason, not just simplicity. **Resolved as built:** step count.
+2. **What bound.** Still open. `STEP_BUDGET_PER_LINE = 100` in `adapter-abermud` is a placeholder, not a derived value -- nothing in this repository yet exercises a handler that reschedules itself, so nothing has taught this number anything real yet, the same way ECHO taught `TelnetNegotiator` what it actually needed.
+3. **Whether `pump` belongs on `Runtime` or one level up.** **Resolved as built:** `Runtime`, for symmetry with `step`/`drain`.
 4. **Fairness and phases stay deferred**, explicitly, until an adapter that actually needs them (a pulse-driven game family) exists. Nothing here should be read as a first step toward that design.
 
 ## Next step
 
-Implement `pump(maxSteps)` on `Runtime`, update `runAberMUDLogin` to call it instead of `drain()`, and re-run the Telnet vertical-slice test to confirm nothing about the observable behavior changes for AberMUD's own (non-rescheduling) handlers — the point of this change is what happens when a handler *does* reschedule itself, which nothing in this repository's tests currently exercises, and may be worth adding as its own test once `pump` exists.
+Nothing here specifically. A test that actually exercises a self-rescheduling AberMUD handler through `runAberMUDLogin` (something none of this repository's tests do yet) would be the first thing to teach open question 2 something real; until a feature needs one, this stays a placeholder rather than being designed speculatively.
