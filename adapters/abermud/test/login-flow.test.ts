@@ -72,6 +72,13 @@ describe("runAberMUDLogin", () => {
     connection.sendLine("secret")
     await waitFor(() => connection.echoCalls.length === 2)
     expect(connection.echoCalls).toEqual([false, true])
+
+    // The assertions above are done, but `authenticate`'s promise chain (session open, the
+    // persona-store write inside `adapter.login`) keeps running after them. Waiting for "ready"
+    // lets it finish before `afterEach` removes the temp directory -- otherwise that removal can
+    // race an in-flight write there and fail with ENOTEMPTY, seen on CI (Linux) though never
+    // reproduced locally (macOS), which is stricter about removing a directory mid-write.
+    await waitFor(() => connection.output.includes("ready\r\n"))
   })
 
   it("logs in and runs a game command once authenticated", async () => {
