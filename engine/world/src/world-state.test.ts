@@ -88,6 +88,34 @@ describe("WorldState", () => {
     )
   })
 
+  it("refuses to locate an entity at itself", () => {
+    const world = new WorldState()
+    world.add(entity(entityId("player-1"), "test.player"))
+
+    expect(() => world.locate(entityId("player-1"), entityId("player-1"))).toThrow(
+      'Entity "player-1" cannot be located at itself',
+    )
+  })
+
+  it("is containment, not room-membership specifically: an entity can be located at any other entity", () => {
+    const world = new WorldState()
+    world.add(room("room-1"))
+    const player = entity(entityId("player-1"), "test.player")
+    const sword = entity(entityId("sword"), "test.item")
+    world.add(player)
+    world.add(sword)
+    world.locate(player.id, entityId("room-1"))
+
+    // The sword is located at the player, the identical operation as a player being located at a
+    // room -- there is no second, container-specific method.
+    world.locate(sword.id, player.id)
+
+    expect(world.locationOf(sword.id)).toBe(player.id)
+    expect([...world.occupants(player.id)]).toEqual([sword.id])
+    // The room's occupants are unaffected: the sword is not "in" room-1 while it is held.
+    expect([...world.occupants(entityId("room-1"))]).toEqual([player.id])
+  })
+
   it("refuses to remove an entity that another entity is located at", () => {
     const world = new WorldState()
     const player = entity(entityId("player-1"), "test.player")

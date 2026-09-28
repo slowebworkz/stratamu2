@@ -16,7 +16,11 @@ import { AberMUDAdapter, type AberMUDAdapterOptions } from "../../src/adapter.ts
  *   here:  Alice
  *   there: Bob, a goblin
  *
- * A sword exists (registered, not located) for a later slice that can place and pick it up.
+ * A sword (takeable) and a statue (not) exist, registered but not located -- a GET/DROP test
+ * locates one where it needs it, the same reason the original comment here gave for the sword
+ * alone: putting either in `here` by default would change every other test's LOOK output too,
+ * since `RoomOutput` doesn't yet distinguish an object from a character in "Also here" (LOOK
+ * describing objects at all is out of this slice's scope -- see the package README).
  */
 export function abermudFixture(options: AberMUDAdapterOptions = {}) {
   const world = new WorldState()
@@ -70,7 +74,33 @@ export function abermudFixture(options: AberMUDAdapterOptions = {}) {
 
   const sword = entityId("sword")
   world.add(entity(sword, "abermud.object"))
-  adapter.objects.set(sword, { id: sword, name: "sword", description: "A plain iron sword." })
+  adapter.objects.set(sword, {
+    id: sword,
+    name: "sword",
+    description: "A plain iron sword.",
+    takeable: true,
+  })
 
-  return { world, sessions, runtime, adapter, here, there, alicePlayer, bobPlayer, goblin, sword }
+  const statue = entityId("statue")
+  world.add(entity(statue, "abermud.object"))
+  adapter.objects.set(statue, {
+    id: statue,
+    name: "statue",
+    description: "A heavy stone statue.",
+    takeable: false,
+  })
+
+  return {
+    world,
+    sessions,
+    runtime,
+    adapter,
+    here,
+    there,
+    alicePlayer,
+    bobPlayer,
+    goblin,
+    sword,
+    statue,
+  }
 }

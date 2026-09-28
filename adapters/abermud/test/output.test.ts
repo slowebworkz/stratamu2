@@ -1,7 +1,16 @@
 import { entityId } from "@stratamu/primitives"
 import { describe, expect, it } from "vitest"
 
-import { refusal, renderRefusal, renderOutput, renderRoom, renderSpeech } from "../src/output.ts"
+import {
+  refusal,
+  renderDropped,
+  renderInventory,
+  renderOutput,
+  renderRefusal,
+  renderRoom,
+  renderSpeech,
+  renderTaken,
+} from "../src/output.ts"
 
 describe("renderRoom", () => {
   it("renders a room with nobody else in it", () => {
@@ -35,6 +44,51 @@ describe("renderRefusal", () => {
     expect(renderRefusal(refusal("target-absent", "bob"))).toBe("bob is not here")
     expect(renderRefusal(refusal("save-unavailable"))).toBe("saving is not available")
     expect(renderRefusal(refusal("nothing-to-save"))).toBe("you have no status to save")
+    expect(renderRefusal(refusal("get-what"))).toBe("Get what ?")
+    expect(renderRefusal(refusal("drop-what"))).toBe("Drop what ?")
+    expect(renderRefusal(refusal("not-here"))).toBe("That is not here.")
+    expect(renderRefusal(refusal("not-takeable"))).toBe("You can't take that!")
+    expect(renderRefusal(refusal("not-carrying"))).toBe("You are not carrying that.")
+  })
+})
+
+describe("renderTaken", () => {
+  it("gives the actor no detail, verbatim AberMUD II wording", () => {
+    expect(
+      renderTaken({ kind: "taken", perspective: "actor", actor: "alice", item: "sword" }),
+    ).toBe("Ok...")
+  })
+
+  it("names the actor and item to everyone else", () => {
+    expect(
+      renderTaken({ kind: "taken", perspective: "observer", actor: "alice", item: "sword" }),
+    ).toBe("alice takes the sword")
+  })
+})
+
+describe("renderDropped", () => {
+  it("gives the actor no detail, verbatim AberMUD II wording", () => {
+    expect(
+      renderDropped({ kind: "dropped", perspective: "actor", actor: "alice", item: "sword" }),
+    ).toBe("OK..")
+  })
+
+  it("names the actor and item to everyone else, with the trailing blank line the source has", () => {
+    expect(
+      renderDropped({ kind: "dropped", perspective: "observer", actor: "alice", item: "sword" }),
+    ).toBe("alice drops the sword.\n")
+  })
+})
+
+describe("renderInventory", () => {
+  it("lists carried items", () => {
+    expect(renderInventory({ kind: "inventory", items: ["sword", "shield"] })).toBe(
+      "You are carrying\nsword shield",
+    )
+  })
+
+  it("says Nothing when carrying nothing", () => {
+    expect(renderInventory({ kind: "inventory", items: [] })).toBe("You are carrying\nNothing")
   })
 })
 

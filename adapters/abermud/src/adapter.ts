@@ -5,7 +5,10 @@ import type { WorldState } from "@stratamu/engine-world"
 import type { Work } from "@stratamu/work"
 
 import {
+  registerDrop,
   registerExits,
+  registerGet,
+  registerInventory,
   registerLook,
   registerMove,
   registerSave,
@@ -112,5 +115,8 @@ export class AberMUDAdapter implements EngineAdapter<SessionInput> {
     registerTell(runtime, this.control, this.charactersByName)
     registerWho(runtime, this.control, this.charactersByName)
     registerSave(runtime, this.control, this.personas, this.#personaStore)
+    registerGet(runtime, this.control, this.objects)
+    registerDrop(runtime, this.control, this.objects)
+    registerInventory(runtime, this.control, this.objects)
   }
 }

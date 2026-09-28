@@ -13,13 +13,22 @@ export interface RoomOutput {
   readonly occupants: readonly EntityId[]
 }
 
-/** Why a command could not be carried out. A closed set, so presentation can word each one. */
+/** Why a command could not be carried out. A closed set, so presentation can word each one.
+ * `get-what`/`drop-what`/`not-here`/`not-takeable`/`not-carrying` are AberMUD II's own verbatim
+ * messages (see `getobj()`/`dropitem()` in the recovered source's `mud/objsys.c` -- the package
+ * README's "Reference" links directly to it), not invented wording, the same discipline SAVE's
+ * exact message already followed. */
 export type RefusalReason =
   | "not-controlling"
   | "nowhere"
   | "no-exit"
   | "save-unavailable"
   | "nothing-to-save"
+  | "get-what"
+  | "drop-what"
+  | "not-here"
+  | "not-takeable"
+  | "not-carrying"
 
 /** An action that could not be performed. `target-absent` names who was asked for, as typed. */
 export type RefusalOutput =
@@ -66,6 +75,37 @@ export interface SavedOutput {
   readonly name: string
 }
 
+/**
+ * An object was picked up. One event, sent to each recipient with `perspective` saying which
+ * side of it they are on, the same reasoning `SpeechOutput` already uses -- but here the two
+ * sides say genuinely different things, not just "you"/"they": AberMUD II's `getobj()` replies to
+ * the actor with a fixed, contentless "Ok...", and only the room broadcast names the item. That
+ * asymmetry is preserved exactly, not smoothed over into a more informative actor message.
+ */
+export interface TakenOutput {
+  readonly kind: "taken"
+  readonly perspective: "actor" | "observer"
+  readonly actor: string
+  readonly item: string
+}
+
+/** An object was set down. Same shape and the same actor/observer asymmetry as `TakenOutput`,
+ * matching `dropitem()`. */
+export interface DroppedOutput {
+  readonly kind: "dropped"
+  readonly perspective: "actor" | "observer"
+  readonly actor: string
+  readonly item: string
+}
+
+/** What a character is carrying. Matches `inventory()`/`aobjsat()`: every item's name, in no
+ * particular order (the recovered source's own ordering is object-table order, an implementation
+ * detail this adapter has no reason to reproduce). */
+export interface InventoryOutput {
+  readonly kind: "inventory"
+  readonly items: readonly string[]
+}
+
 /** Everything an AberMUD command can send a session. */
 export type AberOutput =
   | RoomOutput
@@ -74,6 +114,9 @@ export type AberOutput =
   | ExitsOutput
   | PlayersOutput
   | SavedOutput
+  | TakenOutput
+  | DroppedOutput
+  | InventoryOutput
 
 /** How a room view reads as text: the presentation half of what `describeRoom` used to do. */
 export function renderRoom(room: RoomOutput): string {
@@ -96,6 +139,16 @@ export function renderRefusal(output: RefusalOutput): string {
       return "saving is not available"
     case "nothing-to-save":
       return "you have no status to save"
+    case "get-what":
+      return "Get what ?"
+    case "drop-what":
+      return "Drop what ?"
+    case "not-here":
+      return "That is not here."
+    case "not-takeable":
+      return "You can't take that!"
+    case "not-carrying":
+      return "You are not carrying that."
   }
 }
 
@@ -125,6 +178,21 @@ export function renderSaved(output: SavedOutput): string {
   return `Saving ${output.name}`
 }
 
+/** How a pickup reads as text, from the recipient's side of it. Verbatim AberMUD II wording. */
+export function renderTaken(output: TakenOutput): string {
+  return output.perspective === "actor" ? "Ok..." : `${output.actor} takes the ${output.item}`
+}
+
+/** How a drop reads as text. `dropitem()`'s room broadcast has a blank line after it in the
+ * recovered source (`"...drops the %s.\n\n"`); that trailing blank line is kept. */
+export function renderDropped(output: DroppedOutput): string {
+  return output.perspective === "actor" ? "OK.." : `${output.actor} drops the ${output.item}.\n`
+}
+
+export function renderInventory(output: InventoryOutput): string {
+  return `You are carrying\n${output.items.length === 0 ? "Nothing" : output.items.join(" ")}`
+}
+
 /** Any AberMUD output as plain text. Exhaustive: a new variant fails to compile until worded. */
 export function renderOutput(output: AberOutput): string {
   switch (output.kind) {
@@ -140,5 +208,11 @@ export function renderOutput(output: AberOutput): string {
       return renderPlayers(output)
     case "saved":
       return renderSaved(output)
+    case "taken":
+      return renderTaken(output)
+    case "dropped":
+      return renderDropped(output)
+    case "inventory":
+      return renderInventory(output)
   }
 }
