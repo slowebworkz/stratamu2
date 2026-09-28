@@ -1,19 +1,16 @@
-import { type AberMUDAdapter, type AberOutput, renderOutput } from "@stratamu/adapter-abermud"
 import type { Engine } from "@stratamu/engine-core"
 import type { Session } from "@stratamu/engine-sessions"
 import { type EntityId, sessionId } from "@stratamu/primitives"
 
-import type { TelnetConnection } from "../../src/index.ts"
+import type { AberMUDAdapter } from "../adapter.ts"
+import type { AberOutput } from "../output.ts"
+import { renderOutput } from "../output.ts"
+import type { AberMUDLoginConnection } from "./login-connection.ts"
 
 /**
- * The Name/Password login flow, and the hand-off from it into ordinary game input. This is
- * composition, not a `TelnetCodec`/`TelnetNegotiator` concern and not a generic `Connection`
- * concern either: it exists to prove `TelnetConnection.setEcho` actually gets used around a real
- * password prompt, the seam the whole Telnet plugin exists to reach. It lives in this package's
- * test support, not `src`, for the same reason `engine-flow.test.ts` does -- see that file and
- * the README: no app exists yet to own this composition, so a real-socket test proves it instead.
+ * The Name/Password login flow, and the hand-off from it into ordinary game input.
  *
- * Deliberately out of scope, same as `engine-flow.test.ts`'s login shortcut:
+ * Deliberately out of scope:
  * - New-character creation. `AberMUDAdapter.login` needs a `sex` only for a brand-new character;
  *   this always passes `0` rather than prompting for it, so login only actually works for a name
  *   with an existing persona. Interactive character creation is a separate, larger flow.
@@ -23,7 +20,7 @@ import type { TelnetConnection } from "../../src/index.ts"
  *   presentation concern, same as `AberOutput`'s `renderOutput`.
  */
 export interface AberMUDLoginOptions {
-  readonly connection: TelnetConnection
+  readonly connection: AberMUDLoginConnection
   readonly engine: Engine<{ readonly session: Session; readonly raw: string }>
   readonly adapter: AberMUDAdapter
   /** Called once login succeeds, so a caller can do whatever placing a fresh character needs
@@ -32,6 +29,16 @@ export interface AberMUDLoginOptions {
 }
 
 type Stage = "name" | "password" | "authenticating" | "playing"
+
+/**
+ * A step budget for `engine.runtime.pump()` after each line of ordinary game input. Not derived
+ * from anything -- `docs/EXECUTION_POLICY.md` (in the main repository) leaves "what bound" an
+ * open question, answerable once real use teaches us what a command actually needs, the same way
+ * `TelnetNegotiator`'s ECHO taught us what it needed. Generous for what any current AberMUD
+ * command does (LOOK/MOVE/SAY resolve in one step, or a handful for SAY's fan-out), while still
+ * giving a guaranteed return `drain()` cannot, for a handler that reschedules itself.
+ */
+const STEP_BUDGET_PER_LINE = 100
 
 /**
  * Starts the login flow on a freshly accepted `connection`: prompts for a name, then a password
@@ -56,9 +63,10 @@ export function runAberMUDLogin(options: AberMUDLoginOptions): void {
         throw new Error("Reached playing stage without an open session")
       }
       engine.receive({ session, raw })
-      // `receive` only submits; running the Runtime is the transport loop's job, same choice
-      // `engine-flow.test.ts` makes.
-      void engine.runtime.drain()
+      // `receive` only submits; running the Runtime is the transport loop's job. `pump`, not
+      // `drain`: a guaranteed return regardless of what a handler does, not an assumption that
+      // nothing here ever reschedules itself. See `STEP_BUDGET_PER_LINE`.
+      void engine.runtime.pump(STEP_BUDGET_PER_LINE)
       return
     }
 
@@ -103,8 +111,7 @@ export function runAberMUDLogin(options: AberMUDLoginOptions): void {
       const newSession: Session = {
         id: sessionId(connection.id),
         principalId: principal,
-        // The renderer lives on the session, so the engine and adapter never see the wire; same
-        // choice `engine-flow.test.ts` makes.
+        // The renderer lives on the session, so the engine and adapter never see the wire.
         send: message => connection.write(`${renderOutput(message as AberOutput)}\r\n`),
       }
       session = newSession

@@ -158,6 +158,23 @@ genuine garbage bytes, not a synthetic example.
     eventually LOGIN, both need -- no `delete`, since no command needs one yet) and
     `FilePersonaStore`, a thin wrapper over one `UafRandFile`.
 
+  - `login/abermud-login.ts` -- `runAberMUDLogin`: the Name/Password login *flow*, as distinct
+    from `character/login.ts`'s character *initialization*. Prompts for a name, then a password
+    with the connection's local echo suppressed for it (`AberMUDLoginConnection.setEcho`), calls
+    `AberMUDAdapter.authenticate`, and on success opens a `Session` and switches the connection
+    over to `Engine.receive`. A failed authentication reprompts for a name rather than closing the
+    connection; a line arriving while `authenticate` (or the `login()` that follows it) is still
+    pending is dropped, not queued -- `authenticate` is async, and nothing about a network
+    connection guarantees a client waits for its own prompt before sending more. Deliberately out
+    of scope: new-character creation (`login()` needs a `sex` only for a brand-new character, and
+    this always passes `0`), a retry limit, and any wording beyond "Name:"/"Password:"/"Login
+    incorrect.". `login/login-connection.ts` -- `AberMUDLoginConnection`: the minimal shape this
+    needs from whatever carried a line to it (line-oriented input/output, plus `setEcho`),
+    declared here rather than imported from a transport package, so this adapter has no
+    dependency on any specific transport. `@stratamu/plugin-telnet`'s `TelnetConnection` already
+    satisfies it structurally; its own tests prove that over a real socket (see that package's
+    README), since this package has no socket of its own to prove it with.
+
   `test/uaf-rand-codec.test.ts` proves the codec alone, including against real bytes captured
   from actually compiling and running `mud/makeuaf.c` (see "Reference") -- not just a round trip
   through itself. `test/uaf-rand-file.test.ts` proves the slot semantics above.
@@ -170,16 +187,18 @@ is running? Here, adapter-owned, the same way `rooms`/`control` already are -- n
 `Entity`.
 
 Deliberately minimal beyond that: no containment or equipment (`get`/`drop`/`wear`/`put`), no
-combat, no QUIT/RESET, no world-file or account persistence, and no password/account
-authentication. Character initialization/load is now implemented as the other half of the
-`uaf.rand` persistence boundary; the transport/account-login path remains outside this adapter
-until the recovered source gives us a concrete boundary to reproduce. Each further slice is meant
-to force whatever the next real abstraction turns out to be, rather than be designed in ahead of
-that evidence.
+combat, no QUIT/RESET, no world-file persistence, and no interactive new-character creation.
+Character initialization/load, account authentication, and now the login *flow* that ties them
+together and hands a connection off into ordinary game input (`runAberMUDLogin`, see "What
+exists") are all implemented; what remains outside this adapter is the transport itself --
+sockets, Telnet or any other protocol -- which is `@stratamu/plugin-telnet`'s concern, not this
+one's. Each further slice is meant to force whatever the next real abstraction turns out to be,
+rather than be designed in ahead of that evidence.
 
 ## Public API
 
 `AberMUDAdapter`, `AberMUDAdapterOptions`, `SessionInput`, `Control`, `AberRoomDefinition`,
 `AberMobileDefinition`, `AberObjectDefinition`, `AberMUDPersona`, `AberMUDPersonaStore`,
-`FilePersonaStore` -- how to compose and use the adapter, and what to implement or supply for
-persistence. Work kinds, the parser, `UafRandCodec`, and each command's handler are internal.
+`FilePersonaStore`, `runAberMUDLogin`, `AberMUDLoginOptions`, `AberMUDLoginConnection` -- how to
+compose and use the adapter, what to implement or supply for persistence, and the login flow. Work
+kinds, the parser, `UafRandCodec`, and each command's handler are internal.

@@ -23,3 +23,5 @@ export type {
   SpeechOutput,
 } from "./output.ts"
 export { refusal, renderOutput, renderRefusal, renderRoom, renderSpeech } from "./output.ts"
+export type { AberMUDLoginConnection, AberMUDLoginOptions } from "./login/index.ts"
+export { runAberMUDLogin } from "./login/index.ts"
