@@ -6,6 +6,7 @@ import {
   renderDropped,
   renderInventory,
   renderOutput,
+  renderQuit,
   renderRefusal,
   renderRoom,
   renderSpeech,
@@ -108,6 +109,18 @@ describe("renderSpeech", () => {
     ).toBe('You tell bob, "hi"')
     expect(renderSpeech({ ...base, channel: "tell", perspective: "listener" })).toBe(
       'alice tells you, "hi"',
+    )
+  })
+})
+
+describe("renderQuit", () => {
+  it("gives the actor a bare confirmation, distinct from GET's", () => {
+    expect(renderQuit({ kind: "quit", perspective: "actor", name: "alice" })).toBe("Ok")
+  })
+
+  it("names who left to everyone else", () => {
+    expect(renderQuit({ kind: "quit", perspective: "observer", name: "alice" })).toBe(
+      "alice has left the game",
     )
   })
 })

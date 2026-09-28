@@ -106,6 +106,20 @@ export interface InventoryOutput {
   readonly items: readonly string[]
 }
 
+/**
+ * A character left the game. Same actor/observer split as `TakenOutput`, and the same asymmetry:
+ * the actor's own message is a bare confirmation (`doaction()`'s `bprintf("Ok")`, no ellipsis --
+ * distinct from GET's "Ok..."), only the room broadcast names who left. What actually ends the
+ * connection is not this type's concern: it is composition's job to notice a `"quit"`, `"actor"`
+ * output on its way out and close the transport after it, the same reason `Session`/`Connection`
+ * never appear in this package at all -- see `login/abermud-login.ts`.
+ */
+export interface QuitOutput {
+  readonly kind: "quit"
+  readonly perspective: "actor" | "observer"
+  readonly name: string
+}
+
 /** Everything an AberMUD command can send a session. */
 export type AberOutput =
   | RoomOutput
@@ -117,6 +131,7 @@ export type AberOutput =
   | TakenOutput
   | DroppedOutput
   | InventoryOutput
+  | QuitOutput
 
 /** How a room view reads as text: the presentation half of what `describeRoom` used to do. */
 export function renderRoom(room: RoomOutput): string {
@@ -193,6 +208,11 @@ export function renderInventory(output: InventoryOutput): string {
   return `You are carrying\n${output.items.length === 0 ? "Nothing" : output.items.join(" ")}`
 }
 
+/** How leaving reads as text. Verbatim AberMUD II wording (`"Ok"`, `"<name> has left the game"`). */
+export function renderQuit(output: QuitOutput): string {
+  return output.perspective === "actor" ? "Ok" : `${output.name} has left the game`
+}
+
 /** Any AberMUD output as plain text. Exhaustive: a new variant fails to compile until worded. */
 export function renderOutput(output: AberOutput): string {
   switch (output.kind) {
@@ -214,5 +234,7 @@ export function renderOutput(output: AberOutput): string {
       return renderDropped(output)
     case "inventory":
       return renderInventory(output)
+    case "quit":
+      return renderQuit(output)
   }
 }

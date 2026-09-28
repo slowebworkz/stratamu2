@@ -167,4 +167,23 @@ describe("runAberMUDLogin", () => {
     ).toBeUndefined()
     expect(principal === undefined ? undefined : adapter.control.get(principal)).toBe(character)
   })
+
+  it("closes the connection once QUIT's own confirmation is sent, and only then", async () => {
+    const { adapter, engine } = await fixture()
+    const connection = fakeLoginConnection()
+    runAberMUDLogin({ connection, engine, adapter })
+
+    connection.sendLine("alice")
+    connection.sendLine("secret")
+    await waitFor(() => connection.output.includes("ready\r\n"))
+    expect(connection.closeCalls).toBe(0)
+
+    connection.sendLine("quit")
+    await waitFor(() => connection.output.includes("Ok\r\n"))
+
+    // This is the seam `commands/quit.ts` itself has no access to: sending a "quit" output
+    // through the ordinary session channel is what actually ends the connection, and it happens
+    // here, in the composition that owns `connection`, not in the handler.
+    expect(connection.closeCalls).toBe(1)
+  })
 })

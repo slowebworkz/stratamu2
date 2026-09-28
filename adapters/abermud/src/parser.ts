@@ -9,6 +9,7 @@ import {
   inventory,
   look,
   move,
+  quit,
   resolveDirection,
   save,
   say,
@@ -46,6 +47,9 @@ export function parseAberMUD(input: SessionInput): readonly Work[] {
   }
   if (lower === "save") {
     return [work(save, { session })]
+  }
+  if (lower === "quit") {
+    return [work(quit, { session })]
   }
   if (lower === "i" || lower === "inv" || lower === "inventory") {
     return [work(inventory, { session })]

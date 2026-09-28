@@ -11,6 +11,7 @@ import {
   registerInventory,
   registerLook,
   registerMove,
+  registerQuit,
   registerSave,
   registerSay,
   registerTell,
@@ -118,5 +119,6 @@ export class AberMUDAdapter implements EngineAdapter<SessionInput> {
     registerGet(runtime, this.control, this.objects)
     registerDrop(runtime, this.control, this.objects)
     registerInventory(runtime, this.control, this.objects)
+    registerQuit(runtime, this.control, this.personas, this.#personaStore)
   }
 }
