@@ -4,8 +4,8 @@ import type { EntityId } from "@stratamu/primitives"
 import { workKind } from "@stratamu/work"
 
 import type { Control } from "../control.ts"
-import { principalControlling } from "../control.ts"
 import type { PlayersOutput } from "../output.ts"
+import { resolveActiveCharacter } from "./characters.ts"
 
 export const who = workKind("abermud.who")
 
@@ -17,12 +17,12 @@ export function registerWho(
 ): void {
   runtime.handle(who, (task, context) => {
     const { session } = task.work.input as { session: Session | undefined }
-    const online = [...charactersByName.entries()]
-      .filter(([, entity]) => {
-        const principal = principalControlling(control, entity)
-        return principal !== undefined && context.sessions?.activeFor(principal) !== undefined
-      })
-      .map(([name]) => name)
+    const online: string[] = []
+    for (const name of charactersByName.keys()) {
+      if (resolveActiveCharacter(name, charactersByName, control, context.sessions) !== undefined) {
+        online.push(name)
+      }
+    }
     session?.send({ kind: "players", names: online } satisfies PlayersOutput)
   })
 }

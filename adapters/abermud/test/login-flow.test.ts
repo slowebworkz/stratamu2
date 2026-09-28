@@ -1,5 +1,5 @@
 import { Engine } from "@stratamu/engine-core"
-import { entityId } from "@stratamu/primitives"
+import { entityId, type EntityId } from "@stratamu/primitives"
 import { mkdtemp, rm } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
@@ -185,5 +185,81 @@ describe("runAberMUDLogin", () => {
     // through the ordinary session channel is what actually ends the connection, and it happens
     // here, in the composition that owns `connection`, not in the handler.
     expect(connection.closeCalls).toBe(1)
+  })
+
+  it("closes the losing connection once KILL's own death output is sent, and only then", async () => {
+    dir = await mkdtemp(join(tmpdir(), "stratamu-abermud-login-"))
+    const accountStore = new FileAccountStore(join(dir, "accounts.json"))
+    const personaStore = new FilePersonaStore(join(dir, "uaf.rand"))
+    await accountStore.create("alice", "secret")
+    await accountStore.create("bob", "secret")
+    // A constant 0 guarantees every to-hit roll succeeds (any level's chance to hit is well
+    // above 0); bob's own persona is set below strength to make the hit lethal regardless of
+    // what the (also 0-rolled) damage happens to be.
+    const adapter = new AberMUDAdapter({ accountStore, personaStore, rng: () => 0 })
+    const engine = new Engine(adapter)
+    const here = entityId("here")
+    adapter.rooms.set(here, {
+      id: here,
+      number: 1,
+      name: "Here",
+      description: "A small starting room.",
+      exits: new Map(),
+    })
+    engine.world.add(Object.freeze({ id: here, type: "abermud.room" }))
+
+    const aliceConnection = fakeLoginConnection("alice-connection")
+    runAberMUDLogin({
+      connection: aliceConnection,
+      engine,
+      adapter,
+      onLoggedIn: character => engine.world.locate(character, here),
+    })
+    aliceConnection.sendLine("alice")
+    aliceConnection.sendLine("secret")
+    await waitFor(() => aliceConnection.output.includes("ready\r\n"))
+
+    const bobConnection = fakeLoginConnection("bob-connection")
+    let bobCharacter: EntityId | undefined
+    runAberMUDLogin({
+      connection: bobConnection,
+      engine,
+      adapter,
+      onLoggedIn: character => {
+        bobCharacter = character
+        engine.world.locate(character, here)
+      },
+    })
+    bobConnection.sendLine("bob")
+    bobConnection.sendLine("secret")
+    await waitFor(() => bobConnection.output.includes("ready\r\n"))
+
+    if (bobCharacter !== undefined) {
+      const persona = adapter.personas.get(bobCharacter)
+      if (persona !== undefined) {
+        adapter.personas.set(bobCharacter, { ...persona, strength: -1 })
+      }
+    }
+
+    expect(bobConnection.closeCalls).toBe(0)
+    aliceConnection.sendLine("kill bob")
+    await waitFor(() => bobConnection.closeCalls === 1)
+
+    // The same seam QUIT already proved, now for KILL's own forced disconnect: `commands/kill.ts`
+    // never touches `connection`, only sends a `"killed"`, `"victim"` output through `Session`.
+    expect(bobConnection.output.at(-1)).toContain("Oh dear")
+
+    // The connection closing (asserted above) happens before the handler's own `await
+    // store.delete(...)` -- sending output and returning from the handler are not the same
+    // moment as the handler's promise settling. Poll for the deleted persona instead of a fixed
+    // wait, the same reason `waitFor` exists at all: `afterEach` removes `dir` right after this
+    // test returns, which would otherwise race the delete still landing on disk.
+    const deadline = Date.now() + 2000
+    let bobPersona = await personaStore.load("bob")
+    while (bobPersona !== undefined && Date.now() < deadline) {
+      await new Promise(resolve => setTimeout(resolve, 5))
+      bobPersona = await personaStore.load("bob")
+    }
+    expect(bobPersona).toBeUndefined()
   })
 })

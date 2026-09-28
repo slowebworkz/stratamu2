@@ -16,10 +16,11 @@ import { resolveActor } from "./look.ts"
  *
  * Simplified from the source: only searches what the actor is already carrying, matching GET/DROP's
  * own scope, not `weapcom()`'s broader "carried, with a stale-weapon check deferred to hit time"
- * state machine -- there is no hit yet for a stale `wielding` entry to matter to. `wielding` is not
- * cleared here when a previously-wielded weapon leaves the actor's possession; that is DROP's and
- * QUIT's concern, the operations that can actually invalidate it, the same way `WorldState.remove`'s
- * data-integrity checks live with the operation that could violate them.
+ * state machine. `wielding` is not cleared here when a previously-wielded weapon leaves the
+ * actor's possession; that is DROP's and QUIT's concern, the operations that can actually
+ * invalidate it, the same way `WorldState.remove`'s data-integrity checks live with the operation
+ * that could violate them. KILL re-validates it again at hit time regardless, matching the
+ * source's own `iscarrby()` re-check in `hitplayer()` -- defensive there, not load-bearing.
  */
 export const wield = workKind("abermud.wield")
 

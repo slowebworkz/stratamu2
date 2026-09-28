@@ -5,6 +5,7 @@ import {
   exits,
   get,
   inventory,
+  kill,
   look,
   move,
   quit,
@@ -110,6 +111,15 @@ describe("parseAberMUD", () => {
     ])
     expect(parseAberMUD({ session, raw: "drop" })).toEqual([
       { kind: drop, input: { session, name: "" } },
+    ])
+  })
+
+  it("parses KILL", () => {
+    expect(parseAberMUD({ session, raw: "kill bob" })).toEqual([
+      { kind: kill, input: { session, name: "bob" } },
+    ])
+    expect(parseAberMUD({ session, raw: "kill" })).toEqual([
+      { kind: kill, input: { session, name: "" } },
     ])
   })
 

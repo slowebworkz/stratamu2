@@ -9,6 +9,7 @@ import {
   registerExits,
   registerGet,
   registerInventory,
+  registerKill,
   registerLook,
   registerMove,
   registerQuit,
@@ -19,6 +20,7 @@ import {
   registerWear,
   registerWho,
   registerWield,
+  type KillRng,
 } from "./commands/index.ts"
 import type { AberMUDAccountStore } from "./account/index.ts"
 import { authenticate } from "./account/index.ts"
@@ -34,10 +36,12 @@ import type {
 } from "./world/index.ts"
 
 /** Configuration for `AberMUDAdapter`. Everything is optional; SAVE tells the player saving
- * isn't available when no `personaStore` is given. */
+ * isn't available when no `personaStore` is given. `rng` defaults to `Math.random` -- see
+ * `kill.ts`'s own note on why this is a plain function, not an engine-level primitive yet. */
 export interface AberMUDAdapterOptions {
   readonly accountStore?: AberMUDAccountStore
   readonly personaStore?: AberMUDPersonaStore
+  readonly rng?: KillRng
 }
 
 /**
@@ -71,10 +75,12 @@ export class AberMUDAdapter implements EngineAdapter<SessionInput> {
   readonly worn: Set<EntityId> = new Set()
   readonly #accountStore: AberMUDAccountStore | undefined
   readonly #personaStore: AberMUDPersonaStore | undefined
+  readonly #rng: KillRng | undefined
 
   constructor(options: AberMUDAdapterOptions = {}) {
     this.#accountStore = options.accountStore
     this.#personaStore = options.personaStore
+    this.#rng = options.rng
   }
 
   parse(input: SessionInput): readonly Work[] {
@@ -135,5 +141,16 @@ export class AberMUDAdapter implements EngineAdapter<SessionInput> {
     registerWear(runtime, this.control, this.objects, this.worn)
     registerRemove(runtime, this.control, this.objects, this.worn)
     registerQuit(runtime, this.control, this.personas, this.#personaStore, this.worn, this.wielding)
+    registerKill(
+      runtime,
+      this.control,
+      this.charactersByName,
+      this.objects,
+      this.personas,
+      this.wielding,
+      this.worn,
+      this.#personaStore,
+      this.#rng,
+    )
   }
 }

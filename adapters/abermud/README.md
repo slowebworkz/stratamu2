@@ -54,6 +54,7 @@ well-established against the source:
 - WIELD
 - WEAR
 - REMOVE
+- KILL
 
 **Needs target-specific verification** (present here as conventional MUD syntax, not yet checked
 against the AberMUD II source itself):
@@ -106,10 +107,19 @@ what each one settled:
 - [`mud/blood.c`](https://github.com/DavidKinder/AberMUD2/blob/master/mud/blood.c) --
   `weapcom()` for WIELD (`"Which weapon do you wish to select though"`, `"Whats one of those ?"`,
   `"Thats not a weapon"`, `"OK..."`), `dambyitem()` (a weapon's damage value only if the object
-  has the weapon flag, `otstbit(it,15)`, else a fixed `4` for bare hands) and `hitplayer()` (not
-  modeled yet -- combat itself; read to confirm that WIELD and WEAR are actually load-bearing for
-  its damage/to-hit formula, not cosmetic, which is why they exist ahead of combat -- see "What
-  exists").
+  has the weapon flag, `otstbit(it,15)`, else a fixed `4` for bare hands), and now `killcom()`/
+  `hitplayer()`/`bloodrcv()` for KILL: `pstr`/`setpstr` (health *is* `AberMUDPersona.strength`, no
+  separate concept), the to-hit formula (`40+3*level`, `-10` for three specific worn-armor object
+  ids -- generalized to "anything worn", see "What exists"), the damage roll
+  (`randperc()%dambyitem(wpn)`), the exact refusal strings (`"Kill who"`, `"Come on, it will look
+  better tomorrow..."`, `"You can't do that"`, `"They aren't here"`), and death: `dumpitems()`
+  (the same carried-item relocation QUIT already does), `delpers()` (the persisted persona is
+  erased, not kept -- permadeath), and `crapup()`'s forced disconnect. Confirmed absent, not
+  overlooked: no room broadcast anywhere in `hitplayer()`, only direct writes to the attacker and
+  `sendsys` to the victim -- and no "attack" verb at all (`mud/parse.c`'s own vocabulary is
+  "kill"/"hit"/"fire"/"launch"/"smash"/"shoot"/"break", all one verb number). Not yet modeled:
+  `in_fight`/`fighting`'s per-actor lock against a second KILL while one is already resolving, and
+  monster targets (`victim<16`'s other branch, `woundmn()`) -- a wholly separate subsystem.
 - [`mud/new1.c`](https://github.com/DavidKinder/AberMUD2/blob/master/mud/new1.c) --
   `wearcom()`/`removecom()`/`canwear()`/`iswornby()`/`ohereandget()` for WEAR/REMOVE. `canwear()`
   is a third independent object flag (`otstbit(a,8)`), distinct from `takeable` and the weapon
@@ -166,21 +176,45 @@ genuine garbage bytes, not a synthetic example.
   score/strength/sex/level -- see `persistence/` below), `wielding` (character -> the object it
   currently wields, for WIELD), `worn` (every object currently worn, for WEAR/REMOVE), and
   AberMUD's own room/mobile/object definitions. Contains no command logic itself. Takes an
-  `AberMUDAdapterOptions` with an optional `personaStore`; SAVE tells the player saving isn't
-  available without one.
+  `AberMUDAdapterOptions` with an optional `personaStore` (SAVE tells the player saving isn't
+  available without one) and an optional `rng` (KILL's own source of `[0, 1)` numbers, defaulting
+  to `Math.random`).
 - `parser.ts`: `SessionInput -> Work[]`. The only place raw command text is read.
 - `commands/`: one file per command (`look`, `exits`, `move`, `save`, `say`, `tell`, `who`, `get`,
-  `drop`, `inventory`, `quit`, `wield`, `wear`, `remove`), each owning its `WorkKind` and handler.
-  `objects.ts` is the one shared helper GET/DROP/WIELD/WEAR/REMOVE all need: find an
-  `AberObjectDefinition` located at a given entity, by name -- "an object in the room" and "an
-  object the actor is carrying" are the identical query, just with a different `at`. `quit.ts`
-  sends a `QuitOutput` and does not touch the connection itself -- see the `login/` bullet below
-  for what actually ends it. `drop.ts` and `quit.ts` both clear `worn` for whatever they move,
-  since the source's own `setoloc()` does the same (see "Reference"), and both also clear
-  `wielding` when what they move is the actor's currently-wielded weapon -- `wield.ts` deliberately
-  leaves that to them, the operations that can actually invalidate it.
+  `drop`, `inventory`, `quit`, `wield`, `wear`, `remove`, `kill`), each owning its `WorkKind` and
+  handler, plus three shared helpers each earned by more than one command actually needing the
+  identical operation, not designed in ahead of that:
+  - `objects.ts`'s `findObjectAt` -- GET/DROP/WIELD/WEAR/REMOVE all need to find an
+    `AberObjectDefinition` located at a given entity, by name; "an object in the room" and "an
+    object the actor is carrying" are the identical query, just with a different `at`.
+  - `characters.ts`'s `resolveActiveCharacter` -- TELL and KILL both need "a name resolves to a
+    connected, currently-playing character," matching the source's own `fpbn()`, which only ever
+    scans live characters. Returns an `ActiveCharacter` (entity/principal/session); `kill.ts`
+    builds its own `CombatTarget` as a type alias to it, not a parallel concept.
+  - `recipients.ts`'s `activeSessionsInRoom` -- SAY and QUIT both need "every actively-playing
+    session at this location, someone excluded" for their room broadcasts. GET/DROP have the
+    identical-looking loop but were deliberately left alone (see the note on GET/DROP's own
+    repetition below); KILL has no room broadcast at all (see its own docstring).
+
+  `quit.ts` sends a `QuitOutput` and does not touch the connection itself -- see the `login/`
+  bullet below for what actually ends it. `drop.ts`, `quit.ts` and `kill.ts` (on a lethal hit, for
+  whatever the loser drops) all clear `worn` -- and now `wielding` too, for whichever of them moved
+  the actor's own wielded weapon -- since the source's own `setoloc()` does the same to the carry
+  flag (see "Reference"), and a moved weapon can't stay meaningfully wielded either. `kill.ts`
+  itself is built from small, separately-named steps (`resolveWeapon`, `hasWornItem`, `rollAttack`,
+  `rollDamage`, `sendCombatResult`, `handleDeath`) rather than one long handler body -- each names
+  a real concept `hitplayer()`/`bloodrcv()` themselves have (what they're fought with, whether
+  they're armored, whether the blow lands, how hard, the attacker/victim send every outcome
+  shares, and what a lethal one does), not a mechanical split for its own sake.
+
+  GET and DROP are deliberately *not* built on `activeSessionsInRoom`, even though their own room
+  broadcasts look identical to SAY/QUIT's: their full "validate, find, mutate, send actor output,
+  send room output" shape is kept inline and comparable to `getobj()`/`dropitem()` side by side,
+  and the two differ in real ways (`takeable`, `worn.delete`) worth seeing next to each other
+  rather than factored apart. Not every repeated-looking shape is the same abstraction.
 - `control.ts`: `Control` (`PrincipalId -> EntityId`) and `principalControlling`, the reverse
-  lookup `say`/`tell`/`who` all need.
+  lookup every command above builds on, directly or (now, more often) through
+  `characters.ts`/`recipients.ts`.
 - `world/`: AberMUD's own room/mobile/object definitions -- not `WorldState`'s generic `Entity`.
   `AberRoomDefinition.number` preserves AberMUD's own historical room numbering (its archive
   stores room text under `TEXT/ROOMS/<number>`) alongside the `EntityId` used everywhere else in
@@ -213,9 +247,10 @@ genuine garbage bytes, not a synthetic example.
     blanks every record matching a name (cleared name, level set to `-1`) in place rather than
     compacting the file, looping the way `delpers()` does rather than assuming only one match.
   - `character/login.ts` -- character initialization for an already-authenticated `Session`: loads an existing persona or reproduces `initme()`'s new-character defaults (`score=0`, `strength=40`, `level=1`, sex supplied by the caller), then establishes `PrincipalId -> EntityId` control and adapter-owned live persona state. It deliberately does not implement the historical password/account authentication path.
-  - `file-persona-store.ts` -- `AberMUDPersonaStore` (the narrow `save`/`load` contract SAVE, and
-    eventually LOGIN, both need -- no `delete`, since no command needs one yet) and
-    `FilePersonaStore`, a thin wrapper over one `UafRandFile`.
+  - `file-persona-store.ts` -- `AberMUDPersonaStore` (`save`/`load`, and now `delete`: KILL
+    forced it, the same way SAVE forced `save` -- `bloodrcv()`'s own `delpers(globme)` erases the
+    loser's record as part of dying, not a data-loss bug) and `FilePersonaStore`, a thin wrapper
+    over one `UafRandFile`.
 
   - `login/abermud-login.ts` -- `runAberMUDLogin`: the Name/Password login *flow*, as distinct
     from `character/login.ts`'s character *initialization*. Prompts for a name, then a password
@@ -235,7 +270,10 @@ genuine garbage bytes, not a synthetic example.
     README), since this package has no socket of its own to prove it with. `runAberMUDLogin`'s own
     `Session.send` is also where QUIT actually takes effect: it watches every outgoing `AberOutput`
     for a `"quit"`, `"actor"` one and calls `connection.close()` right after writing it --
-    `commands/quit.ts` itself never sees `AberMUDLoginConnection` at all, only `Session`.
+    `commands/quit.ts` itself never sees `AberMUDLoginConnection` at all, only `Session`. KILL's
+    own death sequence closes the same way, on a `"killed"`, `"victim"` output -- `crapup()`'s
+    forced disconnect in the source, distinct from QUIT's voluntary one, but the identical
+    boundary: `commands/kill.ts` never sees `AberMUDLoginConnection` either.
 
   `test/uaf-rand-codec.test.ts` proves the codec alone, including against real bytes captured
   from actually compiling and running `mud/makeuaf.c` (see "Reference") -- not just a round trip
@@ -267,15 +305,28 @@ invent its own equipment concept mid-slice, without them existing first. Adapter
 (`wielding`, `worn`), the same category `personas` already is, not a `WorldState` fact: wielding
 and wearing are about what a carried object *means*, not where anything is. `drop.ts` and
 `quit.ts` both clear `worn` for what they move (see "Reference"'s `setoloc` note), matching the
-source's own `setoloc()` exactly, and both clear `wielding` too when the item that left was the
-actor's wielded weapon -- otherwise a dropped or quit-away weapon would stay meaningfully wielded
-as far as (future) combat's damage formula could tell, a stale-state bug worth closing before
-combat exists to expose it.
+source's own `setoloc()` exactly -- and both clear `wielding` too, when what moved was the actor's
+own wielded weapon, an invariant `wield.ts` itself deliberately leaves to them.
+
+KILL forced the question equipment existed to answer: does any of this actually matter to combat?
+It does, and turned out to force less new state than expected. Health isn't new -- it *is*
+`AberMUDPersona.strength`, the same field SAVE already persists, so "who's alive" needed no
+parallel concept. What KILL did force: an `Rng` seam (`AberMUDAdapterOptions.rng`, `Math.random`
+by default) rather than a bare call to it, so a to-hit or damage roll can be made deterministic in
+a test the same way `AberMUDPersonaStore` already lets SAVE be faked; and `AberMUDPersonaStore.delete`,
+because death in the source is permadeath -- `delpers()` erases the loser's save, it doesn't keep
+it around for later. `kill.ts`'s own weapon/target/roll/death logic is deliberately several small,
+separately-named functions rather than one long handler, each naming a real piece of what
+`hitplayer()`/`bloodrcv()` do (see "What exists"), not a mechanical split imposed after the fact.
 
 Deliberately minimal beyond that: no containers (`put X in Y`, `get X from Y`), no carry-capacity
-limit, no combat itself, no RESET, no world-file persistence, and no interactive new-character
-creation. Character initialization/load, account authentication, and the login *flow* that ties
-them together and hands a connection off into ordinary game input
+limit, no RESET, no world-file persistence, and no interactive new-character creation. Combat
+itself is now only a single discrete action, not the source's actual continuous system: no
+`in_fight`/`fighting` per-actor lock against overlapping fights, no repeated rounds or scheduling,
+no `kill X with Y`'s specific-weapon override, no `kill <object>` (`breakitem()`), and no monster
+targets at all -- `woundmn()`'s side of `hitplayer()` is a wholly separate subsystem this slice
+never touches. Character initialization/load, account authentication, and the login *flow* that
+ties them together and hands a connection off into ordinary game input
 (`runAberMUDLogin`, see "What exists") are all implemented; what remains outside this adapter is
 the transport itself -- sockets, Telnet or any other protocol -- which is
 `@stratamu/plugin-telnet`'s concern, not this one's. Each further slice is meant to force whatever
@@ -287,7 +338,7 @@ the next real abstraction turns out to be, rather than be designed in ahead of t
 `AberMobileDefinition`, `AberObjectDefinition`, `AberMUDPersona`, `AberMUDPersonaStore`,
 `FilePersonaStore`, `runAberMUDLogin`, `AberMUDLoginOptions`, `AberMUDLoginConnection`,
 `AberOutput` and its variants (including `TakenOutput`, `DroppedOutput`, `InventoryOutput`,
-`QuitOutput`, `WieldedOutput`, `WornOutput`) and their `render*` functions -- how to compose and
-use the adapter, what to implement or supply for
+`QuitOutput`, `WieldedOutput`, `WornOutput`, `CombatOutput`, `KilledOutput`) and their `render*`
+functions -- how to compose and use the adapter, what to implement or supply for
 persistence, the login flow, and every shape a session can be sent. Work kinds, the parser,
 `UafRandCodec`, and each command's handler are internal.

@@ -4,10 +4,10 @@ import type { EntityId } from "@stratamu/primitives"
 import { workKind } from "@stratamu/work"
 
 import type { Control } from "../control.ts"
-import { principalControlling } from "../control.ts"
 import { type QuitOutput, refusal } from "../output.ts"
 import type { AberMUDPersona, AberMUDPersonaStore } from "../persistence/index.ts"
 import { resolveActor } from "./look.ts"
+import { activeSessionsInRoom } from "./recipients.ts"
 
 /**
  * QUIT: leaves the game. Verified against `doaction()`'s case 8 in `mud/parse.c`, which calls
@@ -78,18 +78,13 @@ export function registerQuit(
     if (location === undefined) {
       return
     }
-    for (const occupantId of context.world?.occupants(location) ?? []) {
-      if (occupantId === actor) {
-        continue
-      }
-      const principal = principalControlling(control, occupantId)
-      if (principal === undefined) {
-        continue
-      }
-      const recipient = context.sessions?.activeFor(principal)
-      if (recipient === undefined) {
-        continue
-      }
+    for (const recipient of activeSessionsInRoom(
+      context.world,
+      control,
+      context.sessions,
+      location,
+      actor,
+    )) {
       recipient.send({
         kind: "quit",
         perspective: "observer",
