@@ -176,7 +176,9 @@ genuine garbage bytes, not a synthetic example.
   object the actor is carrying" are the identical query, just with a different `at`. `quit.ts`
   sends a `QuitOutput` and does not touch the connection itself -- see the `login/` bullet below
   for what actually ends it. `drop.ts` and `quit.ts` both clear `worn` for whatever they move,
-  since the source's own `setoloc()` does the same (see "Reference").
+  since the source's own `setoloc()` does the same (see "Reference"), and both also clear
+  `wielding` when what they move is the actor's currently-wielded weapon -- `wield.ts` deliberately
+  leaves that to them, the operations that can actually invalidate it.
 - `control.ts`: `Control` (`PrincipalId -> EntityId`) and `principalControlling`, the reverse
   lookup `say`/`tell`/`who` all need.
 - `world/`: AberMUD's own room/mobile/object definitions -- not `WorldState`'s generic `Entity`.
@@ -265,7 +267,10 @@ invent its own equipment concept mid-slice, without them existing first. Adapter
 (`wielding`, `worn`), the same category `personas` already is, not a `WorldState` fact: wielding
 and wearing are about what a carried object *means*, not where anything is. `drop.ts` and
 `quit.ts` both clear `worn` for what they move (see "Reference"'s `setoloc` note), matching the
-source's own `setoloc()` exactly.
+source's own `setoloc()` exactly, and both clear `wielding` too when the item that left was the
+actor's wielded weapon -- otherwise a dropped or quit-away weapon would stay meaningfully wielded
+as far as (future) combat's damage formula could tell, a stale-state bug worth closing before
+combat exists to expose it.
 
 Deliberately minimal beyond that: no containers (`put X in Y`, `get X from Y`), no carry-capacity
 limit, no combat itself, no RESET, no world-file persistence, and no interactive new-character

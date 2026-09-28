@@ -20,6 +20,11 @@ import { resolveActor } from "./look.ts"
  * `dropitem()` calls, resets an object's carry-flag to "in a room" as part of the same call that
  * moves it -- there is no separate step in the source either, and no way to drop something worn
  * while it stays worn.
+ *
+ * Also clears `wielding`, if the dropped object was the actor's wielded weapon: `wield.ts`
+ * deliberately leaves this to DROP, the same way `WorldState.remove`'s data-integrity checks live
+ * with the operation that could violate them -- a dropped weapon can't stay meaningfully wielded,
+ * since combat's damage formula would otherwise read a weapon that is no longer carried.
  */
 export const drop = workKind("abermud.drop")
 
@@ -28,6 +33,7 @@ export function registerDrop(
   control: Control,
   objects: ReadonlyMap<EntityId, AberObjectDefinition>,
   worn: Set<EntityId>,
+  wielding: Map<EntityId, EntityId>,
 ): void {
   runtime.handle(drop, (task, context) => {
     const { session, name } = task.work.input as { session: Session | undefined; name: string }
@@ -53,6 +59,9 @@ export function registerDrop(
 
     context.world?.locate(definition.id, location)
     worn.delete(definition.id)
+    if (wielding.get(actor) === definition.id) {
+      wielding.delete(actor)
+    }
     const actorName = session?.principalId ?? actor
     session?.send({
       kind: "dropped",

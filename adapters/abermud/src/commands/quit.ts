@@ -31,6 +31,11 @@ import { resolveActor } from "./look.ts"
  * DROP/dumpitems all share, which resets an object's carry-flag to "in a room" as part of the
  * same call that moves it -- there is no way for a worn item to end up on the ground still marked
  * worn, in the source or here.
+ *
+ * Also clears `wielding`, for the same reason `drop.ts` does: quitting while carrying the
+ * currently-wielded weapon dumps it into the room the same way DROP would, so it can't stay
+ * wielded either -- a stale `wielding` entry pointing at an object the actor no longer has would
+ * otherwise be indistinguishable from a real one once combat reads it.
  */
 export const quit = workKind("abermud.quit")
 
@@ -40,6 +45,7 @@ export function registerQuit(
   personas: ReadonlyMap<EntityId, AberMUDPersona>,
   store: AberMUDPersonaStore | undefined,
   worn: Set<EntityId>,
+  wielding: Map<EntityId, EntityId>,
 ): void {
   runtime.handle(quit, async (task, context) => {
     const { session } = task.work.input as { session: Session | undefined }
@@ -55,6 +61,9 @@ export function registerQuit(
       for (const id of carried) {
         context.world?.locate(id, location)
         worn.delete(id)
+        if (wielding.get(actor) === id) {
+          wielding.delete(actor)
+        }
       }
     }
 
