@@ -25,6 +25,12 @@ import { resolveActor } from "./look.ts"
  * Ending the connection is not this handler's job: it sends a `QuitOutput`, and the composition
  * that owns the actual transport connection (`login/abermud-login.ts`) is what watches for one
  * and closes it, the same boundary every other command already respects.
+ *
+ * Also clears `worn` for whatever it dumps into the room, the same reason `drop.ts` does:
+ * `dumpstuff()` (`mud/objsys.c`) relocates each carried object through the same `setoloc()` GET/
+ * DROP/dumpitems all share, which resets an object's carry-flag to "in a room" as part of the
+ * same call that moves it -- there is no way for a worn item to end up on the ground still marked
+ * worn, in the source or here.
  */
 export const quit = workKind("abermud.quit")
 
@@ -33,6 +39,7 @@ export function registerQuit(
   control: Control,
   personas: ReadonlyMap<EntityId, AberMUDPersona>,
   store: AberMUDPersonaStore | undefined,
+  worn: Set<EntityId>,
 ): void {
   runtime.handle(quit, async (task, context) => {
     const { session } = task.work.input as { session: Session | undefined }
@@ -47,6 +54,7 @@ export function registerQuit(
       const carried = [...(context.world?.occupants(actor) ?? [])]
       for (const id of carried) {
         context.world?.locate(id, location)
+        worn.delete(id)
       }
     }
 
