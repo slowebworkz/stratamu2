@@ -41,6 +41,20 @@ describe("DROP", () => {
     ])
   })
 
+  it("un-wears a worn object on drop -- setoloc's own third argument does this in the source", async () => {
+    const { runtime, world, adapter, alicePlayer, shield } = abermudFixture()
+    world.locate(shield, alicePlayer)
+    adapter.worn.add(shield)
+    const session = testSession("session-1", "alice")
+
+    for (const item of adapter.parse({ session, raw: "drop shield" })) {
+      runtime.submit({ work: item })
+    }
+    await runtime.drain()
+
+    expect(adapter.worn.has(shield)).toBe(false)
+  })
+
   it("asks what, given no object", async () => {
     const { runtime, adapter } = abermudFixture()
     const session = testSession("session-1", "alice")

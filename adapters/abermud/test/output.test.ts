@@ -11,6 +11,8 @@ import {
   renderRoom,
   renderSpeech,
   renderTaken,
+  renderWielded,
+  renderWorn,
 } from "../src/output.ts"
 
 describe("renderRoom", () => {
@@ -50,6 +52,26 @@ describe("renderRefusal", () => {
     expect(renderRefusal(refusal("not-here"))).toBe("That is not here.")
     expect(renderRefusal(refusal("not-takeable"))).toBe("You can't take that!")
     expect(renderRefusal(refusal("not-carrying"))).toBe("You are not carrying that.")
+    expect(renderRefusal(refusal("wield-what"))).toBe("Which weapon do you wish to select though")
+    expect(renderRefusal(refusal("no-such-weapon"))).toBe("Whats one of those ?")
+    expect(renderRefusal(refusal("not-a-weapon"))).toBe("Thats not a weapon")
+    expect(renderRefusal(refusal("tell-me-more"))).toBe("Tell me more ?")
+    expect(renderRefusal(refusal("not-carrying-this"))).toBe("You are not carrying this")
+    expect(renderRefusal(refusal("already-wearing"))).toBe("You are wearing this")
+    expect(renderRefusal(refusal("not-wearable"))).toBe("Is this a new fashion ?")
+    expect(renderRefusal(refusal("not-wearing"))).toBe("You are not wearing this")
+  })
+})
+
+describe("renderWielded", () => {
+  it("gives the same bare confirmation weapcom() does", () => {
+    expect(renderWielded()).toBe("OK...")
+  })
+})
+
+describe("renderWorn", () => {
+  it("gives the same bare confirmation wearcom() does", () => {
+    expect(renderWorn()).toBe("OK")
   })
 })
 

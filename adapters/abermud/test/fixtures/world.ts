@@ -16,11 +16,12 @@ import { AberMUDAdapter, type AberMUDAdapterOptions } from "../../src/adapter.ts
  *   here:  Alice
  *   there: Bob, a goblin
  *
- * A sword (takeable) and a statue (not) exist, registered but not located -- a GET/DROP test
- * locates one where it needs it, the same reason the original comment here gave for the sword
- * alone: putting either in `here` by default would change every other test's LOOK output too,
- * since `RoomOutput` doesn't yet distinguish an object from a character in "Also here" (LOOK
- * describing objects at all is out of this slice's scope -- see the package README).
+ * A sword (takeable, a weapon), a shield (takeable, wearable) and a statue (neither) exist,
+ * registered but not located -- a GET/DROP/WIELD/WEAR test locates one where it needs it, the
+ * same reason the original comment here gave for the sword alone: putting any in `here` by
+ * default would change every other test's LOOK output too, since `RoomOutput` doesn't yet
+ * distinguish an object from a character in "Also here" (LOOK describing objects at all is out
+ * of this slice's scope -- see the package README).
  */
 export function abermudFixture(options: AberMUDAdapterOptions = {}) {
   const world = new WorldState()
@@ -79,6 +80,18 @@ export function abermudFixture(options: AberMUDAdapterOptions = {}) {
     name: "sword",
     description: "A plain iron sword.",
     takeable: true,
+    wearable: false,
+    weaponDamage: 8,
+  })
+
+  const shield = entityId("shield")
+  world.add(entity(shield, "abermud.object"))
+  adapter.objects.set(shield, {
+    id: shield,
+    name: "shield",
+    description: "A round wooden shield.",
+    takeable: true,
+    wearable: true,
   })
 
   const statue = entityId("statue")
@@ -88,6 +101,7 @@ export function abermudFixture(options: AberMUDAdapterOptions = {}) {
     name: "statue",
     description: "A heavy stone statue.",
     takeable: false,
+    wearable: false,
   })
 
   return {
@@ -101,6 +115,7 @@ export function abermudFixture(options: AberMUDAdapterOptions = {}) {
     bobPlayer,
     goblin,
     sword,
+    shield,
     statue,
   }
 }
