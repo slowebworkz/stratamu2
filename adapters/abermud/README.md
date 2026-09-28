@@ -96,6 +96,7 @@ what each one settled:
   enforce), and the container support (`get X from Y`) `fobnin()`/`iscontin()` show the source has,
   which is out of scope until nested containment is.
 - [`mud/parse.c`](https://github.com/DavidKinder/AberMUD2/blob/master/mud/parse.c) -- the verb
+  table (`verbtxt`/`verbnum`), confirming GET and TAKE dispatch to the same handler, and I/INV/
   INVENTORY to the same one; `doaction()`'s case 8 for QUIT, which calls `dumpitems()`
   (`mud/objsys.c`'s `dumpstuff(mynum,curch)` -- every carried object relocated to the current
   room) and `saveme()` before ending the connection. Not reproduced: the source also clears the

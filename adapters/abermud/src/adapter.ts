@@ -134,6 +134,6 @@ export class AberMUDAdapter implements EngineAdapter<SessionInput> {
     registerWield(runtime, this.control, this.objects, this.wielding)
     registerWear(runtime, this.control, this.objects, this.worn)
     registerRemove(runtime, this.control, this.objects, this.worn)
-    registerQuit(runtime, this.control, this.personas, this.#personaStore)
+    registerQuit(runtime, this.control, this.personas, this.#personaStore, this.worn)
   }
 }
