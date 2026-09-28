@@ -228,6 +228,22 @@ export class Runtime extends Base {
   }
 
   /**
+   * Takes up to `maxSteps` steps, stopping early once none can be taken, and returns how many
+   * ran. Unlike `drain`, this always returns, even if a handler keeps producing more ready work:
+   * it is `drain`'s bounded sibling, for a caller -- a transport driving the runtime after one
+   * piece of input, say -- that needs a guarantee `drain` does not make. Nothing is lost by
+   * stopping early: a task the bound left ready stays ready, for a later call to pick up, the
+   * same as when the policy itself declines to run anything (see `step`).
+   */
+  async pump(maxSteps: number): Promise<number> {
+    let steps = 0
+    while (steps < maxSteps && (await this.step())) {
+      steps++
+    }
+    return steps
+  }
+
+  /**
    * Reads a clock as a safe integer. A clock is trusted to move forward only, so a reading that
    * goes backwards is an error: a task scheduled on it would quietly be delayed. A wall clock can
    * do this when the system time is adjusted, which is why it is not for scheduling.
