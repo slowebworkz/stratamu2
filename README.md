@@ -8,7 +8,7 @@ The goal is not to build a single predefined type of game. The goal is to provid
 
 > **Status: Early development**
 >
-> The repository currently contains the project foundation, architecture, workspace configuration, and development tooling. The game engine itself is under active development.
+> The engine substrate (`Runtime`, `WorldState`, `Sessions`), a Telnet transport plugin, and a first real game adapter (AberMUD II) are implemented and tested. There is no server application yet tying them together into something runnable end to end — see "Workspace Structure" and "Project Status" below for what exists package by package.
 
 ## Project Goals
 
@@ -70,10 +70,10 @@ Adapters define a **game profile**.
 
 A profile can determine which capabilities are enabled and how those capabilities behave for a particular style of world.
 
-Examples may eventually include:
+The first real one, `@stratamu/adapter-abermud`, is a MUD profile: an independent reimplementation of AberMUD II's actual command behavior (not a port of its C source) on top of the generic engine, verified command by command against the recovered original. Other traditions remain future work:
 
 ```text
-MUD
+MUD    <- @stratamu/adapter-abermud (AberMUD II)
 MUSH
 MOO
 MUCK
@@ -87,14 +87,14 @@ An adapter is not intended to be a second game engine. It configures and extends
 
 Plugins provide replaceable infrastructure and integrations at boundaries the engine defines.
 
-Potential plugin areas include:
+The first one, `@stratamu/plugin-telnet`, covers networking: a `Connection` (lines in, text out) and Telnet negotiation over a real socket, with no adapter or engine code aware a socket is involved. Other plugin areas remain future work:
 
 ```text
 Storage
-Networking
+Networking    <- @stratamu/plugin-telnet (Telnet)
 Protocols
 Presentation
-Logging and event infrastructure
+Logging and event infrastructure    <- @stratamu/capabilities (contracts + default adapters)
 ```
 
 Gameplay domains such as combat, scripting, economy, and population are architectural capabilities. They are not assumed to be plugins.
@@ -129,19 +129,41 @@ The application composition layer should not become responsible for the internal
 
 ## Workspace Structure
 
-The repository is organized as a pnpm/Turborepo monorepo:
+The repository is organized as a pnpm/Turborepo monorepo. Every workspace below is a real,
+published-internally (`private: true`) package with its own `README.md`, tests, and Turbo
+`build`/`lint`/`typecheck`/`test` tasks:
 
 ```text
 .
-├── adapters/       # Game profiles and adapter implementations
-├── apps/           # Executable applications
-├── docs/           # Project and architecture documentation
-├── engine/         # Core engine: the execution substrate and world runtime
-├── libs/           # Private reusable support code and shared configuration
-└── plugins/        # Replaceable infrastructure and integrations
+├── adapters/                # Game profiles and adapter implementations
+│   ├── abermud/              # @stratamu/adapter-abermud — AberMUD II reimplemented on the engine
+│   └── test/                 # @stratamu/adapter-test — the smallest adapter that exercises it
+├── apps/                    # Executable applications -- no member yet
+├── docs/                    # Project and architecture documentation
+├── engine/                  # Core engine: the execution substrate and world runtime
+│   ├── core/                 # @stratamu/engine-core — tasks, clocks, timelines, the Runtime
+│   ├── sessions/              # @stratamu/engine-sessions — which connections are active
+│   └── world/                 # @stratamu/engine-world — WorldState, the authoritative game state
+├── libs/                    # Private reusable support code and shared configuration
+│   ├── base/                  # @stratamu/base — a lazily-created, contextual logger
+│   ├── biome-config/          # @stratamu/biome — shared Biome (format/lint/import sort) config
+│   ├── capabilities/          # @stratamu/capabilities — logging/events capability contracts
+│   ├── clock/                 # @stratamu/clock — clock instances the engine receives
+│   ├── entity/                # @stratamu/entity — Entity: an identity and a type
+│   ├── eslint-config/         # @stratamu/eslint — shared ESLint 10 flat config
+│   ├── primitives/            # @stratamu/primitives — shared value types (EntityId, and so on)
+│   ├── submission/            # @stratamu/submission — a request to execute a Work
+│   ├── task/                  # @stratamu/task — the immutable, admitted execution instance
+│   ├── typescript-config/     # @stratamu/typescript-config — shared tsconfig presets
+│   └── work/                  # @stratamu/work — what operation is requested, and its input
+└── plugins/                 # Replaceable infrastructure and integrations
+    └── telnet/                # @stratamu/plugin-telnet — Telnet Connection/Session transport
 ```
 
-The exact contents of these workspaces will evolve as implementation begins. Every workspace has a `README.md` that says what it is for and what state it is in. `adapters/`, `apps/` and `plugins/` have no member yet; a directory becomes a workspace only when its responsibility is established, described in the architecture document.
+`apps/` is the one workspace with no member yet; a directory becomes a workspace only when its
+responsibility is established, the same discipline the architecture document describes. Nothing
+above is speculative -- each package's own `README.md` documents what it actually does and cites
+its own tests; this table is a map, not a promise.
 
 ## Engine Lifecycle
 
@@ -311,7 +333,8 @@ feature/*
 
 ## Project Status
 
-Current work is focused on establishing the repository and architecture foundation.
+Current work is proving the engine core against a real, specific game (AberMUD II) one command
+slice at a time, rather than building out a generic core in the abstract.
 
 ### Current
 
@@ -323,17 +346,27 @@ Current work is focused on establishing the repository and architecture foundati
 - [x] Shared Biome configuration
 - [x] Initial engine architecture
 - [x] Engine lifecycle direction
-- [x] Execution substrate prototype (tasks, named clocks, execution-policy seam)
-- [ ] Execution work model: waiting and waking, recurring work, phases, budgets
-- [ ] Core engine implementation
-- [ ] Authoritative world state
-- [ ] State-transition system
-- [ ] Persistence implementation
-- [ ] Session system
-- [ ] Networking implementation
-- [ ] First game adapter
-- [ ] First domain plugin
-- [ ] Complete playable vertical slice
+- [x] Execution substrate (`@stratamu/engine-core`: `Runtime`, `Task`, `Work`, named clocks, an
+      execution-policy seam)
+- [x] Core engine implementation (`Runtime.handle`/`submit`/`drain`/`pump`, in active use by a
+      real adapter)
+- [x] Authoritative world state (`@stratamu/engine-world`'s `WorldState`: entities, locations,
+      containment)
+- [x] Session system (`@stratamu/engine-sessions`'s `Sessions`: open/`activeFor`/disconnect)
+- [x] Networking implementation (`@stratamu/plugin-telnet`: a `Connection` over a real socket,
+      Telnet negotiation)
+- [x] First game adapter (`@stratamu/adapter-abermud`: LOOK/MOVE/SAY/TELL/WHO/SAVE/GET/DROP/
+      INVENTORY/QUIT/WIELD/WEAR/REMOVE/KILL, each verified against the recovered AberMUD II source)
+- [ ] Execution work model: waiting and waking, recurring work, phases, budgets -- still an open
+      question combat's own next slice (repeated rounds, per-actor locking) is expected to force
+- [ ] A generic state-transition/`Authority` abstraction (`WorldState` mutations happen directly
+      today; nothing generic sits between a command and them yet)
+- [ ] Engine-level persistence (the adapter has its own real `uaf.rand`-compatible persistence;
+      nothing at the core/engine level is generic yet)
+- [ ] First domain plugin (equipment/combat live inside the adapter so far, not factored out as an
+      independent, adapter-agnostic plugin)
+- [ ] Complete playable vertical slice (no server application yet composes the adapter, the Telnet
+      plugin, and persistence into something a client can actually connect to and play)
 
 The checklist is intentionally conservative. Architectural decisions will be validated through implementation rather than treated as final simply because they are documented.
 
