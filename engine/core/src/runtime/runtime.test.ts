@@ -158,6 +158,66 @@ describe("queued execution", () => {
   })
 })
 
+describe("pump", () => {
+  it("runs up to maxSteps and returns how many ran", async () => {
+    const { runtime, seen, say } = setup()
+    runtime.submit(say("one"))
+    runtime.submit(say("two"))
+    runtime.submit(say("three"))
+
+    expect(await runtime.pump(2)).toBe(2)
+
+    expect(seen).toEqual(["one", "two"])
+  })
+
+  it("stops early, the same as drain, once nothing is ready", async () => {
+    const { runtime, seen, say } = setup()
+    runtime.submit(say("only"))
+
+    expect(await runtime.pump(10)).toBe(1)
+
+    expect(seen).toEqual(["only"])
+  })
+
+  it("does nothing, and takes no step, for a bound of zero", async () => {
+    const { runtime, seen, say } = setup()
+    runtime.submit(say("one"))
+
+    expect(await runtime.pump(0)).toBe(0)
+
+    expect(seen).toEqual([])
+  })
+
+  it("always returns for a handler that keeps rescheduling itself, unlike drain", async () => {
+    const { runtime } = setup()
+    let ran = 0
+    runtime.handle(k("forever"), () => {
+      ran++
+      return reschedule(schedule.now)
+    })
+    runtime.submit({ work: work(k("forever"), undefined) })
+
+    expect(await runtime.pump(5)).toBe(5)
+
+    expect(ran).toBe(5)
+  })
+
+  it("leaves the rest of the bounded-off work ready for a later call to pick up", async () => {
+    const { runtime, seen, say } = setup()
+    runtime.submit(say("one"))
+    runtime.submit(say("two"))
+    runtime.submit(say("three"))
+
+    await runtime.pump(1)
+    expect(seen).toEqual(["one"])
+
+    // A later call -- from a separate external event, in a real transport -- picks up exactly
+    // where the bound left off, the same guarantee `step`'s own "policy declined" case makes.
+    await runtime.pump(10)
+    expect(seen).toEqual(["one", "two", "three"])
+  })
+})
+
 describe("immediate execution", () => {
   it("runs a task inline, before the rest of the step and ahead of queued work", async () => {
     const { runtime, seen, say } = setup()
