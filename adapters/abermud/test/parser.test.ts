@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 
-import { exits, look, move, save, say, tell } from "../src/commands/index.ts"
+import { drop, exits, get, inventory, look, move, save, say, tell } from "../src/commands/index.ts"
 import { parseAberMUD } from "../src/parser.ts"
 import { testSession } from "./fixtures/session.ts"
 
@@ -66,6 +66,41 @@ describe("parseAberMUD", () => {
 
   it("parses SAVE", () => {
     expect(parseAberMUD({ session, raw: "save" })).toEqual([{ kind: save, input: { session } }])
+  })
+
+  it("parses GET, and its TAKE synonym", () => {
+    expect(parseAberMUD({ session, raw: "get sword" })).toEqual([
+      { kind: get, input: { session, name: "sword" } },
+    ])
+    expect(parseAberMUD({ session, raw: "take sword" })).toEqual([
+      { kind: get, input: { session, name: "sword" } },
+    ])
+  })
+
+  it("parses GET/TAKE with no object as an empty name, not no Work", () => {
+    expect(parseAberMUD({ session, raw: "get" })).toEqual([
+      { kind: get, input: { session, name: "" } },
+    ])
+    expect(parseAberMUD({ session, raw: "take" })).toEqual([
+      { kind: get, input: { session, name: "" } },
+    ])
+  })
+
+  it("parses DROP", () => {
+    expect(parseAberMUD({ session, raw: "drop sword" })).toEqual([
+      { kind: drop, input: { session, name: "sword" } },
+    ])
+    expect(parseAberMUD({ session, raw: "drop" })).toEqual([
+      { kind: drop, input: { session, name: "" } },
+    ])
+  })
+
+  it("parses INVENTORY, and its I/INV abbreviations", () => {
+    expect(parseAberMUD({ session, raw: "inventory" })).toEqual([
+      { kind: inventory, input: { session } },
+    ])
+    expect(parseAberMUD({ session, raw: "i" })).toEqual([{ kind: inventory, input: { session } }])
+    expect(parseAberMUD({ session, raw: "inv" })).toEqual([{ kind: inventory, input: { session } }])
   })
 
   it("produces no Work for input the grammar does not recognize", () => {

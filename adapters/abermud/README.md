@@ -47,6 +47,9 @@ well-established against the source:
 - WHO
 - SAVE
 - character initialization/load (adapter `login()`; not network/account authentication)
+- GET, and its TAKE synonym
+- DROP
+- INVENTORY, and its I/INV abbreviations
 
 **Needs target-specific verification** (present here as conventional MUD syntax, not yet checked
 against the AberMUD II source itself):
@@ -61,18 +64,36 @@ be checked against AberMUD II's own recovered source or documentation first.
 
 ## Reference
 
-The recovered AberMUD II source, `github.com/DavidKinder/AberMUD2` (repaired to build and run on
-a modern Unix-like system), and its accompanying documentation are the authority for what counts
-as correct behavior here -- read directly, not recalled from memory, and not part of this
-repository; see "Non-goals". Persistence specifically was checked against `mud/newuaf.c`'s
-`personactl()`/`putpers()`/`delpers()` (record scan, in-place overwrite, slot reuse, blank-on-
-delete -- there is no separate "is this slot empty" check in the source at all: an empty slot's
-name genuinely *is* `""`, found by the exact same scan used to find anything else),
-`saveme()`/`initme()` (SAVE and a future LOGIN go through the same file, not separate load/save
-abstractions; SAVE's exact message, `"Saving %s"`, is `saveme()`'s own, not invented here),
-`validname()` (the 10-character name rule, plus reserved words and a check against object names
-this adapter does not implement yet), and `mud/makeuaf.c` (a fresh installation's single
-"Debugger" record).
+The recovered AberMUD II source, [`github.com/DavidKinder/AberMUD2`](https://github.com/DavidKinder/AberMUD2)
+(repaired to build and run on a modern Unix-like system), and its accompanying documentation are
+the authority for what counts as correct behavior here -- read directly, not recalled from memory,
+and not part of this repository; see "Non-goals". The files actually checked against, so far, and
+what each one settled:
+
+- [`mud/newuaf.c`](https://github.com/DavidKinder/AberMUD2/blob/master/mud/newuaf.c) --
+  `personactl()`/`putpers()`/`delpers()` (record scan, in-place overwrite, slot reuse, blank-on-
+  delete -- there is no separate "is this slot empty" check in the source at all: an empty slot's
+  name genuinely *is* `""`, found by the exact same scan used to find anything else),
+  `saveme()`/`initme()` (SAVE and a future LOGIN go through the same file, not separate load/save
+  abstractions; SAVE's exact message, `"Saving %s"`, is `saveme()`'s own, not invented here),
+  `validname()` (the 10-character name rule, plus reserved words and a check against object names
+  this adapter does not implement yet).
+- [`mud/makeuaf.c`](https://github.com/DavidKinder/AberMUD2/blob/master/mud/makeuaf.c) -- a fresh
+  installation's single "Debugger" record.
+- [`mud/objsys.c`](https://github.com/DavidKinder/AberMUD2/blob/master/mud/objsys.c) --
+  `getobj()`/`dropitem()`/`inventory()`/`aobjsat()` for GET/DROP/INVENTORY: the exact messages
+  (`"Ok..."`, `"OK.."`, `"Get what ?"`, `"Drop what ?"`, `"That is not here."`, `"You can't take
+  that!"`, `"You are not carrying that."`), which checks gate which message (`ishere()` for GET's
+  "not here", `oflannel()`/`obflannel()` -- `AberObjectDefinition.takeable`'s source -- for "can't
+  take that", `iscarrby()` for DROP finding what the actor holds), and that a carried object's
+  location and a room-located object's location are the same field (`oloc`, read by `ishere()` and
+  `iscarrby()` alike) -- the fact `engine/world`'s containment-via-location design rests on. Not
+  yet checked: `cancarry()`'s carry-capacity limit (a weight-based rule this adapter does not
+  enforce), and the container support (`get X from Y`) `fobnin()`/`iscontin()` show the source has,
+  which is out of scope until nested containment is.
+- [`mud/parse.c`](https://github.com/DavidKinder/AberMUD2/blob/master/mud/parse.c) -- the verb
+  table (`verbtxt`/`verbnum`), confirming GET and TAKE dispatch to the same handler, and I/INV/
+  INVENTORY to the same one.
 
 `mud/makeuaf.c` was also compiled and actually run (x86_64, LP64, little-endian), not just read:
 `test/uaf-rand-codec.test.ts` checks `UafRandCodec` against those genuine captured bytes, not only
@@ -120,14 +141,18 @@ genuine garbage bytes, not a synthetic example.
   definitions. Contains no command logic itself. Takes an `AberMUDAdapterOptions` with an
   optional `personaStore`; SAVE tells the player saving isn't available without one.
 - `parser.ts`: `SessionInput -> Work[]`. The only place raw command text is read.
-- `commands/`: one file per command (`look`, `exits`, `move`, `save`, `say`, `tell`, `who`), each
-  owning its `WorkKind` and handler.
+- `commands/`: one file per command (`look`, `exits`, `move`, `save`, `say`, `tell`, `who`, `get`,
+  `drop`, `inventory`), each owning its `WorkKind` and handler. `objects.ts` is the one shared
+  helper GET and DROP both need: find an `AberObjectDefinition` located at a given entity, by
+  name -- "an object in the room" and "an object the actor is carrying" are the identical query,
+  just with a different `at`.
 - `control.ts`: `Control` (`PrincipalId -> EntityId`) and `principalControlling`, the reverse
   lookup `say`/`tell`/`who` all need.
 - `world/`: AberMUD's own room/mobile/object definitions -- not `WorldState`'s generic `Entity`.
   `AberRoomDefinition.number` preserves AberMUD's own historical room numbering (its archive
   stores room text under `TEXT/ROOMS/<number>`) alongside the `EntityId` used everywhere else in
-  this engine.
+  this engine. `AberObjectDefinition.takeable` is GET/DROP's one rule so far (the inverse of the
+  source's `o_flannel` flag); no carry-capacity limit is modeled yet.
 - `persistence/`: driven by what SAVE alone needs -- no `WorldStore`, `AccountStore`,
   `RoomStore`, or the rest, until a command actually needs one.
   - `persona.ts` -- `AberMUDPersona`: name, score, strength, sex, level, matching the recovered
@@ -186,19 +211,24 @@ notion of score/strength/sex/level, so where does a character's live status live
 is running? Here, adapter-owned, the same way `rooms`/`control` already are -- not by enlarging
 `Entity`.
 
-Deliberately minimal beyond that: no containment or equipment (`get`/`drop`/`wear`/`put`), no
-combat, no QUIT/RESET, no world-file persistence, and no interactive new-character creation.
-Character initialization/load, account authentication, and now the login *flow* that ties them
-together and hands a connection off into ordinary game input (`runAberMUDLogin`, see "What
-exists") are all implemented; what remains outside this adapter is the transport itself --
-sockets, Telnet or any other protocol -- which is `@stratamu/plugin-telnet`'s concern, not this
-one's. Each further slice is meant to force whatever the next real abstraction turns out to be,
-rather than be designed in ahead of that evidence.
+GET/DROP/INVENTORY forced `engine/world`'s containment question: an object picked up is `locate`d
+at the character instead of the room, the identical operation a room-to-room move already was, and
+needed no new relationship on `WorldState` -- see that package's README. Deliberately minimal
+beyond that: no equipment (`wear`/`remove`), no containers (`put X in Y`, `get X from Y`), no
+carry-capacity limit, no combat, no QUIT/RESET, no world-file persistence, and no interactive
+new-character creation. Character initialization/load, account authentication, and the login
+*flow* that ties them together and hands a connection off into ordinary game input
+(`runAberMUDLogin`, see "What exists") are all implemented; what remains outside this adapter is
+the transport itself -- sockets, Telnet or any other protocol -- which is
+`@stratamu/plugin-telnet`'s concern, not this one's. Each further slice is meant to force whatever
+the next real abstraction turns out to be, rather than be designed in ahead of that evidence.
 
 ## Public API
 
 `AberMUDAdapter`, `AberMUDAdapterOptions`, `SessionInput`, `Control`, `AberRoomDefinition`,
 `AberMobileDefinition`, `AberObjectDefinition`, `AberMUDPersona`, `AberMUDPersonaStore`,
-`FilePersonaStore`, `runAberMUDLogin`, `AberMUDLoginOptions`, `AberMUDLoginConnection` -- how to
-compose and use the adapter, what to implement or supply for persistence, and the login flow. Work
-kinds, the parser, `UafRandCodec`, and each command's handler are internal.
+`FilePersonaStore`, `runAberMUDLogin`, `AberMUDLoginOptions`, `AberMUDLoginConnection`,
+`AberOutput` and its variants (including `TakenOutput`, `DroppedOutput`, `InventoryOutput`) and
+their `render*` functions -- how to compose and use the adapter, what to implement or supply for
+persistence, the login flow, and every shape a session can be sent. Work kinds, the parser,
+`UafRandCodec`, and each command's handler are internal.

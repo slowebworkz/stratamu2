@@ -14,14 +14,26 @@ export type {
 export type { AberMUDSex } from "./character/index.ts"
 export type {
   AberOutput,
+  DroppedOutput,
   ExitsOutput,
+  InventoryOutput,
   PlayersOutput,
   RefusalOutput,
   RefusalReason,
   RoomOutput,
   SavedOutput,
   SpeechOutput,
+  TakenOutput,
 } from "./output.ts"
-export { refusal, renderOutput, renderRefusal, renderRoom, renderSpeech } from "./output.ts"
+export {
+  refusal,
+  renderDropped,
+  renderInventory,
+  renderOutput,
+  renderRefusal,
+  renderRoom,
+  renderSpeech,
+  renderTaken,
+} from "./output.ts"
 export type { AberMUDLoginConnection, AberMUDLoginOptions } from "./login/index.ts"
 export { runAberMUDLogin } from "./login/index.ts"

@@ -2,7 +2,19 @@ import type { Session } from "@stratamu/engine-sessions"
 import type { Work } from "@stratamu/work"
 import { work } from "@stratamu/work"
 
-import { exits, look, move, resolveDirection, save, say, tell, who } from "./commands/index.ts"
+import {
+  drop,
+  exits,
+  get,
+  inventory,
+  look,
+  move,
+  resolveDirection,
+  save,
+  say,
+  tell,
+  who,
+} from "./commands/index.ts"
 
 /** What a real transport loop would have in hand for one line of session-originated input. */
 export interface SessionInput {
@@ -34,6 +46,18 @@ export function parseAberMUD(input: SessionInput): readonly Work[] {
   }
   if (lower === "save") {
     return [work(save, { session })]
+  }
+  if (lower === "i" || lower === "inv" || lower === "inventory") {
+    return [work(inventory, { session })]
+  }
+  if (lower === "get" || lower.startsWith("get ")) {
+    return [work(get, { session, name: lower === "get" ? "" : command.slice(4) })]
+  }
+  if (lower === "take" || lower.startsWith("take ")) {
+    return [work(get, { session, name: lower === "take" ? "" : command.slice(5) })]
+  }
+  if (lower === "drop" || lower.startsWith("drop ")) {
+    return [work(drop, { session, name: lower === "drop" ? "" : command.slice(5) })]
   }
   if (lower.startsWith("say ")) {
     return [work(say, { session, message: command.slice(4) })]

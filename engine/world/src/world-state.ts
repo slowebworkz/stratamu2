@@ -5,15 +5,29 @@ import type { EntityId } from "@stratamu/primitives"
  * The authoritative entities in the world: what exists, what each thing's identity is, and where
  * it is. `occupants` answers "who is here" by querying that same location data, not by tracking a
  * separate relationship -- there is still only one fact (location), read two ways. It says
- * nothing about how entities otherwise relate to each other -- containment beyond location,
- * ownership, anything else -- and nothing about what "where" means (a room, in the proofs that
- * use it, but `WorldState` does not know that): those are `Entity` attributes an adapter adds, not
- * something this minimum model assumes.
+ * nothing about *what* "where" means (a room, in the proofs that use it, but `WorldState` does not
+ * know that): that is an `Entity` attribute an adapter adds, not something this minimum model
+ * assumes.
+ *
+ * Location *is* this model's containment primitive, not a special case of one still to be
+ * designed: an entity located at another entity is contained by it, whether that other entity is
+ * a room, a character, or (once something needs it) a container. AberMUD's GET and DROP are the
+ * first adapter feature to use this deliberately -- an object picked up is simply `locate`d at the
+ * character instead of the room, the exact same operation a room-to-room move already was; see
+ * `adapter-abermud`'s `commands/get.ts`/`drop.ts`. This needed no new relationship type, matching
+ * AberMUD II's own recovered source, which stores a carried object's location in the identical
+ * field a room-located object's location uses (see that source's `objsys.c`). A game-level view
+ * such as "inventory" or "room contents" is nothing more than `occupants` of a particular entity,
+ * named for what an adapter is asking -- `WorldState` itself has, and needs, only the one concept.
  *
  * This is deliberately small: `WorldState` is the container a `Runtime` executes against, not a
  * redesign of every attribute a traditional MUD entity carries. What it needs beyond identity,
  * membership and location is discovered from what an adapter actually requires, not designed in
- * up front. Location was the first thing an actual feature -- movement -- revealed was needed.
+ * up front. Location was the first thing an actual feature -- movement -- revealed was needed;
+ * nested containers (an item in a chest in a room) are a real future case this primitive already
+ * supports, not yet built because nothing has asked for it -- see "Not yet" in the README for what
+ * that would still need (cycle prevention, in particular, which a single level of containment has
+ * no way to produce and so has no test here).
  */
 export class WorldState {
   readonly #entities = new Map<EntityId, Entity>()
@@ -80,12 +94,25 @@ export class WorldState {
   }
 
   /**
-   * Records where an entity currently is. Throws unless both `id` and `at` are entities that
-   * already exist: a data-integrity check, the same kind `add` already makes for duplicate ids,
-   * not a game rule -- whether a move is actually *allowed* (an exit exists, the entity can act,
-   * anything else) is entirely the caller's concern, checked before this is ever called.
+   * Records where an entity currently is -- the same operation whether `at` is a room, a
+   * character, or anything else: "in a room" and "held by a character" are both just this one
+   * fact, read the same way by `locationOf`/`occupants`. An adapter's own rules (AberMUD's GET and
+   * DROP, for instance) decide *when* moving an entity to another entity means picking it up
+   * rather than walking into a room; `WorldState` only ever records the one fact either produces.
+   *
+   * Throws unless both `id` and `at` are entities that already exist (a data-integrity check, the
+   * same kind `add` already makes for duplicate ids) or `id` and `at` are the same entity (nothing
+   * can be located at itself). Neither is a game rule -- whether a move is actually *allowed* (an
+   * exit exists, the entity can act, anything else) is entirely the caller's concern, checked
+   * before this is ever called. An entity already having a location is not rechecked here: setting
+   * a new one simply replaces it, the same way a room-to-room move already worked before this
+   * doubled as "picked up" -- there being only one `Map` entry per id is what makes "an entity is
+   * never in two locations at once" true by construction, not a check this method makes.
    */
   locate(id: EntityId, at: EntityId): void {
+    if (id === at) {
+      throw new Error(`Entity "${id}" cannot be located at itself`)
+    }
     if (!this.#entities.has(id)) {
       throw new Error(`Entity "${id}" does not exist`)
     }
