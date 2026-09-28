@@ -1,6 +1,19 @@
 import { describe, expect, it } from "vitest"
 
-import { drop, exits, get, inventory, look, move, save, say, tell } from "../src/commands/index.ts"
+import {
+  drop,
+  exits,
+  get,
+  inventory,
+  look,
+  move,
+  remove,
+  save,
+  say,
+  tell,
+  wear,
+  wield,
+} from "../src/commands/index.ts"
 import { parseAberMUD } from "../src/parser.ts"
 import { testSession } from "./fixtures/session.ts"
 
@@ -92,6 +105,33 @@ describe("parseAberMUD", () => {
     ])
     expect(parseAberMUD({ session, raw: "drop" })).toEqual([
       { kind: drop, input: { session, name: "" } },
+    ])
+  })
+
+  it("parses WIELD", () => {
+    expect(parseAberMUD({ session, raw: "wield sword" })).toEqual([
+      { kind: wield, input: { session, name: "sword" } },
+    ])
+    expect(parseAberMUD({ session, raw: "wield" })).toEqual([
+      { kind: wield, input: { session, name: "" } },
+    ])
+  })
+
+  it("parses WEAR", () => {
+    expect(parseAberMUD({ session, raw: "wear shield" })).toEqual([
+      { kind: wear, input: { session, name: "shield" } },
+    ])
+    expect(parseAberMUD({ session, raw: "wear" })).toEqual([
+      { kind: wear, input: { session, name: "" } },
+    ])
+  })
+
+  it("parses REMOVE", () => {
+    expect(parseAberMUD({ session, raw: "remove shield" })).toEqual([
+      { kind: remove, input: { session, name: "shield" } },
+    ])
+    expect(parseAberMUD({ session, raw: "remove" })).toEqual([
+      { kind: remove, input: { session, name: "" } },
     ])
   })
 

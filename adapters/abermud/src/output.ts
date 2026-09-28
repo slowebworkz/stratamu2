@@ -14,10 +14,15 @@ export interface RoomOutput {
 }
 
 /** Why a command could not be carried out. A closed set, so presentation can word each one.
- * `get-what`/`drop-what`/`not-here`/`not-takeable`/`not-carrying` are AberMUD II's own verbatim
- * messages (see `getobj()`/`dropitem()` in the recovered source's `mud/objsys.c` -- the package
- * README's "Reference" links directly to it), not invented wording, the same discipline SAVE's
- * exact message already followed. */
+ * `get-what`/`drop-what`/`not-here`/`not-takeable`/`not-carrying` and the WIELD/WEAR/REMOVE
+ * reasons below are AberMUD II's own verbatim messages (see `getobj()`/`dropitem()` in
+ * `mud/objsys.c`, `weapcom()` in `mud/blood.c`, and `wearcom()`/`removecom()`/`ohereandget()` in
+ * `mud/new1.c` -- the package README's "Reference" links directly to each), not invented
+ * wording, the same discipline SAVE's exact message already followed. Several read almost like
+ * duplicates of an existing reason (`"You are not carrying this"` next to `"You are not carrying
+ * that."`, say) but are kept as distinct, separately-verified strings rather than merged into
+ * one guess at "the" wording -- the source itself never settled on one, so this doesn't invent a
+ * consistency the original never had. */
 export type RefusalReason =
   | "not-controlling"
   | "nowhere"
@@ -29,6 +34,14 @@ export type RefusalReason =
   | "not-here"
   | "not-takeable"
   | "not-carrying"
+  | "wield-what"
+  | "no-such-weapon"
+  | "not-a-weapon"
+  | "tell-me-more"
+  | "not-carrying-this"
+  | "already-wearing"
+  | "not-wearable"
+  | "not-wearing"
 
 /** An action that could not be performed. `target-absent` names who was asked for, as typed. */
 export type RefusalOutput =
@@ -106,6 +119,17 @@ export interface InventoryOutput {
   readonly items: readonly string[]
 }
 
+/** A weapon was wielded. Matches `weapcom()`: no room broadcast -- unlike GET/DROP, wielding is
+ * private, observable only once combat itself reads it. */
+export interface WieldedOutput {
+  readonly kind: "wielded"
+}
+
+/** An object was worn. Matches `wearcom()`: also private, no room broadcast. */
+export interface WornOutput {
+  readonly kind: "worn"
+}
+
 /** Everything an AberMUD command can send a session. */
 export type AberOutput =
   | RoomOutput
@@ -117,6 +141,8 @@ export type AberOutput =
   | TakenOutput
   | DroppedOutput
   | InventoryOutput
+  | WieldedOutput
+  | WornOutput
 
 /** How a room view reads as text: the presentation half of what `describeRoom` used to do. */
 export function renderRoom(room: RoomOutput): string {
@@ -149,6 +175,22 @@ export function renderRefusal(output: RefusalOutput): string {
       return "You can't take that!"
     case "not-carrying":
       return "You are not carrying that."
+    case "wield-what":
+      return "Which weapon do you wish to select though"
+    case "no-such-weapon":
+      return "Whats one of those ?"
+    case "not-a-weapon":
+      return "Thats not a weapon"
+    case "tell-me-more":
+      return "Tell me more ?"
+    case "not-carrying-this":
+      return "You are not carrying this"
+    case "already-wearing":
+      return "You are wearing this"
+    case "not-wearable":
+      return "Is this a new fashion ?"
+    case "not-wearing":
+      return "You are not wearing this"
   }
 }
 
@@ -193,6 +235,20 @@ export function renderInventory(output: InventoryOutput): string {
   return `You are carrying\n${output.items.length === 0 ? "Nothing" : output.items.join(" ")}`
 }
 
+/** Verbatim `weapcom()` wording. Takes no `WieldedOutput` argument -- unlike every other `render*`
+ * here, this one has no field to read; `AberOutput`'s `kind` alone is what routes to it. */
+export function renderWielded(): string {
+  return "OK..."
+}
+
+/** Verbatim `wearcom()` wording. Note the missing ellipsis: `renderTaken`'s "Ok...",
+ * `renderDropped`'s "OK..", `renderWielded`'s "OK..." and this one's bare "OK" are four genuinely
+ * different confirmation strings in the source, not a typo introduced here. Also takes no
+ * argument, for the same reason `renderWielded` doesn't. */
+export function renderWorn(): string {
+  return "OK"
+}
+
 /** Any AberMUD output as plain text. Exhaustive: a new variant fails to compile until worded. */
 export function renderOutput(output: AberOutput): string {
   switch (output.kind) {
@@ -214,5 +270,9 @@ export function renderOutput(output: AberOutput): string {
       return renderDropped(output)
     case "inventory":
       return renderInventory(output)
+    case "wielded":
+      return renderWielded()
+    case "worn":
+      return renderWorn()
   }
 }

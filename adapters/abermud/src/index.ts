@@ -24,6 +24,8 @@ export type {
   SavedOutput,
   SpeechOutput,
   TakenOutput,
+  WieldedOutput,
+  WornOutput,
 } from "./output.ts"
 export {
   refusal,
@@ -34,6 +36,8 @@ export {
   renderRoom,
   renderSpeech,
   renderTaken,
+  renderWielded,
+  renderWorn,
 } from "./output.ts"
 export type { AberMUDLoginConnection, AberMUDLoginOptions } from "./login/index.ts"
 export { runAberMUDLogin } from "./login/index.ts"

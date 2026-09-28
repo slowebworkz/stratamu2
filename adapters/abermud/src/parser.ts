@@ -9,11 +9,14 @@ import {
   inventory,
   look,
   move,
+  remove,
   resolveDirection,
   save,
   say,
   tell,
+  wear,
   who,
+  wield,
 } from "./commands/index.ts"
 
 /** What a real transport loop would have in hand for one line of session-originated input. */
@@ -58,6 +61,15 @@ export function parseAberMUD(input: SessionInput): readonly Work[] {
   }
   if (lower === "drop" || lower.startsWith("drop ")) {
     return [work(drop, { session, name: lower === "drop" ? "" : command.slice(5) })]
+  }
+  if (lower === "wield" || lower.startsWith("wield ")) {
+    return [work(wield, { session, name: lower === "wield" ? "" : command.slice(6) })]
+  }
+  if (lower === "wear" || lower.startsWith("wear ")) {
+    return [work(wear, { session, name: lower === "wear" ? "" : command.slice(5) })]
+  }
+  if (lower === "remove" || lower.startsWith("remove ")) {
+    return [work(remove, { session, name: lower === "remove" ? "" : command.slice(7) })]
   }
   if (lower.startsWith("say ")) {
     return [work(say, { session, message: command.slice(4) })]

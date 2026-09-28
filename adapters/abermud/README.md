@@ -50,6 +50,9 @@ well-established against the source:
 - GET, and its TAKE synonym
 - DROP
 - INVENTORY, and its I/INV abbreviations
+- WIELD
+- WEAR
+- REMOVE
 
 **Needs target-specific verification** (present here as conventional MUD syntax, not yet checked
 against the AberMUD II source itself):
@@ -94,6 +97,23 @@ what each one settled:
 - [`mud/parse.c`](https://github.com/DavidKinder/AberMUD2/blob/master/mud/parse.c) -- the verb
   table (`verbtxt`/`verbnum`), confirming GET and TAKE dispatch to the same handler, and I/INV/
   INVENTORY to the same one.
+- [`mud/blood.c`](https://github.com/DavidKinder/AberMUD2/blob/master/mud/blood.c) --
+  `weapcom()` for WIELD (`"Which weapon do you wish to select though"`, `"Whats one of those ?"`,
+  `"Thats not a weapon"`, `"OK..."`), `dambyitem()` (a weapon's damage value only if the object
+  has the weapon flag, `otstbit(it,15)`, else a fixed `4` for bare hands) and `hitplayer()` (not
+  modeled yet -- combat itself; read to confirm that WIELD and WEAR are actually load-bearing for
+  its damage/to-hit formula, not cosmetic, which is why they exist ahead of combat -- see "What
+  exists").
+- [`mud/new1.c`](https://github.com/DavidKinder/AberMUD2/blob/master/mud/new1.c) --
+  `wearcom()`/`removecom()`/`canwear()`/`iswornby()`/`ohereandget()` for WEAR/REMOVE. `canwear()`
+  is a third independent object flag (`otstbit(a,8)`), distinct from `takeable` and the weapon
+  flag. `removecom()` has a genuine quirk, reproduced deliberately: no `return` after printing
+  `"You are not wearing this"`, and no message at all on the path where removal actually happens.
+- [`mud/support.c`](https://github.com/DavidKinder/AberMUD2/blob/master/mud/support.c) --
+  `setoloc(ob, l, c)`, which sets an object's location *and* its carry-flag (0=in a room,
+  1=carried, 2=worn) in one call. `getobj()`'s `setoloc(a,mynum,1)` and `dropitem()`'s
+  `setoloc(a,curch,0)` both go through this; DROP's own `0` is what confirms dropping a worn
+  object un-wears it as part of the same operation, not a separate step this adapter invented.
 
 `mud/makeuaf.c` was also compiled and actually run (x86_64, LP64, little-endian), not just read:
 `test/uaf-rand-codec.test.ts` checks `UafRandCodec` against those genuine captured bytes, not only
@@ -137,22 +157,27 @@ genuine garbage bytes, not a synthetic example.
 - `AberMUDAdapter` (`adapter.ts`): the composition root. Implements `@stratamu/engine-core`'s
   `EngineAdapter<SessionInput>`. Owns `charactersByName` (name -> character, for TELL/WHO),
   `control` (character -> who plays it), `personas` (a controlled character's live
-  score/strength/sex/level -- see `persistence/` below), and AberMUD's own room/mobile/object
-  definitions. Contains no command logic itself. Takes an `AberMUDAdapterOptions` with an
-  optional `personaStore`; SAVE tells the player saving isn't available without one.
+  score/strength/sex/level -- see `persistence/` below), `wielding` (character -> the object it
+  currently wields, for WIELD), `worn` (every object currently worn, for WEAR/REMOVE), and
+  AberMUD's own room/mobile/object definitions. Contains no command logic itself. Takes an
+  `AberMUDAdapterOptions` with an optional `personaStore`; SAVE tells the player saving isn't
+  available without one.
 - `parser.ts`: `SessionInput -> Work[]`. The only place raw command text is read.
 - `commands/`: one file per command (`look`, `exits`, `move`, `save`, `say`, `tell`, `who`, `get`,
-  `drop`, `inventory`), each owning its `WorkKind` and handler. `objects.ts` is the one shared
-  helper GET and DROP both need: find an `AberObjectDefinition` located at a given entity, by
-  name -- "an object in the room" and "an object the actor is carrying" are the identical query,
-  just with a different `at`.
+  `drop`, `inventory`, `wield`, `wear`, `remove`), each owning its `WorkKind` and handler.
+  `objects.ts` is the one shared helper GET/DROP/WIELD/WEAR/REMOVE all need: find an
+  `AberObjectDefinition` located at a given entity, by name -- "an object in the room" and "an
+  object the actor is carrying" are the identical query, just with a different `at`. `drop.ts`
+  also clears `worn` for whatever it moves, since the source's own `setoloc()` does the same (see
+  "Reference").
 - `control.ts`: `Control` (`PrincipalId -> EntityId`) and `principalControlling`, the reverse
   lookup `say`/`tell`/`who` all need.
 - `world/`: AberMUD's own room/mobile/object definitions -- not `WorldState`'s generic `Entity`.
   `AberRoomDefinition.number` preserves AberMUD's own historical room numbering (its archive
   stores room text under `TEXT/ROOMS/<number>`) alongside the `EntityId` used everywhere else in
-  this engine. `AberObjectDefinition.takeable` is GET/DROP's one rule so far (the inverse of the
-  source's `o_flannel` flag); no carry-capacity limit is modeled yet.
+  this engine. `AberObjectDefinition` has three independent flags now, matching three independent
+  object bits in the source: `takeable` (GET/DROP), `wearable` (WEAR) and `weaponDamage`
+  (WIELD, present only for a weapon). No carry-capacity limit is modeled yet.
 - `persistence/`: driven by what SAVE alone needs -- no `WorldStore`, `AccountStore`,
   `RoomStore`, or the rest, until a command actually needs one.
   - `persona.ts` -- `AberMUDPersona`: name, score, strength, sex, level, matching the recovered
@@ -213,9 +238,20 @@ is running? Here, adapter-owned, the same way `rooms`/`control` already are -- n
 
 GET/DROP/INVENTORY forced `engine/world`'s containment question: an object picked up is `locate`d
 at the character instead of the room, the identical operation a room-to-room move already was, and
-needed no new relationship on `WorldState` -- see that package's README. Deliberately minimal
-beyond that: no equipment (`wear`/`remove`), no containers (`put X in Y`, `get X from Y`), no
-carry-capacity limit, no combat, no QUIT/RESET, no world-file persistence, and no interactive
+needed no new relationship on `WorldState` -- see that package's README.
+
+WIELD/WEAR/REMOVE were built deliberately ahead of combat, not because equipment is interesting on
+its own, but because the source's own damage and to-hit formulas (`hitplayer()`, `mud/blood.c`)
+read the wielded weapon and worn armor directly -- combat would be unbuildable, or would have to
+invent its own equipment concept mid-slice, without them existing first. Adapter-owned live state
+(`wielding`, `worn`), the same category `personas` already is, not a `WorldState` fact: wielding
+and wearing are about what a carried object *means*, not where anything is. `drop.ts` clears
+`worn` for what it moves (see "Reference"'s `setoloc` note); QUIT, on a separate branch as of this
+writing, will need the same treatment for the items it dumps into the room once the two merge --
+not yet done, since QUIT predates `worn`'s existence.
+
+Deliberately minimal beyond that: no containers (`put X in Y`, `get X from Y`), no carry-capacity
+limit, no combat itself, no QUIT/RESET, no world-file persistence, and no interactive
 new-character creation. Character initialization/load, account authentication, and the login
 *flow* that ties them together and hands a connection off into ordinary game input
 (`runAberMUDLogin`, see "What exists") are all implemented; what remains outside this adapter is
@@ -228,7 +264,8 @@ the next real abstraction turns out to be, rather than be designed in ahead of t
 `AberMUDAdapter`, `AberMUDAdapterOptions`, `SessionInput`, `Control`, `AberRoomDefinition`,
 `AberMobileDefinition`, `AberObjectDefinition`, `AberMUDPersona`, `AberMUDPersonaStore`,
 `FilePersonaStore`, `runAberMUDLogin`, `AberMUDLoginOptions`, `AberMUDLoginConnection`,
-`AberOutput` and its variants (including `TakenOutput`, `DroppedOutput`, `InventoryOutput`) and
-their `render*` functions -- how to compose and use the adapter, what to implement or supply for
+`AberOutput` and its variants (including `TakenOutput`, `DroppedOutput`, `InventoryOutput`,
+`WieldedOutput`, `WornOutput`) and their `render*` functions -- how to compose and use the
+adapter, what to implement or supply for
 persistence, the login flow, and every shape a session can be sent. Work kinds, the parser,
 `UafRandCodec`, and each command's handler are internal.
