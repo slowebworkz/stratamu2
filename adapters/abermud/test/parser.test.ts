@@ -7,6 +7,7 @@ import {
   inventory,
   look,
   move,
+  quit,
   remove,
   save,
   say,
@@ -79,6 +80,10 @@ describe("parseAberMUD", () => {
 
   it("parses SAVE", () => {
     expect(parseAberMUD({ session, raw: "save" })).toEqual([{ kind: save, input: { session } }])
+  })
+
+  it("parses QUIT", () => {
+    expect(parseAberMUD({ session, raw: "quit" })).toEqual([{ kind: quit, input: { session } }])
   })
 
   it("parses GET, and its TAKE synonym", () => {

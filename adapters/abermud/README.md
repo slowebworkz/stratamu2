@@ -50,6 +50,7 @@ well-established against the source:
 - GET, and its TAKE synonym
 - DROP
 - INVENTORY, and its I/INV abbreviations
+- QUIT
 - WIELD
 - WEAR
 - REMOVE
@@ -96,7 +97,12 @@ what each one settled:
   which is out of scope until nested containment is.
 - [`mud/parse.c`](https://github.com/DavidKinder/AberMUD2/blob/master/mud/parse.c) -- the verb
   table (`verbtxt`/`verbnum`), confirming GET and TAKE dispatch to the same handler, and I/INV/
-  INVENTORY to the same one.
+  INVENTORY to the same one; `doaction()`'s case 8 for QUIT, which calls `dumpitems()`
+  (`mud/objsys.c`'s `dumpstuff(mynum,curch)` -- every carried object relocated to the current
+  room) and `saveme()` before ending the connection. Not reproduced: the source also clears the
+  character's live name and removes it from the room's own linked list immediately; this adapter
+  leaves the character's `WorldState` location alone instead, the same choice already made for an
+  ordinary disconnect (see "What exists").
 - [`mud/blood.c`](https://github.com/DavidKinder/AberMUD2/blob/master/mud/blood.c) --
   `weapcom()` for WIELD (`"Which weapon do you wish to select though"`, `"Whats one of those ?"`,
   `"Thats not a weapon"`, `"OK..."`), `dambyitem()` (a weapon's damage value only if the object
@@ -164,12 +170,13 @@ genuine garbage bytes, not a synthetic example.
   available without one.
 - `parser.ts`: `SessionInput -> Work[]`. The only place raw command text is read.
 - `commands/`: one file per command (`look`, `exits`, `move`, `save`, `say`, `tell`, `who`, `get`,
-  `drop`, `inventory`, `wield`, `wear`, `remove`), each owning its `WorkKind` and handler.
+  `drop`, `inventory`, `quit`, `wield`, `wear`, `remove`), each owning its `WorkKind` and handler.
   `objects.ts` is the one shared helper GET/DROP/WIELD/WEAR/REMOVE all need: find an
   `AberObjectDefinition` located at a given entity, by name -- "an object in the room" and "an
-  object the actor is carrying" are the identical query, just with a different `at`. `drop.ts`
-  also clears `worn` for whatever it moves, since the source's own `setoloc()` does the same (see
-  "Reference").
+  object the actor is carrying" are the identical query, just with a different `at`. `drop.ts` and
+  `quit.ts` both clear `worn` for whatever they move, since the source's own `setoloc()` does the
+  same (see "Reference"). `quit.ts` sends a `QuitOutput` and does not touch the connection itself
+  -- see the `login/` bullet below for what actually ends it.
 - `control.ts`: `Control` (`PrincipalId -> EntityId`) and `principalControlling`, the reverse
   lookup `say`/`tell`/`who` all need.
 - `world/`: AberMUD's own room/mobile/object definitions -- not `WorldState`'s generic `Entity`.
@@ -219,11 +226,14 @@ genuine garbage bytes, not a synthetic example.
     of scope: new-character creation (`login()` needs a `sex` only for a brand-new character, and
     this always passes `0`), a retry limit, and any wording beyond "Name:"/"Password:"/"Login
     incorrect.". `login/login-connection.ts` -- `AberMUDLoginConnection`: the minimal shape this
-    needs from whatever carried a line to it (line-oriented input/output, plus `setEcho`),
-    declared here rather than imported from a transport package, so this adapter has no
+    needs from whatever carried a line to it (line-oriented input/output, plus `setEcho` and
+    `close`), declared here rather than imported from a transport package, so this adapter has no
     dependency on any specific transport. `@stratamu/plugin-telnet`'s `TelnetConnection` already
     satisfies it structurally; its own tests prove that over a real socket (see that package's
-    README), since this package has no socket of its own to prove it with.
+    README), since this package has no socket of its own to prove it with. `runAberMUDLogin`'s own
+    `Session.send` is also where QUIT actually takes effect: it watches every outgoing `AberOutput`
+    for a `"quit"`, `"actor"` one and calls `connection.close()` right after writing it --
+    `commands/quit.ts` itself never sees `AberMUDLoginConnection` at all, only `Session`.
 
   `test/uaf-rand-codec.test.ts` proves the codec alone, including against real bytes captured
   from actually compiling and running `mud/makeuaf.c` (see "Reference") -- not just a round trip
@@ -240,20 +250,27 @@ GET/DROP/INVENTORY forced `engine/world`'s containment question: an object picke
 at the character instead of the room, the identical operation a room-to-room move already was, and
 needed no new relationship on `WorldState` -- see that package's README.
 
+QUIT forced a different question: how does a game-level command end an actual network connection,
+when neither `Session` nor the generic engine has, or should have, any notion of one? The answer
+is that it doesn't -- `quit.ts` sends a `QuitOutput` through the ordinary `Session.send` channel,
+same as every other command's output, and the composition that already owns the connection
+(`runAberMUDLogin`) is what notices that one specific output and closes it. No new capability was
+added to `Session`; `AberMUDLoginConnection` gained `close()`, since that composition already
+needed the rest of that interface and now needs this one thing more.
+
 WIELD/WEAR/REMOVE were built deliberately ahead of combat, not because equipment is interesting on
 its own, but because the source's own damage and to-hit formulas (`hitplayer()`, `mud/blood.c`)
 read the wielded weapon and worn armor directly -- combat would be unbuildable, or would have to
 invent its own equipment concept mid-slice, without them existing first. Adapter-owned live state
 (`wielding`, `worn`), the same category `personas` already is, not a `WorldState` fact: wielding
-and wearing are about what a carried object *means*, not where anything is. `drop.ts` clears
-`worn` for what it moves (see "Reference"'s `setoloc` note); QUIT, on a separate branch as of this
-writing, will need the same treatment for the items it dumps into the room once the two merge --
-not yet done, since QUIT predates `worn`'s existence.
+and wearing are about what a carried object *means*, not where anything is. `drop.ts` and
+`quit.ts` both clear `worn` for what they move, matching the source's own `setoloc()` (see
+"Reference").
 
 Deliberately minimal beyond that: no containers (`put X in Y`, `get X from Y`), no carry-capacity
-limit, no combat itself, no QUIT/RESET, no world-file persistence, and no interactive
-new-character creation. Character initialization/load, account authentication, and the login
-*flow* that ties them together and hands a connection off into ordinary game input
+limit, no combat itself, no RESET, no world-file persistence, and no interactive new-character
+creation. Character initialization/load, account authentication, and the login *flow* that ties
+them together and hands a connection off into ordinary game input
 (`runAberMUDLogin`, see "What exists") are all implemented; what remains outside this adapter is
 the transport itself -- sockets, Telnet or any other protocol -- which is
 `@stratamu/plugin-telnet`'s concern, not this one's. Each further slice is meant to force whatever
@@ -265,7 +282,7 @@ the next real abstraction turns out to be, rather than be designed in ahead of t
 `AberMobileDefinition`, `AberObjectDefinition`, `AberMUDPersona`, `AberMUDPersonaStore`,
 `FilePersonaStore`, `runAberMUDLogin`, `AberMUDLoginOptions`, `AberMUDLoginConnection`,
 `AberOutput` and its variants (including `TakenOutput`, `DroppedOutput`, `InventoryOutput`,
-`WieldedOutput`, `WornOutput`) and their `render*` functions -- how to compose and use the
-adapter, what to implement or supply for
+`QuitOutput`, `WieldedOutput`, `WornOutput`) and their `render*` functions -- how to compose and
+use the adapter, what to implement or supply for
 persistence, the login flow, and every shape a session can be sent. Work kinds, the parser,
 `UafRandCodec`, and each command's handler are internal.

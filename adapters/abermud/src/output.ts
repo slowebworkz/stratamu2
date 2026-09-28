@@ -119,6 +119,20 @@ export interface InventoryOutput {
   readonly items: readonly string[]
 }
 
+/**
+ * A character left the game. Same actor/observer split as `TakenOutput`, and the same asymmetry:
+ * the actor's own message is a bare confirmation (`doaction()`'s `bprintf("Ok")`, no ellipsis --
+ * distinct from GET's "Ok..."), only the room broadcast names who left. What actually ends the
+ * connection is not this type's concern: it is composition's job to notice a `"quit"`, `"actor"`
+ * output on its way out and close the transport after it, the same reason `Session`/`Connection`
+ * never appear in this package at all -- see `login/abermud-login.ts`.
+ */
+export interface QuitOutput {
+  readonly kind: "quit"
+  readonly perspective: "actor" | "observer"
+  readonly name: string
+}
+
 /** A weapon was wielded. Matches `weapcom()`: no room broadcast -- unlike GET/DROP, wielding is
  * private, observable only once combat itself reads it. */
 export interface WieldedOutput {
@@ -141,6 +155,7 @@ export type AberOutput =
   | TakenOutput
   | DroppedOutput
   | InventoryOutput
+  | QuitOutput
   | WieldedOutput
   | WornOutput
 
@@ -235,6 +250,11 @@ export function renderInventory(output: InventoryOutput): string {
   return `You are carrying\n${output.items.length === 0 ? "Nothing" : output.items.join(" ")}`
 }
 
+/** How leaving reads as text. Verbatim AberMUD II wording (`"Ok"`, `"<name> has left the game"`). */
+export function renderQuit(output: QuitOutput): string {
+  return output.perspective === "actor" ? "Ok" : `${output.name} has left the game`
+}
+
 /** Verbatim `weapcom()` wording. Takes no `WieldedOutput` argument -- unlike every other `render*`
  * here, this one has no field to read; `AberOutput`'s `kind` alone is what routes to it. */
 export function renderWielded(): string {
@@ -270,6 +290,8 @@ export function renderOutput(output: AberOutput): string {
       return renderDropped(output)
     case "inventory":
       return renderInventory(output)
+    case "quit":
+      return renderQuit(output)
     case "wielded":
       return renderWielded()
     case "worn":
