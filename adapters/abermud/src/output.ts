@@ -42,6 +42,10 @@ export type RefusalReason =
   | "already-wearing"
   | "not-wearable"
   | "not-wearing"
+  | "kill-who"
+  | "cant-kill-self"
+  | "cant-find-them"
+  | "not-here-to-fight"
 
 /** An action that could not be performed. `target-absent` names who was asked for, as typed. */
 export type RefusalOutput =
@@ -144,6 +148,39 @@ export interface WornOutput {
   readonly kind: "worn"
 }
 
+/**
+ * One resolved attack, from one side of it. Verified against `hitplayer()`/`bloodrcv()` in
+ * `mud/blood.c`. Genuinely a two-party exchange, not the actor/observer-everyone-else pattern
+ * `TakenOutput`/`DroppedOutput`/`QuitOutput` use: the source's own `hitplayer()` never broadcasts
+ * to the room at all, only to the attacker (directly, `bprintf`) and the victim (`sendsys`) -- a
+ * real absence, not an oversight here, so no third output for other room occupants exists.
+ * `weapon` is only set when a weapon (not bare hands) was used, matching the source's own
+ * `if(wpn!=-1)` gate on whether to name one at all.
+ */
+export interface CombatOutput {
+  readonly kind: "combat"
+  readonly perspective: "attacker" | "victim"
+  readonly outcome: "hit" | "miss"
+  readonly attacker: string
+  readonly victim: string
+  readonly weapon?: string
+}
+
+/**
+ * A hit was lethal. Sent alongside `CombatOutput` (after it, matching the source's own message
+ * order), once per side. The victim's own three lines -- `"X has just died."`, `"[ X has been
+ * slain by Y ]"`, and `crapup()`'s disconnect message -- are `bloodrcv()`'s own sequence of two
+ * `sendsys` calls immediately followed by the forced disconnect; rendered together here since
+ * nothing can happen between them. Composition (`login/abermud-login.ts`) closes the connection
+ * on a `"killed"`, `"victim"` output the same way it already does for `"quit"`, `"actor"`.
+ */
+export interface KilledOutput {
+  readonly kind: "killed"
+  readonly perspective: "attacker" | "victim"
+  readonly attacker: string
+  readonly victim: string
+}
+
 /** Everything an AberMUD command can send a session. */
 export type AberOutput =
   | RoomOutput
@@ -158,6 +195,8 @@ export type AberOutput =
   | QuitOutput
   | WieldedOutput
   | WornOutput
+  | CombatOutput
+  | KilledOutput
 
 /** How a room view reads as text: the presentation half of what `describeRoom` used to do. */
 export function renderRoom(room: RoomOutput): string {
@@ -206,6 +245,14 @@ export function renderRefusal(output: RefusalOutput): string {
       return "Is this a new fashion ?"
     case "not-wearing":
       return "You are not wearing this"
+    case "kill-who":
+      return "Kill who"
+    case "cant-kill-self":
+      return "Come on, it will look better tomorrow..."
+    case "cant-find-them":
+      return "You can't do that"
+    case "not-here-to-fight":
+      return "They aren't here"
   }
 }
 
@@ -269,6 +316,34 @@ export function renderWorn(): string {
   return "OK"
 }
 
+/** How one side of an attack reads as text. Verbatim `hitplayer()`/`bloodrcv()` wording, weapon
+ * phrasing only appended when one was used. */
+export function renderCombat(output: CombatOutput): string {
+  const weaponPhrase = output.weapon === undefined ? "" : ` with the ${output.weapon}`
+  if (output.perspective === "attacker") {
+    return output.outcome === "hit"
+      ? `You hit ${output.victim}${weaponPhrase}`
+      : `You missed ${output.victim}`
+  }
+  return output.outcome === "hit"
+    ? `You are wounded by ${output.attacker}${weaponPhrase}`
+    : `${output.attacker} attacks you${weaponPhrase}`
+}
+
+/** How a lethal hit reads as text, from each side. Verbatim `hitplayer()`/`bloodrcv()` wording;
+ * the victim's three lines (`bloodrcv()`'s two `sendsys` calls and `crapup()`'s own disconnect
+ * message) are rendered together since the source sends them as one uninterrupted sequence. */
+export function renderKilled(output: KilledOutput): string {
+  if (output.perspective === "attacker") {
+    return "Your last blow did the trick"
+  }
+  return [
+    `${output.victim} has just died.`,
+    `[ ${output.victim} has been slain by ${output.attacker} ]`,
+    "Oh dear... you seem to be slightly dead",
+  ].join("\n")
+}
+
 /** Any AberMUD output as plain text. Exhaustive: a new variant fails to compile until worded. */
 export function renderOutput(output: AberOutput): string {
   switch (output.kind) {
@@ -296,5 +371,9 @@ export function renderOutput(output: AberOutput): string {
       return renderWielded()
     case "worn":
       return renderWorn()
+    case "combat":
+      return renderCombat(output)
+    case "killed":
+      return renderKilled(output)
   }
 }

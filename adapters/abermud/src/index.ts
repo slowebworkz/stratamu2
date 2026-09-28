@@ -14,9 +14,11 @@ export type {
 export type { AberMUDSex } from "./character/index.ts"
 export type {
   AberOutput,
+  CombatOutput,
   DroppedOutput,
   ExitsOutput,
   InventoryOutput,
+  KilledOutput,
   PlayersOutput,
   QuitOutput,
   RefusalOutput,
@@ -30,8 +32,10 @@ export type {
 } from "./output.ts"
 export {
   refusal,
+  renderCombat,
   renderDropped,
   renderInventory,
+  renderKilled,
   renderOutput,
   renderQuit,
   renderRefusal,

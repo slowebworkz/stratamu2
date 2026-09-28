@@ -3,8 +3,10 @@ import { describe, expect, it } from "vitest"
 
 import {
   refusal,
+  renderCombat,
   renderDropped,
   renderInventory,
+  renderKilled,
   renderOutput,
   renderQuit,
   renderRefusal,
@@ -60,6 +62,12 @@ describe("renderRefusal", () => {
     expect(renderRefusal(refusal("already-wearing"))).toBe("You are wearing this")
     expect(renderRefusal(refusal("not-wearable"))).toBe("Is this a new fashion ?")
     expect(renderRefusal(refusal("not-wearing"))).toBe("You are not wearing this")
+    expect(renderRefusal(refusal("kill-who"))).toBe("Kill who")
+    expect(renderRefusal(refusal("cant-kill-self"))).toBe(
+      "Come on, it will look better tomorrow...",
+    )
+    expect(renderRefusal(refusal("cant-find-them"))).toBe("You can't do that")
+    expect(renderRefusal(refusal("not-here-to-fight"))).toBe("They aren't here")
   })
 })
 
@@ -143,6 +151,69 @@ describe("renderQuit", () => {
   it("names who left to everyone else", () => {
     expect(renderQuit({ kind: "quit", perspective: "observer", name: "alice" })).toBe(
       "alice has left the game",
+    )
+  })
+})
+
+describe("renderCombat", () => {
+  const base = { attacker: "alice", victim: "bob" } as const
+
+  it("words a hit from each side, with a weapon", () => {
+    expect(
+      renderCombat({
+        ...base,
+        kind: "combat",
+        perspective: "attacker",
+        outcome: "hit",
+        weapon: "sword",
+      }),
+    ).toBe("You hit bob with the sword")
+    expect(
+      renderCombat({
+        ...base,
+        kind: "combat",
+        perspective: "victim",
+        outcome: "hit",
+        weapon: "sword",
+      }),
+    ).toBe("You are wounded by alice with the sword")
+  })
+
+  it("words a hit from each side, bare hands -- no weapon phrase", () => {
+    expect(renderCombat({ ...base, kind: "combat", perspective: "attacker", outcome: "hit" })).toBe(
+      "You hit bob",
+    )
+    expect(renderCombat({ ...base, kind: "combat", perspective: "victim", outcome: "hit" })).toBe(
+      "You are wounded by alice",
+    )
+  })
+
+  it("words a miss from each side", () => {
+    expect(
+      renderCombat({ ...base, kind: "combat", perspective: "attacker", outcome: "miss" }),
+    ).toBe("You missed bob")
+    expect(renderCombat({ ...base, kind: "combat", perspective: "victim", outcome: "miss" })).toBe(
+      "alice attacks you",
+    )
+  })
+})
+
+describe("renderKilled", () => {
+  const base = { attacker: "alice", victim: "bob" } as const
+
+  it("gives the attacker a bare confirmation", () => {
+    expect(renderKilled({ ...base, kind: "killed", perspective: "attacker" })).toBe(
+      "Your last blow did the trick",
+    )
+  })
+
+  it("gives the victim all three of bloodrcv()'s own lines, in order", () => {
+    expect(renderKilled({ ...base, kind: "killed", perspective: "victim" })).toBe(
+      [
+        "bob has just died.",
+        "[ bob has been slain by alice ]",
+        "Oh dear... you seem to be slightly dead",
+      ].join("\n"),
     )
   })
 })

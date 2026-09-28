@@ -114,11 +114,16 @@ export function runAberMUDLogin(options: AberMUDLoginOptions): void {
         // The renderer lives on the session, so the engine and adapter never see the wire. QUIT
         // sends its own confirmation through this same channel; closing the connection after
         // writing it is this composition's job, not the handler's -- the handler has no
-        // reference to `connection`, only to `session`, and never should.
+        // reference to `connection`, only to `session`, and never should. KILL's own death
+        // sequence (`"killed"`, `"victim"`) closes the same way -- `crapup()`'s forced disconnect
+        // in the source, distinct from QUIT's voluntary one, but the same boundary either way.
         send: message => {
           const output = message as AberOutput
           connection.write(`${renderOutput(output)}\r\n`)
           if (output.kind === "quit" && output.perspective === "actor") {
+            connection.close()
+          }
+          if (output.kind === "killed" && output.perspective === "victim") {
             connection.close()
           }
         },

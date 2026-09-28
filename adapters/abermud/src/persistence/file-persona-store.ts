@@ -3,11 +3,14 @@ import type { UafRandLayout } from "./uaf-rand-codec.ts"
 import { RECONSTRUCTED_X86_64_LP64_LITTLE_ENDIAN } from "./uaf-rand-codec.ts"
 import { UafRandFile } from "./uaf-rand-file.ts"
 
-/** What SAVE needs from persistence, and what a future LOGIN would read back from. Deliberately
- * narrower than `UafRandFile`: no `delete` here, since no command needs one yet. */
+/** What SAVE (and now KILL) need from persistence, and what a future LOGIN would read back from.
+ * `delete` exists because death does: `bloodrcv()`'s `delpers(globme)` erases the loser's
+ * `uaf.rand` record as part of dying -- permadeath, not a data-loss bug -- so KILL needed this the
+ * same way SAVE needed `save`. */
 export interface AberMUDPersonaStore {
   save(persona: AberMUDPersona): Promise<void>
   load(name: string): Promise<AberMUDPersona | undefined>
+  delete(name: string): Promise<void>
 }
 
 /**
@@ -27,5 +30,9 @@ export class FilePersonaStore implements AberMUDPersonaStore {
 
   load(name: string): Promise<AberMUDPersona | undefined> {
     return this.#file.find(name)
+  }
+
+  delete(name: string): Promise<void> {
+    return this.#file.delete(name)
   }
 }

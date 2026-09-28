@@ -56,4 +56,13 @@ describe("FilePersonaStore", () => {
 
     expect((await new FilePersonaStore(file).load("alice"))?.name).toBe("Alice")
   })
+
+  it("deletes a saved persona through a fresh store instance -- KILL's own permadeath", async () => {
+    const store = new FilePersonaStore(file)
+    await store.save({ name: "bob", score: 0, strength: -1, sex: 1, level: 1 })
+
+    await new FilePersonaStore(file).delete("bob")
+
+    expect(await new FilePersonaStore(file).load("bob")).toBeUndefined()
+  })
 })
