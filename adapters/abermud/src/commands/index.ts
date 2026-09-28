@@ -1,3 +1,4 @@
+export { type ActiveCharacter, resolveActiveCharacter } from "./characters.ts"
 export { drop, registerDrop } from "./drop.ts"
 export { exits, registerExits } from "./exits.ts"
 export { get, registerGet } from "./get.ts"
@@ -7,6 +8,7 @@ export { describeRoom, look, registerLook, resolveActor, roomOf } from "./look.t
 export { move, registerMove, resolveDirection } from "./move.ts"
 export { findObjectAt } from "./objects.ts"
 export { quit, registerQuit } from "./quit.ts"
+export { activeSessionsInRoom } from "./recipients.ts"
 export { registerRemove, remove } from "./remove.ts"
 export { registerSave, save } from "./save.ts"
 export { registerSay, say } from "./say.ts"

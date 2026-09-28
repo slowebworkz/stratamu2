@@ -182,21 +182,39 @@ genuine garbage bytes, not a synthetic example.
 - `parser.ts`: `SessionInput -> Work[]`. The only place raw command text is read.
 - `commands/`: one file per command (`look`, `exits`, `move`, `save`, `say`, `tell`, `who`, `get`,
   `drop`, `inventory`, `quit`, `wield`, `wear`, `remove`, `kill`), each owning its `WorkKind` and
-  handler. `objects.ts` is the one shared helper GET/DROP/WIELD/WEAR/REMOVE/KILL all need: find an
-  `AberObjectDefinition` located at a given entity, by name -- "an object in the room" and "an
-  object the actor is carrying" are the identical query, just with a different `at`. `quit.ts`
-  sends a `QuitOutput` and does not touch the connection itself -- see the `login/` bullet below
-  for what actually ends it. `drop.ts`, `quit.ts` and `kill.ts` (on a lethal hit, for whatever the
-  loser drops) all clear `worn` -- and now `wielding` too, for whichever of them moved the actor's
-  own wielded weapon -- since the source's own `setoloc()` does the same to the carry flag (see
-  "Reference"), and a moved weapon can't stay meaningfully wielded either. `kill.ts` itself is
-  built from small, separately-named steps (`resolveTarget`, `resolveWeapon`, `hasWornItem`,
-  `rollAttack`, `rollDamage`, `sendCombatResult`) rather than one long handler body -- each names
-  a real concept `hitplayer()` itself has (who's being fought, what they're fought with, whether
-  they're armored, whether the blow lands, how hard, and the attacker/victim send it shares with
-  every outcome), not a mechanical split for its own sake.
+  handler, plus three shared helpers each earned by more than one command actually needing the
+  identical operation, not designed in ahead of that:
+  - `objects.ts`'s `findObjectAt` -- GET/DROP/WIELD/WEAR/REMOVE all need to find an
+    `AberObjectDefinition` located at a given entity, by name; "an object in the room" and "an
+    object the actor is carrying" are the identical query, just with a different `at`.
+  - `characters.ts`'s `resolveActiveCharacter` -- TELL and KILL both need "a name resolves to a
+    connected, currently-playing character," matching the source's own `fpbn()`, which only ever
+    scans live characters. Returns an `ActiveCharacter` (entity/principal/session); `kill.ts`
+    builds its own `CombatTarget` as a type alias to it, not a parallel concept.
+  - `recipients.ts`'s `activeSessionsInRoom` -- SAY and QUIT both need "every actively-playing
+    session at this location, someone excluded" for their room broadcasts. GET/DROP have the
+    identical-looking loop but were deliberately left alone (see the note on GET/DROP's own
+    repetition below); KILL has no room broadcast at all (see its own docstring).
+
+  `quit.ts` sends a `QuitOutput` and does not touch the connection itself -- see the `login/`
+  bullet below for what actually ends it. `drop.ts`, `quit.ts` and `kill.ts` (on a lethal hit, for
+  whatever the loser drops) all clear `worn` -- and now `wielding` too, for whichever of them moved
+  the actor's own wielded weapon -- since the source's own `setoloc()` does the same to the carry
+  flag (see "Reference"), and a moved weapon can't stay meaningfully wielded either. `kill.ts`
+  itself is built from small, separately-named steps (`resolveWeapon`, `hasWornItem`, `rollAttack`,
+  `rollDamage`, `sendCombatResult`, `handleDeath`) rather than one long handler body -- each names
+  a real concept `hitplayer()`/`bloodrcv()` themselves have (what they're fought with, whether
+  they're armored, whether the blow lands, how hard, the attacker/victim send every outcome
+  shares, and what a lethal one does), not a mechanical split for its own sake.
+
+  GET and DROP are deliberately *not* built on `activeSessionsInRoom`, even though their own room
+  broadcasts look identical to SAY/QUIT's: their full "validate, find, mutate, send actor output,
+  send room output" shape is kept inline and comparable to `getobj()`/`dropitem()` side by side,
+  and the two differ in real ways (`takeable`, `worn.delete`) worth seeing next to each other
+  rather than factored apart. Not every repeated-looking shape is the same abstraction.
 - `control.ts`: `Control` (`PrincipalId -> EntityId`) and `principalControlling`, the reverse
-  lookup `say`/`tell`/`who` all need.
+  lookup every command above builds on, directly or (now, more often) through
+  `characters.ts`/`recipients.ts`.
 - `world/`: AberMUD's own room/mobile/object definitions -- not `WorldState`'s generic `Entity`.
   `AberRoomDefinition.number` preserves AberMUD's own historical room numbering (its archive
   stores room text under `TEXT/ROOMS/<number>`) alongside the `EntityId` used everywhere else in

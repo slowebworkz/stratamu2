@@ -22,9 +22,9 @@ import { resolveActor } from "./look.ts"
  * while it stays worn.
  *
  * Also clears `wielding`, if the dropped object was the actor's wielded weapon: `wield.ts`
- * deliberately leaves this to DROP, the same way `WorldState.remove`'s data-integrity checks live
- * with the operation that could violate them -- a dropped weapon can't stay meaningfully wielded,
- * since combat's damage formula would otherwise read a weapon that is no longer carried.
+ * deliberately leaves this to DROP, the operation that can actually invalidate it -- a dropped
+ * weapon can't stay meaningfully wielded, since combat's damage formula would otherwise read a
+ * weapon the actor no longer carries.
  */
 export const drop = workKind("abermud.drop")
 

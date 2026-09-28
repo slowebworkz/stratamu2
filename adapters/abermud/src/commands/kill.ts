@@ -1,14 +1,14 @@
 import type { Runtime, TaskContext } from "@stratamu/engine-core"
-import type { Session, Sessions } from "@stratamu/engine-sessions"
+import type { Session } from "@stratamu/engine-sessions"
 import type { WorldState } from "@stratamu/engine-world"
 import type { EntityId, PrincipalId } from "@stratamu/primitives"
 import { workKind } from "@stratamu/work"
 
 import type { Control } from "../control.ts"
-import { principalControlling } from "../control.ts"
 import { type CombatOutput, type KilledOutput, refusal } from "../output.ts"
 import type { AberMUDPersona, AberMUDPersonaStore } from "../persistence/index.ts"
 import type { AberObjectDefinition } from "../world/index.ts"
+import { type ActiveCharacter, resolveActiveCharacter } from "./characters.ts"
 import { resolveActor } from "./look.ts"
 
 /** A source of numbers in `[0, 1)`. `Math.random` at the composition root by default; injectable
@@ -19,38 +19,10 @@ import { resolveActor } from "./look.ts"
  * probe once more than this one command needs one -- not designed in ahead of that evidence. */
 export type Rng = () => number
 
-/** A connected character KILL can resolve against: found by name, currently controlled, and
- * actively playing. `fpbn()`'s own scan in the source only ever looks at live, connected
- * characters -- an unknown name and a known-but-offline one are the identical failure there,
- * and here. */
-interface CombatTarget {
-  readonly entity: EntityId
-  readonly principal: PrincipalId
-  readonly session: Session
-}
-
-/** `fpbn()`: resolves a name to a connected character, or `undefined` for either failure
- * `killcom()` treats the same way -- never heard of them, or not currently playing. */
-function resolveTarget(
-  name: string,
-  charactersByName: ReadonlyMap<string, EntityId>,
-  control: Control,
-  sessions: Sessions | undefined,
-): CombatTarget | undefined {
-  const entity = charactersByName.get(name.trim().toLowerCase())
-  if (entity === undefined) {
-    return undefined
-  }
-  const principal = principalControlling(control, entity)
-  if (principal === undefined) {
-    return undefined
-  }
-  const session = sessions?.activeFor(principal)
-  if (session === undefined) {
-    return undefined
-  }
-  return { entity, principal, session }
-}
+/** KILL's target is exactly an `ActiveCharacter` -- found by name, currently controlled, and
+ * actively playing, the identical resolution TELL needs. Matches the source's own `fpbn()`
+ * (`mud/blood.c`), which only ever scans live, connected characters in the first place. */
+type CombatTarget = ActiveCharacter
 
 /** What `hitplayer()` resolves before rolling anything: the wielded object's definition, if it
  * still has one, and the damage a hit actually does -- bare hands' fixed `4` either way. */
@@ -138,7 +110,7 @@ function sendCombatResult(
  * `KilledOutput`, `dumpitems()`'s carried-item relocation (and the matching `worn`/`wielding`
  * cleanup DROP/QUIT already established), and `closeworld()`/`delpers()` -- removal from the
  * world and permadeath. A separate domain operation from resolving and rolling the hit itself,
- * the same reason `resolveTarget`/`resolveWeapon` are their own functions.
+ * the same reason `resolveWeapon` is its own function.
  */
 async function handleDeath(
   actor: EntityId,
@@ -254,7 +226,7 @@ export function registerKill(
       return
     }
 
-    const target = resolveTarget(name, charactersByName, control, context.sessions)
+    const target = resolveActiveCharacter(name, charactersByName, control, context.sessions)
     if (target === undefined) {
       session?.send(refusal("cant-find-them"))
       return

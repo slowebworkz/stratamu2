@@ -4,7 +4,7 @@ import { workKind } from "@stratamu/work"
 
 import type { Control } from "../control.ts"
 import { refusal, type SpeechOutput } from "../output.ts"
-import { principalControlling } from "../control.ts"
+import { activeSessionsInRoom } from "./recipients.ts"
 import { resolveActor } from "./look.ts"
 
 export const say = workKind("abermud.say")
@@ -33,14 +33,13 @@ export function registerSay(runtime: Runtime, control: Control): void {
     if (location === undefined) {
       return
     }
-    const occupantIds = [...(context.world?.occupants(location) ?? [])]
-    const recipients = occupantIds
-      .filter(occupantId => occupantId !== actor)
-      .map(occupantId => principalControlling(control, occupantId))
-      .filter(principal => principal !== undefined)
-      .map(principal => context.sessions?.activeFor(principal))
-      .filter((recipient): recipient is Session => recipient !== undefined)
-    for (const recipient of recipients) {
+    for (const recipient of activeSessionsInRoom(
+      context.world,
+      control,
+      context.sessions,
+      location,
+      actor,
+    )) {
       recipient.send({
         kind: "speech",
         channel: "say",

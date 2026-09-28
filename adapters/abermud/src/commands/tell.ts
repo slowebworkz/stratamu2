@@ -5,7 +5,7 @@ import { workKind } from "@stratamu/work"
 
 import type { Control } from "../control.ts"
 import { refusal, type SpeechOutput } from "../output.ts"
-import { principalControlling } from "../control.ts"
+import { resolveActiveCharacter } from "./characters.ts"
 import { resolveActor } from "./look.ts"
 
 export const tell = workKind("abermud.tell")
@@ -29,12 +29,13 @@ export function registerTell(
       session?.send(refusal("not-controlling"))
       return
     }
-    const targetEntity = charactersByName.get(target.toLowerCase())
-    const targetPrincipal =
-      targetEntity === undefined ? undefined : principalControlling(control, targetEntity)
-    const targetSession =
-      targetPrincipal === undefined ? undefined : context.sessions?.activeFor(targetPrincipal)
-    if (targetSession === undefined) {
+    const targetCharacter = resolveActiveCharacter(
+      target,
+      charactersByName,
+      control,
+      context.sessions,
+    )
+    if (targetCharacter === undefined) {
       session?.send(refusal("target-absent", target))
       return
     }
@@ -47,7 +48,7 @@ export function registerTell(
       text: message,
       addressee: target,
     } satisfies SpeechOutput)
-    targetSession.send({
+    targetCharacter.session.send({
       kind: "speech",
       channel: "tell",
       perspective: "listener",
