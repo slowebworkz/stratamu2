@@ -523,10 +523,8 @@ describe("KILL", () => {
   it("automatically attacks again after one combat tick when the target survives", async () => {
     // Round 1: rng=[0, 0.5] → hit, damage 2. Round 2: rng cycles → same sequence → hit again.
     // Bob starts at strength 10; after round 1: 8; after round 2: 6.
-    const { runtime, world, sessions, adapter, here, bobPlayer, combatClock } = abermudFixture({
-      rng: sequence([0, 0.5]),
-      withCombatClock: true,
-    })
+    const { runtime, world, sessions, adapter, here, alicePlayer, bobPlayer, combatClock } =
+      abermudFixture({ rng: sequence([0, 0.5]), withCombatClock: true })
     world.locate(bobPlayer, here)
     const alice = testSession("session-1", "alice")
     const bob = testSession("session-2", "bob")
@@ -546,8 +544,9 @@ describe("KILL", () => {
     await runtime.drain()
 
     expect(adapter.personas.get(bobPlayer)?.strength).toBe(6)
-    // alice got a second combat output for the second round
-    expect(alice.output.length).toBe(roundOneOutput + 1)
+    // Alice got two more outputs: her own second attack, then Bob's counterattack against her.
+    // bloodrcv() sets the victim's in_fight on both hit and miss, so Bob fires back immediately.
+    expect(alice.output.length).toBe(roundOneOutput + 2)
     expect(alice.output[roundOneOutput]).toEqual({
       kind: "combat",
       perspective: "attacker",
@@ -555,5 +554,14 @@ describe("KILL", () => {
       attacker: "alice",
       victim: "bob",
     })
+    expect(alice.output[roundOneOutput + 1]).toEqual({
+      kind: "combat",
+      perspective: "victim",
+      outcome: "hit",
+      attacker: "bob",
+      victim: "alice",
+    })
+    // Bob's counterattack did 2 damage (rng [0, 0.5] → hit, damage 2).
+    expect(adapter.personas.get(alicePlayer)?.strength).toBe(8)
   })
 })
