@@ -252,4 +252,144 @@ describe("KILL", () => {
 
     expect(session.output).toEqual([{ kind: "refusal", reason: "not-controlling" }])
   })
+
+  it("refuses when the target has no persona, even if they are controlled and present", async () => {
+    const { runtime, world, sessions, adapter, here, bobPlayer } = abermudFixture()
+    world.locate(bobPlayer, here)
+    adapter.personas.delete(bobPlayer)
+    const alice = testSession("session-1", "alice")
+    const bob = testSession("session-2", "bob")
+    sessions.open(alice)
+    sessions.open(bob)
+
+    for (const item of adapter.parse({ session: alice, raw: "kill bob" })) {
+      runtime.submit({ work: item })
+    }
+    await runtime.drain()
+
+    expect(alice.output).toEqual([{ kind: "refusal", reason: "cant-find-them" }])
+  })
+
+  it("calls store.delete with the victim's name on a lethal hit", async () => {
+    const deleted: string[] = []
+    const personaStore = {
+      save: async () => {},
+      load: async (): Promise<undefined> => undefined,
+      delete: async (name: string) => {
+        deleted.push(name)
+      },
+    }
+    // rng=[0, 0.99]: to-hit roll 0 hits (cth 43 > 0); damage = floor(0.99*4)=3; strength 1-3=-2 → lethal
+    const { runtime, world, sessions, adapter, here, bobPlayer } = abermudFixture({
+      rng: sequence([0, 0.99]),
+      personaStore,
+    })
+    world.locate(bobPlayer, here)
+    adapter.personas.set(bobPlayer, { name: "bob", score: 0, strength: 1, sex: 1, level: 1 })
+    const alice = testSession("session-1", "alice")
+    const bob = testSession("session-2", "bob")
+    sessions.open(alice)
+    sessions.open(bob)
+
+    for (const item of adapter.parse({ session: alice, raw: "kill bob" })) {
+      runtime.submit({ work: item })
+    }
+    await runtime.drain()
+
+    expect(deleted).toEqual(["bob"])
+  })
+
+  it("a hit that reduces strength to exactly zero does not kill", async () => {
+    // rng=[0, 0.5]: to-hit roll 0 hits (cth 43 > 0); damage = floor(0.5*4)=2; strength 2-2=0 → alive (≥0)
+    const { runtime, world, sessions, adapter, here, bobPlayer } = abermudFixture({
+      rng: sequence([0, 0.5]),
+    })
+    world.locate(bobPlayer, here)
+    adapter.personas.set(bobPlayer, { name: "bob", score: 0, strength: 2, sex: 1, level: 1 })
+    const alice = testSession("session-1", "alice")
+    const bob = testSession("session-2", "bob")
+    sessions.open(alice)
+    sessions.open(bob)
+
+    for (const item of adapter.parse({ session: alice, raw: "kill bob" })) {
+      runtime.submit({ work: item })
+    }
+    await runtime.drain()
+
+    expect(adapter.personas.get(bobPlayer)?.strength).toBe(0)
+    expect(world.has(bobPlayer)).toBe(true)
+  })
+
+  it("a roll exactly at the chance-to-hit threshold misses", async () => {
+    // level 1: cth = 40 + 3*1 = 43; hit if cth > floor(rng*100).
+    // floor(0.43*100)=43 → 43>43 is false → miss.
+    const { runtime, world, sessions, adapter, here, bobPlayer } = abermudFixture({
+      rng: sequence([0.43]),
+    })
+    world.locate(bobPlayer, here)
+    const alice = testSession("session-1", "alice")
+    const bob = testSession("session-2", "bob")
+    sessions.open(alice)
+    sessions.open(bob)
+
+    for (const item of adapter.parse({ session: alice, raw: "kill bob" })) {
+      runtime.submit({ work: item })
+    }
+    await runtime.drain()
+
+    expect(alice.output).toEqual([
+      {
+        kind: "combat",
+        perspective: "attacker",
+        outcome: "miss",
+        attacker: "alice",
+        victim: "bob",
+      },
+    ])
+    expect(adapter.personas.get(bobPlayer)?.strength).toBe(10)
+  })
+
+  it("the attacker receives the level-squared kill bonus on top of the per-hit damage bonus", async () => {
+    // level 2 victim: kill bonus = 2^2*100 = 400; damage = floor(0.99*4)=3; damage bonus = 3*2=6; total = 406
+    const { runtime, world, sessions, adapter, here, alicePlayer, bobPlayer } = abermudFixture({
+      rng: sequence([0, 0.99]),
+    })
+    world.locate(bobPlayer, here)
+    adapter.personas.set(bobPlayer, { name: "bob", score: 0, strength: 1, sex: 1, level: 2 })
+    const alice = testSession("session-1", "alice")
+    const bob = testSession("session-2", "bob")
+    sessions.open(alice)
+    sessions.open(bob)
+
+    for (const item of adapter.parse({ session: alice, raw: "kill bob" })) {
+      runtime.submit({ work: item })
+    }
+    await runtime.drain()
+
+    expect(adapter.personas.get(alicePlayer)?.score).toBe(406)
+  })
+
+  it("falls back to bare hands, and clears the stale entry, when the wielded weapon has no definition", async () => {
+    // sword is carried by alice but not registered in objects -- definition lookup returns undefined.
+    const { runtime, world, sessions, adapter, here, alicePlayer, bobPlayer, sword } =
+      abermudFixture({ rng: sequence([0, 0]) })
+    world.locate(bobPlayer, here)
+    world.locate(sword, alicePlayer)
+    adapter.wielding.set(alicePlayer, sword)
+    adapter.objects.delete(sword)
+    const alice = testSession("session-1", "alice")
+    const bob = testSession("session-2", "bob")
+    sessions.open(alice)
+    sessions.open(bob)
+
+    for (const item of adapter.parse({ session: alice, raw: "kill bob" })) {
+      runtime.submit({ work: item })
+    }
+    await runtime.drain()
+
+    expect(alice.output).toEqual([
+      { kind: "combat", perspective: "attacker", outcome: "hit", attacker: "alice", victim: "bob" },
+    ])
+    expect(adapter.wielding.has(alicePlayer)).toBe(false)
+  })
 })
