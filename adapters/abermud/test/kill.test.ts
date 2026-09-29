@@ -394,6 +394,37 @@ describe("KILL", () => {
     expect(adapter.wielding.has(alicePlayer)).toBe(false)
   })
 
+  it("does not lock the actor when no combat clock is configured", async () => {
+    // Without a combat clock, KILL is single-round: inFight must not be set, so a second
+    // player-initiated KILL must succeed rather than returning "already-fighting".
+    const { runtime, world, sessions, adapter, here, bobPlayer } = abermudFixture({
+      rng: sequence([0, 0.5]),
+    })
+    world.locate(bobPlayer, here)
+    const alice = testSession("session-1", "alice")
+    const bob = testSession("session-2", "bob")
+    sessions.open(alice)
+    sessions.open(bob)
+
+    for (const item of adapter.parse({ session: alice, raw: "kill bob" })) {
+      runtime.submit({ work: item })
+    }
+    await runtime.drain()
+    alice.output.length = 0
+    bob.output.length = 0
+
+    for (const item of adapter.parse({ session: alice, raw: "kill bob" })) {
+      runtime.submit({ work: item })
+    }
+    await runtime.drain()
+
+    // Second KILL resolves normally -- no "already-fighting" lockout.
+    expect(alice.output).toEqual([
+      { kind: "combat", perspective: "attacker", outcome: "hit", attacker: "alice", victim: "bob" },
+    ])
+    expect(adapter.inFight.size).toBe(0)
+  })
+
   it("refuses a second KILL command while already in combat", async () => {
     // rng=[0, 0.5]: first KILL hits, bob survives (strength 10-2=8). alice is now in_fight.
     // alice immediately submits KILL bob again before a combat tick fires -- should be refused.

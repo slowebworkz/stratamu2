@@ -76,9 +76,10 @@ export class AberMUDAdapter implements EngineAdapter<SessionInput> {
    * on `setoloc`), not about who is wearing it -- an object can only be carried by one entity at
    * a time anyway, so nothing is lost by not keying this on the wearer too. */
   readonly worn: Set<EntityId> = new Set()
-  /** Per-attacker combat state: actor -> target currently being fought. Set when an attack lands
-   * (hit or miss) and cleared when combat ends (kill, target gone, or the actor flees). Guards
-   * against issuing a second KILL while already fighting -- `in_fight` from `mud/blood.c`. */
+  /** Per-attacker combat state: actor -> target of the active scheduled combat sequence. Set only
+   * when a next round has been scheduled (i.e. `combatClockId` is configured); cleared when
+   * combat ends (kill, target gone). Without a combat clock, KILL is single-round and this map
+   * stays empty -- so `inFight.has(actor)` never becomes a permanent lockout. */
   readonly inFight: Map<EntityId, EntityId> = new Map()
   readonly #accountStore: AberMUDAccountStore | undefined
   readonly #personaStore: AberMUDPersonaStore | undefined

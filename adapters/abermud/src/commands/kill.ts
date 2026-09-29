@@ -275,8 +275,14 @@ async function executeAttack(
   )
 }
 
-/** Marks the actor as fighting `targetEntity` and schedules the next combat round if a clock is
- * available. Matches `hitplayer()`'s `fighting=victim; in_fight=300;` at the end of each round. */
+/**
+ * Enters combat state and schedules the next round. Only sets `inFight` when a clock is
+ * available -- without one, KILL is a single-round action and `inFight` must stay clear so the
+ * actor is not permanently locked out.
+ *
+ * `inFight` represents an active *scheduled* combat sequence, not merely the fact that an attack
+ * just occurred. That distinction matters: idle → fighting only when a next round can fire.
+ */
 function scheduleNextRound(
   actor: EntityId,
   targetEntity: EntityId,
@@ -284,10 +290,14 @@ function scheduleNextRound(
   inFight: Map<EntityId, EntityId>,
   clockId: ClockId | undefined,
 ): void {
-  inFight.set(actor, targetEntity)
-  if (clockId !== undefined) {
-    runtime.submit({ work: work(combatRound, { actor, target: targetEntity }) }, schedule.after(1, clockId))
+  if (clockId === undefined) {
+    return
   }
+  inFight.set(actor, targetEntity)
+  runtime.submit(
+    { work: work(combatRound, { actor, target: targetEntity }) },
+    schedule.after(1, clockId),
+  )
 }
 
 /**
@@ -434,9 +444,8 @@ export function registerKill(
     inFight.delete(actor)
 
     const attackerPrincipal = principalControlling(control, actor)
-    const attackerSession = attackerPrincipal !== undefined
-      ? context.sessions?.activeFor(attackerPrincipal)
-      : undefined
+    const attackerSession =
+      attackerPrincipal !== undefined ? context.sessions?.activeFor(attackerPrincipal) : undefined
     const attackerName: PrincipalId | EntityId = attackerPrincipal ?? actor
 
     await executeAttack(
