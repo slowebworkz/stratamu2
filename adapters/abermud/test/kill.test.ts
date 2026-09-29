@@ -583,7 +583,14 @@ describe("KILL", () => {
 
     // Round 1: Alice misses. Both alice→bob and bob→alice rounds are now scheduled.
     expect(alice.output).toEqual([
-      { kind: "combat", perspective: "attacker", outcome: "miss", attacker: "alice", victim: "bob", weapon: undefined },
+      {
+        kind: "combat",
+        perspective: "attacker",
+        outcome: "miss",
+        attacker: "alice",
+        victim: "bob",
+        weapon: undefined,
+      },
     ])
     expect(adapter.inFight.get(alicePlayer)).toBe(bobPlayer)
     expect(adapter.inFight.get(bobPlayer)).toBe(alicePlayer)

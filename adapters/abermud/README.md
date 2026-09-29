@@ -138,8 +138,8 @@ what each one settled:
   bilateral combat pattern: two independent per-actor state machines sharing the same 2-second
   clock. Architectural implication: `Work + Runtime + Clock` is sufficient -- no new engine
   primitive needed; scheduling a `combatRound` for the target from within `executeAttack` is the
-  natural mapping. Attacker-side `in_fight` guard and repeat loop are now implemented; victim
-  counterattack (`bloodrcv()` victim-side state) is deferred to `feature/abermud-counterattack`.
+  natural mapping. Attacker-side repeat loop and victim counterattack (`bloodrcv()` victim-side
+  state) are both now implemented via the same symmetric `combatRound` loop.
 - [`mud/new1.c`](https://github.com/DavidKinder/AberMUD2/blob/master/mud/new1.c) --
   `wearcom()`/`removecom()`/`canwear()`/`iswornby()`/`ohereandget()` for WEAR/REMOVE. `canwear()`
   is a third independent object flag (`otstbit(a,8)`), distinct from `takeable` and the weapon
@@ -344,8 +344,7 @@ limit, no RESET, no world-file persistence, and no interactive new-character cre
 now models the source's `in_fight`/`fighting` lock (a second KILL while already fighting is
 refused with `"You are already fighting!"`) and the attacker's repeated auto-rounds (driven by
 a clock via `AberMUDAdapterOptions.combatClockId`; one round per clock tick, matching the source's
-2-second `SIGALRM`-driven loop). Still not modeled: bilateral counterattack (`bloodrcv()`'s
-victim-side `in_fight`/`fighting` -- the victim's automatic reply attacks), `kill X with Y`'s
+2-second `SIGALRM`-driven loop). Still not modeled: `kill X with Y`'s
 specific-weapon override, `kill <object>` (`breakitem()`), and monster targets -- `woundmn()`'s
 side of `hitplayer()` is a wholly separate subsystem this slice never touches. Character initialization/load, account authentication, and the login *flow* that
 ties them together and hands a connection off into ordinary game input
