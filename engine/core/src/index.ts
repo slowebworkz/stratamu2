@@ -1,3 +1,4 @@
+export type { ClockId } from "./clock/index.ts"
 export type { EngineAdapter } from "./composition/index.ts"
 export { Engine } from "./composition/index.ts"
 export type { LaneId } from "./lane/index.ts"

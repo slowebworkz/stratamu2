@@ -26,6 +26,7 @@
     "@stratamu/work": "workspace:*"
   },
   "devDependencies": {
+    "@stratamu/clock": "workspace:*",
     "@stratamu/entity": "workspace:*",
     "@stratamu/eslint": "workspace:*",
     "@stratamu/typescript-config": "workspace:*",

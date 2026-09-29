@@ -192,7 +192,10 @@ export class FileAccountStore extends Base implements AberMUDAccountStore {
       await unlink(file)
     } catch (error) {
       if (!isMissingFile(error)) {
-        this.log.warn({ err: this.errors.from(error) }, "Failed to remove temporary file during cleanup")
+        this.log.warn(
+          { err: this.errors.from(error) },
+          "Failed to remove temporary file during cleanup",
+        )
       }
     }
   }

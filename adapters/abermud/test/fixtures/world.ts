@@ -1,11 +1,28 @@
+import { ManualClock } from "@stratamu/clock"
 import { Runtime } from "@stratamu/engine-core"
 import { Sessions } from "@stratamu/engine-sessions"
 import type { EngineState } from "@stratamu/engine-world"
 import { WorldState } from "@stratamu/engine-world"
 import { entity } from "@stratamu/entity"
-import { entityId, principalId } from "@stratamu/primitives"
+import { Duration, Instant, entityId, principalId } from "@stratamu/primitives"
 
 import { AberMUDAdapter, type AberMUDAdapterOptions } from "../../src/adapter.ts"
+
+/** Domain marker for the combat clock's ticks. */
+type CombatTick = { readonly kind: "combat-tick" }
+
+/** The clock ID the fixture registers under when `withCombatClock: true` is passed. */
+export const COMBAT_CLOCK = "abermud.combat" as const
+
+/** A manual clock for driving the combat loop in tests. Advance with `combatClock.tick(n)`. */
+export type CombatClock = ManualClock<CombatTick> & { tick(n: number): void }
+
+/** Options for `abermudFixture` beyond the adapter's own options. */
+export interface AbermudFixtureOptions extends AberMUDAdapterOptions {
+  /** When true, creates a `ManualClock` for the combat loop and attaches it to the runtime.
+   * The returned `combatClock` is undefined when this is false/absent. */
+  readonly withCombatClock?: boolean
+}
 
 /**
  * A tiny test world, not AberMUD's own -- see the package README's "Non-goals". Just enough
@@ -23,12 +40,25 @@ import { AberMUDAdapter, type AberMUDAdapterOptions } from "../../src/adapter.ts
  * distinguish an object from a character in "Also here" (LOOK describing objects at all is out
  * of this slice's scope -- see the package README).
  */
-export function abermudFixture(options: AberMUDAdapterOptions = {}) {
+export function abermudFixture(options: AbermudFixtureOptions = {}) {
+  const { withCombatClock, ...rest } = options
+  let combatClock: CombatClock | undefined
+  let adapterOptions: AberMUDAdapterOptions = rest
+  if (withCombatClock) {
+    const base = new ManualClock(Instant.from<CombatTick>(0n))
+    combatClock = Object.assign(base, {
+      tick: (n: number) => base.advance(Duration.from<CombatTick>(BigInt(n))),
+    })
+    adapterOptions = { ...rest, combatClockId: COMBAT_CLOCK }
+  }
   const world = new WorldState()
   const sessions = new Sessions()
   const engineState: EngineState = { world, sessions }
   const runtime = new Runtime({ engineState })
-  const adapter = new AberMUDAdapter(options)
+  if (combatClock !== undefined) {
+    runtime.attachClock(COMBAT_CLOCK, combatClock)
+  }
+  const adapter = new AberMUDAdapter(adapterOptions)
   adapter.registerHandlers(runtime)
 
   const here = entityId("here")
@@ -117,5 +147,6 @@ export function abermudFixture(options: AberMUDAdapterOptions = {}) {
     sword,
     shield,
     statue,
+    combatClock,
   }
 }
