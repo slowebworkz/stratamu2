@@ -564,4 +564,92 @@ describe("KILL", () => {
     // Bob's counterattack did 2 damage (rng [0, 0.5] → hit, damage 2).
     expect(adapter.personas.get(alicePlayer)?.strength).toBe(8)
   })
+
+  it("triggers a victim counterattack even when the attacker misses", async () => {
+    // bloodrcv() sets in_fight on the victim on both hit and miss -- counterattack is unconditional.
+    // rng always 0.9 → chanceToHit=43, 43 > 90 is false → always misses. No damage either side.
+    const { runtime, world, sessions, adapter, here, alicePlayer, bobPlayer, combatClock } =
+      abermudFixture({ rng: () => 0.9, withCombatClock: true })
+    world.locate(bobPlayer, here)
+    const alice = testSession("session-1", "alice")
+    const bob = testSession("session-2", "bob")
+    sessions.open(alice)
+    sessions.open(bob)
+
+    for (const item of adapter.parse({ session: alice, raw: "kill bob" })) {
+      runtime.submit({ work: item })
+    }
+    await runtime.drain()
+
+    // Round 1: Alice misses. Both alice→bob and bob→alice rounds are now scheduled.
+    expect(alice.output).toEqual([
+      { kind: "combat", perspective: "attacker", outcome: "miss", attacker: "alice", victim: "bob", weapon: undefined },
+    ])
+    expect(adapter.inFight.get(alicePlayer)).toBe(bobPlayer)
+    expect(adapter.inFight.get(bobPlayer)).toBe(alicePlayer)
+
+    ;(combatClock as CombatClock).tick(1)
+    await runtime.drain()
+
+    // Alice gets her round-2 miss (attacker) + Bob's counterattack miss against her (victim).
+    expect(alice.output[1]).toEqual({
+      kind: "combat",
+      perspective: "attacker",
+      outcome: "miss",
+      attacker: "alice",
+      victim: "bob",
+      weapon: undefined,
+    })
+    expect(alice.output[2]).toEqual({
+      kind: "combat",
+      perspective: "victim",
+      outcome: "miss",
+      attacker: "bob",
+      victim: "alice",
+      weapon: undefined,
+    })
+    // No damage taken by either side.
+    expect(adapter.personas.get(alicePlayer)?.strength).toBe(10)
+    expect(adapter.personas.get(bobPlayer)?.strength).toBe(10)
+  })
+
+  it("silently drops victim's queued counterattack round after the attacker kills the victim", async () => {
+    // Round 1 hits and schedules both alice→bob and bob→alice. On tick(1), alice's round fires
+    // first (it was submitted first) and kills Bob; Bob's queued round then fires but finds Bob
+    // removed from the world (locationOf(bob) === undefined) and exits without attacking.
+    // Bob's inFight is cleared; Alice receives no victim output.
+    const { runtime, world, sessions, adapter, here, alicePlayer, bobPlayer, combatClock } =
+      abermudFixture({ rng: sequence([0, 0.5]), withCombatClock: true })
+    // Give Bob just enough strength to survive round 1 (strength 3, damage 2 → 1 remaining)
+    // but die on round 2 (1 - 2 = -1).
+    adapter.personas.set(bobPlayer, { name: "bob", score: 0, strength: 3, sex: 1, level: 1 })
+    world.locate(bobPlayer, here)
+    const alice = testSession("session-1", "alice")
+    const bob = testSession("session-2", "bob")
+    sessions.open(alice)
+    sessions.open(bob)
+
+    for (const item of adapter.parse({ session: alice, raw: "kill bob" })) {
+      runtime.submit({ work: item })
+    }
+    await runtime.drain()
+
+    // Round 1: Bob strength 3 - 2 = 1. Bob is alive; counterattack scheduled.
+    expect(adapter.personas.get(bobPlayer)?.strength).toBe(1)
+    expect(adapter.inFight.get(bobPlayer)).toBe(alicePlayer)
+
+    ;(combatClock as CombatClock).tick(1)
+    await runtime.drain()
+
+    // Alice's round 2 kills Bob. Bob's queued round fires after but exits (world.remove cleared
+    // Bob's location). Alice should have only attacker outputs -- no victim output from Bob.
+    expect(adapter.inFight.size).toBe(0)
+    // Bob is removed from the world (handleDeath calls world.remove).
+    expect(world.locationOf(bobPlayer)).toBeUndefined()
+    for (const output of alice.output) {
+      if ("perspective" in output) {
+        expect(output.perspective).toBe("attacker")
+      }
+    }
+  })
 })
