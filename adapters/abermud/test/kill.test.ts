@@ -399,17 +399,8 @@ describe("KILL", () => {
     // Bob moves to another room before the tick fires.
     // The combat-round handler sees target no longer co-located → clears inFight, no attack.
     // Alice can then issue a fresh KILL (location refusal, not "already-fighting").
-    const {
-      runtime,
-      world,
-      sessions,
-      adapter,
-      here,
-      there,
-      alicePlayer,
-      bobPlayer,
-      combatClock,
-    } = abermudFixture({ rng: sequence([0, 0.5]), withCombatClock: true })
+    const { runtime, world, sessions, adapter, here, there, alicePlayer, bobPlayer, combatClock } =
+      abermudFixture({ rng: sequence([0, 0.5]), withCombatClock: true })
     world.locate(bobPlayer, here)
     const alice = testSession("session-1", "alice")
     const bob = testSession("session-2", "bob")
@@ -442,16 +433,8 @@ describe("KILL", () => {
   it("clears combat when the attacker's entity is removed before the next round fires", async () => {
     // Simulates disconnect/death: world.remove() removes the actor.
     // The combat-round handler sees locationOf(actor) === undefined → clears inFight, no attack.
-    const {
-      runtime,
-      world,
-      sessions,
-      adapter,
-      here,
-      alicePlayer,
-      bobPlayer,
-      combatClock,
-    } = abermudFixture({ rng: sequence([0, 0.5]), withCombatClock: true })
+    const { runtime, world, sessions, adapter, here, alicePlayer, bobPlayer, combatClock } =
+      abermudFixture({ rng: sequence([0, 0.5]), withCombatClock: true })
     world.locate(bobPlayer, here)
     const alice = testSession("session-1", "alice")
     const bob = testSession("session-2", "bob")
