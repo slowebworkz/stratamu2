@@ -91,7 +91,7 @@ export class Runtime extends Base {
   /** Registers the one handler that executes tasks of `kind`. */
   handle(kind: WorkKind, handler: TaskHandler): void {
     if (this.#handlers.has(kind)) {
-      throw new Error(`A handler is already registered for task kind "${kind}"`)
+      throw this.errors.create(`A handler is already registered for task kind "${kind}"`)
     }
     this.#handlers.set(kind, handler)
   }
@@ -99,7 +99,7 @@ export class Runtime extends Base {
   /** Attaches a clock that schedules can refer to by `id`. */
   attachClock(id: ClockId, clock: Clock<Reading>): void {
     if (this.#clocks.has(id)) {
-      throw new Error(`Clock "${id}" is already attached`)
+      throw this.errors.create(`Clock "${id}" is already attached`)
     }
     this.#clocks.set(id, clock)
     this.#timelines.set(id, new Timeline())
@@ -167,10 +167,10 @@ export class Runtime extends Base {
   wake(id: TaskId): void {
     const record = this.#live.get(id)
     if (record === undefined) {
-      throw new Error(`Cannot wake task ${id}: it is unknown or has finished`)
+      throw this.errors.create(`Cannot wake task ${id}: it is unknown or has finished`)
     }
     if (record.state !== "waiting") {
-      throw new Error(`Cannot wake task ${id} while it is ${record.state}`)
+      throw this.errors.create(`Cannot wake task ${id} while it is ${record.state}`)
     }
 
     // It is ready because it was woken, not because a clock reached a time.
@@ -196,7 +196,7 @@ export class Runtime extends Base {
    */
   async step(): Promise<boolean> {
     if (this.#stepping) {
-      throw new Error("The runtime is already executing a step")
+      throw this.errors.create("The runtime is already executing a step")
     }
 
     this.release()
@@ -251,7 +251,7 @@ export class Runtime extends Base {
   #read(id: ClockId): number {
     const clock = this.#clocks.get(id)
     if (!clock) {
-      throw new Error(`Unknown clock "${id}"`)
+      throw this.errors.create(`Unknown clock "${id}"`)
     }
 
     const value = clock.now().value
@@ -262,7 +262,7 @@ export class Runtime extends Base {
 
     const last = this.#lastReading.get(id)
     if (last !== undefined && time < last) {
-      throw new Error(`Clock "${id}" moved backwards, from ${last} to ${time}`)
+      throw this.errors.create(`Clock "${id}" moved backwards, from ${last} to ${time}`)
     }
     this.#lastReading.set(id, time)
     return time
@@ -371,7 +371,7 @@ export class Runtime extends Base {
 
     const record = this.#live.get(id)
     if (record?.state !== "ready") {
-      throw new Error(`The execution policy chose task ${id}, which is not ready`)
+      throw this.errors.create(`The execution policy chose task ${id}, which is not ready`)
     }
     this.#lanes.get(record.lane)?.remove(record)
     this.#retireIfEmpty(record.lane)
@@ -387,7 +387,9 @@ export class Runtime extends Base {
   async #runInline(parent: TaskRecord, admission: TaskAdmission): Promise<TaskOutcome> {
     const depth = parent.execution.depth + 1
     if (this.#policy.allowInline?.({ parent: parent.task, admission, depth }) === false) {
-      throw new Error(`The execution policy does not allow running "${admission.work.kind}" inline`)
+      throw this.errors.create(
+        `The execution policy does not allow running "${admission.work.kind}" inline`,
+      )
     }
 
     const task = this.#admit(admission)
@@ -419,7 +421,9 @@ export class Runtime extends Base {
     try {
       const handler = this.#handlers.get(record.task.work.kind)
       if (!handler) {
-        throw new Error(`No handler is registered for task kind "${record.task.work.kind}"`)
+        throw this.errors.create(
+          `No handler is registered for task kind "${record.task.work.kind}"`,
+        )
       }
       const result = await handler(record.task, {
         signal: record.execution.signal,
@@ -430,12 +434,12 @@ export class Runtime extends Base {
       })
       if (isTaskSuspend(result)) {
         if (!canDefer) {
-          throw new Error("A task run inline cannot suspend")
+          throw this.errors.create("A task run inline cannot suspend")
         }
         suspended = result
       } else if (isTaskReschedule(result)) {
         if (!canDefer) {
-          throw new Error("A task run inline cannot reschedule")
+          throw this.errors.create("A task run inline cannot reschedule")
         }
         // Resolved inside the same error boundary as the handler itself: an invalid
         // reschedule (a bad delay, an unknown clock) is this task's failure, not an

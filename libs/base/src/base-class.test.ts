@@ -1,4 +1,4 @@
-import type { LoggingCapability } from "@stratamu/capabilities"
+import type { ErrorCapability, LoggingCapability } from "@stratamu/capabilities"
 import { afterEach, describe, expect, it, vi } from "vitest"
 
 interface LogRecord {
@@ -21,7 +21,9 @@ async function loadFresh() {
     },
   }
 
-  const { TslogLogger, setRootLogger } = await import("@stratamu/capabilities")
+  const { ExceptionalErrors, TslogLogger, createErrorCapability, setRootErrors, setRootLogger } =
+    await import("@stratamu/capabilities")
+
   const createReal = TslogLogger.create.bind(TslogLogger)
   const create = vi
     .spyOn(TslogLogger, "create")
@@ -35,11 +37,23 @@ async function loadFresh() {
     get exposed(): LoggingCapability {
       return this.log
     }
+
+    get errors(): ErrorCapability {
+      return this.errorCapability
+    }
+
+    private get errorCapability(): ErrorCapability {
+      return super.errors
+    }
   }
 
   class OtherTalker extends Base {
     get exposed(): LoggingCapability {
       return this.log
+    }
+
+    get errors(): ErrorCapability {
+      return super.errors
     }
   }
 
@@ -47,10 +61,13 @@ async function loadFresh() {
 
   return {
     Base,
+    ExceptionalErrors,
     TslogLogger,
     create,
     createReal,
+    createErrorCapability,
     records,
+    setRootErrors,
     setRootLogger,
     Quiet,
     Talker,
@@ -215,5 +232,77 @@ describe("Base logging: per-object child logger", () => {
 
     // @ts-expect-error log is protected, so it cannot be read from outside the class
     expect(new Quiet().log).toBeDefined()
+  })
+})
+
+describe("Base errors: root capability", () => {
+  it("provides an ErrorCapability", async () => {
+    const { Talker } = await loadFresh()
+
+    const errors: ErrorCapability = new Talker().errors
+
+    expect(errors).toBeDefined()
+  })
+
+  it("provides an ErrorCapability backed by ExceptionalErrors", async () => {
+    const { ExceptionalErrors, Talker } = await loadFresh()
+
+    const errors = new Talker().errors
+
+    expect(errors).toBeInstanceOf(ExceptionalErrors)
+  })
+
+  it("creates an exceptional error through the capability", async () => {
+    const { Talker } = await loadFresh()
+
+    const error = new Talker().errors.create("something failed")
+
+    expect(error.message).toBe("something failed")
+  })
+
+  it("uses the error capability configured by the application", async () => {
+    const { ExceptionalErrors, setRootErrors, Talker } = await loadFresh()
+    const configured = ExceptionalErrors.create()
+
+    setRootErrors(configured)
+
+    expect(new Talker().errors).toBe(configured)
+  })
+
+  it("reuses the same capability on one instance", async () => {
+    const { Talker } = await loadFresh()
+    const talker = new Talker()
+
+    const first = talker.errors
+    const again = talker.errors
+
+    expect(again).toBe(first)
+  })
+
+  it("shares the root capability across instances and classes", async () => {
+    const { Talker, OtherTalker } = await loadFresh()
+
+    const first = new Talker().errors
+    const second = new Talker().errors
+    const other = new OtherTalker().errors
+
+    expect(second).toBe(first)
+    expect(other).toBe(first)
+  })
+
+  it("keeps implementation state private", async () => {
+    const { Talker } = await loadFresh()
+    const talker = new Talker()
+
+    expect(talker.errors).toBeDefined()
+
+    expect(Reflect.ownKeys(talker)).toEqual([])
+  })
+
+  it("is inherited by every subclass but protected at compile time", async () => {
+    const { Quiet } = await loadFresh()
+
+    // @ts-expect-error errors is protected, so it cannot be read from outside the class
+    expect(new Quiet().errors).toBeDefined()
   })
 })

@@ -35,14 +35,14 @@ export class FileAccountStore extends Base implements AberMUDAccountStore {
   }
 
   async create(name: string, password: string): Promise<AberMUDAccount> {
-    const normalizedName = normalizeName(name)
-    validatePassword(password)
+    const normalizedName = this.normalizeName(name)
+    this.validatePassword(password)
 
     return withFileLock(this.file, async () => {
       const records = await this.readRecords()
 
       if (records.some(record => record.name === normalizedName)) {
-        throw new Error(`Account "${name}" already exists`)
+        throw this.errors.create(`Account "${name}" already exists`)
       }
 
       const salt = randomBytes(SALT_LENGTH)
@@ -64,23 +64,19 @@ export class FileAccountStore extends Base implements AberMUDAccountStore {
   }
 
   async authenticate(name: string, password: string): Promise<AberMUDAccount | undefined> {
-    const normalizedName = normalizeName(name)
+    const normalizedName = this.normalizeName(name)
+    this.validatePassword(password)
+
     const record = (await this.readRecords()).find(candidate => candidate.name === normalizedName)
 
     if (record === undefined) {
-      // Perform the same expensive password derivation used for a known account so that an
-      // unknown account does not immediately reveal its existence through timing alone.
       await derivePassword(password, DUMMY_SALT)
       this.log.debug({ account: normalizedName }, "Account authentication failed")
       return undefined
     }
 
-    const salt = decodeBase64(record.salt, "salt")
-    const expected = decodeBase64(record.hash, "hash")
-
-    if (salt.length !== SALT_LENGTH || expected.length !== KEY_LENGTH) {
-      throw new Error(`Invalid credentials for account "${normalizedName}"`)
-    }
+    const salt = this.decodeBase64(record.salt, "salt")
+    const expected = this.decodeBase64(record.hash, "hash")
 
     const actual = await derivePassword(password, salt)
 
@@ -100,33 +96,104 @@ export class FileAccountStore extends Base implements AberMUDAccountStore {
       const value: unknown = JSON.parse(text)
 
       if (!Array.isArray(value)) {
-        throw new Error(`Invalid AberMUD account file "${this.file}"`)
+        throw this.errors.create(`Invalid AberMUD account file "${this.file}"`)
       }
 
-      return value.map(parseRecord)
+      return value.map(value => this.parseRecord(value))
     } catch (error) {
       if (isMissingFile(error)) {
         return []
       }
 
-      throw error
+      throw this.errors.from(error)
     }
   }
 
   private async writeRecords(records: readonly AccountRecord[]): Promise<void> {
-    await mkdir(dirname(this.file), { recursive: true })
-
     const temporaryFile = `${this.file}.${randomBytes(16).toString("hex")}.tmp`
     const contents = `${JSON.stringify(records, null, 2)}\n`
 
     try {
-      await writeFile(temporaryFile, contents, { encoding: "utf8", mode: 0o600 })
+      await mkdir(dirname(this.file), { recursive: true })
+      await writeFile(temporaryFile, contents, {
+        encoding: "utf8",
+        mode: 0o600,
+      })
       await chmod(temporaryFile, 0o600)
       await rename(temporaryFile, this.file)
       await chmod(this.file, 0o600)
+    } catch (error) {
+      throw this.errors.from(error)
     } finally {
-      // A failed write or rename must not leave credentials in a predictable temporary file.
-      await unlinkIfPresent(temporaryFile)
+      await this.unlinkIfPresent(temporaryFile)
+    }
+  }
+
+  private parseRecord(value: unknown): AccountRecord {
+    if (
+      typeof value !== "object" ||
+      value === null ||
+      (value as { version?: unknown }).version !== VERSION ||
+      typeof (value as { name?: unknown }).name !== "string" ||
+      typeof (value as { salt?: unknown }).salt !== "string" ||
+      typeof (value as { hash?: unknown }).hash !== "string"
+    ) {
+      throw this.errors.create("Invalid AberMUD account record")
+    }
+
+    const record = value as AccountRecord
+
+    if (this.normalizeName(record.name) !== record.name) {
+      throw this.errors.create("Invalid AberMUD account record")
+    }
+
+    const salt = this.decodeBase64(record.salt, "salt")
+    const hash = this.decodeBase64(record.hash, "hash")
+
+    if (salt.length !== SALT_LENGTH || hash.length !== KEY_LENGTH) {
+      throw this.errors.create("Invalid AberMUD account record")
+    }
+
+    return record
+  }
+
+  private normalizeName(name: string): string {
+    const normalized = name.trim().toLowerCase()
+
+    if (normalized.length === 0) {
+      throw this.errors.create(new TypeError("An account name cannot be empty"))
+    }
+
+    return normalized
+  }
+
+  private validatePassword(password: string): void {
+    if (password.length === 0) {
+      throw this.errors.create(new TypeError("A password cannot be empty"))
+    }
+  }
+
+  private decodeBase64(value: string, field: string): Buffer {
+    if (!/^[A-Za-z0-9_-]+$/.test(value)) {
+      throw this.errors.create(`Invalid account ${field}`)
+    }
+
+    const decoded = Buffer.from(value, "base64url")
+
+    if (decoded.toString("base64url") !== value) {
+      throw this.errors.create(`Invalid account ${field}`)
+    }
+
+    return decoded
+  }
+
+  private async unlinkIfPresent(file: string): Promise<void> {
+    try {
+      await unlink(file)
+    } catch (error) {
+      if (!isMissingFile(error)) {
+        throw this.errors.from(error)
+      }
     }
   }
 }
@@ -135,10 +202,13 @@ const fileLocks = new Map<string, Promise<void>>()
 
 async function withFileLock<T>(file: string, action: () => Promise<T>): Promise<T> {
   const previous = fileLocks.get(file) ?? Promise.resolve()
+
   let release!: () => void
+
   const gate = new Promise<void>(resolve => {
     release = resolve
   })
+
   const current = previous.then(() => gate)
   fileLocks.set(file, current)
 
@@ -148,6 +218,7 @@ async function withFileLock<T>(file: string, action: () => Promise<T>): Promise<
     return await action()
   } finally {
     release()
+
     if (fileLocks.get(file) === current) {
       fileLocks.delete(file)
     }
@@ -161,76 +232,8 @@ function account(name: string): AberMUDAccount {
   }
 }
 
-function normalizeName(name: string): string {
-  const normalized = name.trim().toLowerCase()
-
-  if (normalized.length === 0) {
-    throw new TypeError("An account name cannot be empty")
-  }
-
-  return normalized
-}
-
-function validatePassword(password: string): void {
-  if (password.length === 0) {
-    throw new TypeError("A password cannot be empty")
-  }
-}
-
 async function derivePassword(password: string, salt: Buffer): Promise<Buffer> {
   return (await scrypt(password, salt, KEY_LENGTH)) as Buffer
-}
-
-function parseRecord(value: unknown): AccountRecord {
-  if (
-    typeof value !== "object" ||
-    value === null ||
-    (value as { version?: unknown }).version !== VERSION ||
-    typeof (value as { name?: unknown }).name !== "string" ||
-    typeof (value as { salt?: unknown }).salt !== "string" ||
-    typeof (value as { hash?: unknown }).hash !== "string"
-  ) {
-    throw new Error("Invalid AberMUD account record")
-  }
-
-  const record = value as AccountRecord
-
-  if (normalizeName(record.name) !== record.name) {
-    throw new Error("Invalid AberMUD account record")
-  }
-
-  const salt = decodeBase64(record.salt, "salt")
-  const hash = decodeBase64(record.hash, "hash")
-
-  if (salt.length !== SALT_LENGTH || hash.length !== KEY_LENGTH) {
-    throw new Error("Invalid AberMUD account record")
-  }
-
-  return record
-}
-
-function decodeBase64(value: string, field: string): Buffer {
-  if (!/^[A-Za-z0-9_-]+$/.test(value)) {
-    throw new Error(`Invalid account ${field}`)
-  }
-
-  const decoded = Buffer.from(value, "base64url")
-
-  if (decoded.toString("base64url") !== value) {
-    throw new Error(`Invalid account ${field}`)
-  }
-
-  return decoded
-}
-
-async function unlinkIfPresent(file: string): Promise<void> {
-  try {
-    await unlink(file)
-  } catch (error) {
-    if (!isMissingFile(error)) {
-      throw error
-    }
-  }
 }
 
 function isMissingFile(error: unknown): boolean {
