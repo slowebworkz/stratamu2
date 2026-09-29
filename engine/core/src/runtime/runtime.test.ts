@@ -360,10 +360,14 @@ describe("delayed and scheduled execution", () => {
     expect(() => runtime.submit(say("x"), schedule.after(1, "nope"))).toThrow(
       'Unknown clock "nope"',
     )
-    expect(() => runtime.submit(say("x"), schedule.after(-1, "time"))).toThrow(RangeError)
-    expect(() => runtime.submit(say("x"), schedule.after(Number.NaN, "time"))).toThrow(RangeError)
+    expect(() => runtime.submit(say("x"), schedule.after(-1, "time"))).toThrow(
+      "Invalid schedule time",
+    )
+    expect(() => runtime.submit(say("x"), schedule.after(Number.NaN, "time"))).toThrow(
+      "Invalid schedule time",
+    )
     expect(() => runtime.submit(say("x"), schedule.at(Number.POSITIVE_INFINITY, "time"))).toThrow(
-      RangeError,
+      "Invalid schedule time",
     )
     expect(runtime.submit(say("x")).id).toBe(taskId("task-0"))
   })
@@ -948,7 +952,7 @@ describe("clocks", () => {
     const { runtime } = setup()
     runtime.attachClock("huge", { now: () => ({ value: 2n ** 60n }) })
 
-    expect(() => runtime.now("huge")).toThrow(RangeError)
+    expect(() => runtime.now("huge")).toThrow("outside the safe integer range")
   })
 })
 

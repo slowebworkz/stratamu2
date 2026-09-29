@@ -257,7 +257,9 @@ export class Runtime extends Base {
     const value = clock.now().value
     const time = Number(value)
     if (!Number.isSafeInteger(time)) {
-      throw new RangeError(`Clock "${id}" read ${value}, which is outside the safe integer range`)
+      throw this.errors.create(
+        new RangeError(`Clock "${id}" read ${value}, which is outside the safe integer range`),
+      )
     }
 
     const last = this.#lastReading.get(id)
@@ -276,7 +278,7 @@ export class Runtime extends Base {
     const now = this.now(when.clock)
     const dueAt = when.kind === "after" ? now + when.delay : when.time
     if (!Number.isFinite(dueAt) || (when.kind === "after" && when.delay < 0)) {
-      throw new RangeError(`Invalid schedule time for clock "${when.clock}"`)
+      throw this.errors.create(new RangeError(`Invalid schedule time for clock "${when.clock}"`))
     }
 
     // Due already: the task is ready now rather than waiting for the clock to move.
