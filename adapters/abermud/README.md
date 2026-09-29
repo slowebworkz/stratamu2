@@ -130,10 +130,16 @@ what each one settled:
   wpnheld); }` -- one repeat per 2-second alarm tick. The `interrupt` flag is set both by
   `SIGALRM` and when keyboard I/O hasn't arrived for >2 seconds. `in_fight` is decremented
   (not cleared) on each input-loop cycle in `tk.c`. On kill: `in_fight=0; fighting=-1`. On
-  disconnect or target-leaves-room: also cleared in `parse.c`. `bloodrcv()` sets `in_fight=300;
-  fighting=attacker` on the *victim's* process too, making both sides independently counterattack
-  -- the bilateral combat pattern. Not yet modeled: the victim's own auto-counterattack loop
-  (bilateral combat); the `in_fight` guard and attacker's repeat rounds are now implemented.
+  disconnect or target-leaves-room: also cleared in `parse.c`. `bloodrcv()` (in `mud/blood.c`)
+  sets `fighting=attacker; in_fight=300;` on the *victim's* process on **both hit and miss** --
+  the victim counterattacks regardless of whether the hit landed. On hit only, `me_cal=1` is
+  also set (a flag that triggers the death check in `update()`). The victim then fires its own
+  repeat loop via the identical `update()` check, using the victim's own `wpnheld`. This is the
+  bilateral combat pattern: two independent per-actor state machines sharing the same 2-second
+  clock. Architectural implication: `Work + Runtime + Clock` is sufficient -- no new engine
+  primitive needed; scheduling a `combatRound` for the target from within `executeAttack` is the
+  natural mapping. Attacker-side `in_fight` guard and repeat loop are now implemented; victim
+  counterattack (`bloodrcv()` victim-side state) is deferred to `feature/abermud-counterattack`.
 - [`mud/new1.c`](https://github.com/DavidKinder/AberMUD2/blob/master/mud/new1.c) --
   `wearcom()`/`removecom()`/`canwear()`/`iswornby()`/`ohereandget()` for WEAR/REMOVE. `canwear()`
   is a third independent object flag (`otstbit(a,8)`), distinct from `takeable` and the weapon
