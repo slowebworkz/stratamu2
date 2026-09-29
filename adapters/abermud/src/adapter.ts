@@ -1,7 +1,7 @@
-import type { EngineAdapter, Runtime } from "@stratamu/engine-core"
+import type { ClockId, EngineAdapter, Runtime } from "@stratamu/engine-core"
 import type { Session } from "@stratamu/engine-sessions"
-import type { EntityId, PrincipalId } from "@stratamu/primitives"
 import type { WorldState } from "@stratamu/engine-world"
+import type { EntityId, PrincipalId } from "@stratamu/primitives"
 import type { Work } from "@stratamu/work"
 
 import {
@@ -37,11 +37,14 @@ import type {
 
 /** Configuration for `AberMUDAdapter`. Everything is optional; SAVE tells the player saving
  * isn't available when no `personaStore` is given. `rng` defaults to `Math.random` -- see
- * `kill.ts`'s own note on why this is a plain function, not an engine-level primitive yet. */
+ * `kill.ts`'s own note on why this is a plain function, not an engine-level primitive yet.
+ * `combatClockId` is the clock the repeated combat rounds are scheduled on (see `kill.ts`); if
+ * not provided, KILL is a single-round action with no automatic follow-up. */
 export interface AberMUDAdapterOptions {
   readonly accountStore?: AberMUDAccountStore
   readonly personaStore?: AberMUDPersonaStore
   readonly rng?: KillRng
+  readonly combatClockId?: ClockId
 }
 
 /**
@@ -73,14 +76,20 @@ export class AberMUDAdapter implements EngineAdapter<SessionInput> {
    * on `setoloc`), not about who is wearing it -- an object can only be carried by one entity at
    * a time anyway, so nothing is lost by not keying this on the wearer too. */
   readonly worn: Set<EntityId> = new Set()
+  /** Per-attacker combat state: actor -> target currently being fought. Set when an attack lands
+   * (hit or miss) and cleared when combat ends (kill, target gone, or the actor flees). Guards
+   * against issuing a second KILL while already fighting -- `in_fight` from `mud/blood.c`. */
+  readonly inFight: Map<EntityId, EntityId> = new Map()
   readonly #accountStore: AberMUDAccountStore | undefined
   readonly #personaStore: AberMUDPersonaStore | undefined
   readonly #rng: KillRng | undefined
+  readonly #combatClockId: ClockId | undefined
 
   constructor(options: AberMUDAdapterOptions = {}) {
     this.#accountStore = options.accountStore
     this.#personaStore = options.personaStore
     this.#rng = options.rng
+    this.#combatClockId = options.combatClockId
   }
 
   parse(input: SessionInput): readonly Work[] {
@@ -151,6 +160,8 @@ export class AberMUDAdapter implements EngineAdapter<SessionInput> {
       this.worn,
       this.#personaStore,
       this.#rng,
+      this.inFight,
+      this.#combatClockId,
     )
   }
 }

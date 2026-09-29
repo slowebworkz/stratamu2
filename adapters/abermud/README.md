@@ -118,8 +118,22 @@ what each one settled:
   overlooked: no room broadcast anywhere in `hitplayer()`, only direct writes to the attacker and
   `sendsys` to the victim -- and no "attack" verb at all (`mud/parse.c`'s own vocabulary is
   "kill"/"hit"/"fire"/"launch"/"smash"/"shoot"/"break", all one verb number). Not yet modeled:
-  `in_fight`/`fighting`'s per-actor lock against a second KILL while one is already resolving, and
   monster targets (`victim<16`'s other branch, `woundmn()`) -- a wholly separate subsystem.
+- [`mud/parse.c`](https://github.com/DavidKinder/AberMUD2/blob/master/mud/parse.c) (combat loop
+  section), [`mud/gamego.c`](https://github.com/DavidKinder/AberMUD2/blob/master/mud/gamego.c),
+  and [`mud/mobile.c`](https://github.com/DavidKinder/AberMUD2/blob/master/mud/mobile.c) --
+  the full combat loop and the `in_fight`/`fighting` lock. Key findings: `in_fight=300;
+  fighting=victim;` is set at the start of every `hitplayer()` call; a second KILL while
+  `in_fight != 0` returns `"You are already fighting!\n"` immediately. The repeat is driven by
+  `parse.c`'s `update()` function (called from `rte()`, itself called by the `SIGALRM` handler
+  that fires every 2 seconds): `if(in_fight && interrupt) { in_fight=0; hitplayer(fighting,
+  wpnheld); }` -- one repeat per 2-second alarm tick. The `interrupt` flag is set both by
+  `SIGALRM` and when keyboard I/O hasn't arrived for >2 seconds. `in_fight` is decremented
+  (not cleared) on each input-loop cycle in `tk.c`. On kill: `in_fight=0; fighting=-1`. On
+  disconnect or target-leaves-room: also cleared in `parse.c`. `bloodrcv()` sets `in_fight=300;
+  fighting=attacker` on the *victim's* process too, making both sides independently counterattack
+  -- the bilateral combat pattern. Not yet modeled: the victim's own auto-counterattack loop
+  (bilateral combat); the `in_fight` guard and attacker's repeat rounds are now implemented.
 - [`mud/new1.c`](https://github.com/DavidKinder/AberMUD2/blob/master/mud/new1.c) --
   `wearcom()`/`removecom()`/`canwear()`/`iswornby()`/`ohereandget()` for WEAR/REMOVE. `canwear()`
   is a third independent object flag (`otstbit(a,8)`), distinct from `takeable` and the weapon
@@ -321,11 +335,13 @@ separately-named functions rather than one long handler, each naming a real piec
 
 Deliberately minimal beyond that: no containers (`put X in Y`, `get X from Y`), no carry-capacity
 limit, no RESET, no world-file persistence, and no interactive new-character creation. Combat
-itself is now only a single discrete action, not the source's actual continuous system: no
-`in_fight`/`fighting` per-actor lock against overlapping fights, no repeated rounds or scheduling,
-no `kill X with Y`'s specific-weapon override, no `kill <object>` (`breakitem()`), and no monster
-targets at all -- `woundmn()`'s side of `hitplayer()` is a wholly separate subsystem this slice
-never touches. Character initialization/load, account authentication, and the login *flow* that
+now models the source's `in_fight`/`fighting` lock (a second KILL while already fighting is
+refused with `"You are already fighting!"`) and the attacker's repeated auto-rounds (driven by
+a clock via `AberMUDAdapterOptions.combatClockId`; one round per clock tick, matching the source's
+2-second `SIGALRM`-driven loop). Still not modeled: bilateral counterattack (`bloodrcv()`'s
+victim-side `in_fight`/`fighting` -- the victim's automatic reply attacks), `kill X with Y`'s
+specific-weapon override, `kill <object>` (`breakitem()`), and monster targets -- `woundmn()`'s
+side of `hitplayer()` is a wholly separate subsystem this slice never touches. Character initialization/load, account authentication, and the login *flow* that
 ties them together and hands a connection off into ordinary game input
 (`runAberMUDLogin`, see "What exists") are all implemented; what remains outside this adapter is
 the transport itself -- sockets, Telnet or any other protocol -- which is

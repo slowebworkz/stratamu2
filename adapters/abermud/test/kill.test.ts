@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest"
 
 import { testSession } from "./fixtures/session.ts"
 import { abermudFixture } from "./fixtures/world.ts"
+import type { CombatClock } from "./fixtures/world.ts"
 
 /** A deterministic stand-in for `Math.random`, returning each of `values` in turn (cycling once
  * exhausted). `kill.ts` calls its `rng` once for the to-hit roll and, only on a hit, once more
@@ -391,5 +392,72 @@ describe("KILL", () => {
       { kind: "combat", perspective: "attacker", outcome: "hit", attacker: "alice", victim: "bob" },
     ])
     expect(adapter.wielding.has(alicePlayer)).toBe(false)
+  })
+
+  it("refuses a second KILL command while already in combat", async () => {
+    // rng=[0, 0.5]: first KILL hits, bob survives (strength 10-2=8). alice is now in_fight.
+    // alice immediately submits KILL bob again before a combat tick fires -- should be refused.
+    const { runtime, world, sessions, adapter, here, bobPlayer } = abermudFixture({
+      rng: sequence([0, 0.5]),
+      withCombatClock: true,
+    })
+    world.locate(bobPlayer, here)
+    const alice = testSession("session-1", "alice")
+    const bob = testSession("session-2", "bob")
+    sessions.open(alice)
+    sessions.open(bob)
+
+    for (const item of adapter.parse({ session: alice, raw: "kill bob" })) {
+      runtime.submit({ work: item })
+    }
+    await runtime.drain()
+
+    // First round resolved -- alice is now in_fight.
+    alice.output.length = 0
+    bob.output.length = 0
+
+    for (const item of adapter.parse({ session: alice, raw: "kill bob" })) {
+      runtime.submit({ work: item })
+    }
+    await runtime.drain()
+
+    expect(alice.output).toEqual([{ kind: "refusal", reason: "already-fighting" }])
+  })
+
+  it("automatically attacks again after one combat tick when the target survives", async () => {
+    // Round 1: rng=[0, 0.5] → hit, damage 2. Round 2: rng cycles → same sequence → hit again.
+    // Bob starts at strength 10; after round 1: 8; after round 2: 6.
+    const { runtime, world, sessions, adapter, here, bobPlayer, combatClock } = abermudFixture({
+      rng: sequence([0, 0.5]),
+      withCombatClock: true,
+    })
+    world.locate(bobPlayer, here)
+    const alice = testSession("session-1", "alice")
+    const bob = testSession("session-2", "bob")
+    sessions.open(alice)
+    sessions.open(bob)
+
+    for (const item of adapter.parse({ session: alice, raw: "kill bob" })) {
+      runtime.submit({ work: item })
+    }
+    await runtime.drain()
+
+    expect(adapter.personas.get(bobPlayer)?.strength).toBe(8)
+    const roundOneOutput = alice.output.length
+
+    // Advance the combat clock by 1 tick to trigger the next round.
+    ;(combatClock as CombatClock).tick(1)
+    await runtime.drain()
+
+    expect(adapter.personas.get(bobPlayer)?.strength).toBe(6)
+    // alice got a second combat output for the second round
+    expect(alice.output.length).toBe(roundOneOutput + 1)
+    expect(alice.output[roundOneOutput]).toEqual({
+      kind: "combat",
+      perspective: "attacker",
+      outcome: "hit",
+      attacker: "alice",
+      victim: "bob",
+    })
   })
 })

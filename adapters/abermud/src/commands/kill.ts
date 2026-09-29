@@ -1,10 +1,12 @@
-import type { Runtime, TaskContext } from "@stratamu/engine-core"
+import type { ClockId, Runtime, TaskContext } from "@stratamu/engine-core"
+import { schedule } from "@stratamu/engine-core"
 import type { Session } from "@stratamu/engine-sessions"
 import type { WorldState } from "@stratamu/engine-world"
 import type { EntityId, PrincipalId } from "@stratamu/primitives"
-import { workKind } from "@stratamu/work"
+import { work, workKind } from "@stratamu/work"
 
 import type { Control } from "../control.ts"
+import { principalControlling } from "../control.ts"
 import { type CombatOutput, type KilledOutput, refusal } from "../output.ts"
 import type { AberMUDPersona, AberMUDPersonaStore } from "../persistence/index.ts"
 import type { AberObjectDefinition } from "../world/index.ts"
@@ -169,6 +171,126 @@ async function handleDeath(
 }
 
 /**
+ * Resolves a target by entity id back to an `ActiveCharacter` -- the combat-round equivalent of
+ * `resolveActiveCharacter`, used when we already have the entity rather than a name. Returns
+ * `undefined` for any of: the entity is no longer controlled, its principal has no active session.
+ */
+function resolveTargetByEntity(
+  entity: EntityId,
+  control: Control,
+  sessions: Parameters<typeof resolveActiveCharacter>[3],
+): ActiveCharacter | undefined {
+  const principal = principalControlling(control, entity)
+  if (principal === undefined) return undefined
+  const session = sessions?.activeFor(principal)
+  if (session === undefined) return undefined
+  return { entity, principal, session }
+}
+
+/**
+ * One full attack round: weapon resolution, to-hit roll, damage roll, output, state mutations,
+ * death handling. Called by the initial KILL handler and by the scheduled `combatRound` handler
+ * — `hitplayer()` in `mud/blood.c`, reused the same way the source reuses it.
+ *
+ * Schedules the next round via `clockId` when the target survives. Clears `inFight` on kill;
+ * sets it (and schedules the follow-up) on miss/non-lethal hit.
+ */
+async function executeAttack(
+  actor: EntityId,
+  attackerSession: Session | undefined,
+  attackerName: PrincipalId | EntityId,
+  target: CombatTarget,
+  location: EntityId,
+  context: TaskContext,
+  runtime: Runtime,
+  objects: ReadonlyMap<EntityId, AberObjectDefinition>,
+  personas: Map<EntityId, AberMUDPersona>,
+  wielding: Map<EntityId, EntityId>,
+  worn: Set<EntityId>,
+  store: AberMUDPersonaStore | undefined,
+  inFight: Map<EntityId, EntityId>,
+  clockId: ClockId | undefined,
+  rng: Rng,
+): Promise<void> {
+  const attackerPersona = personas.get(actor)
+  const victimPersona = personas.get(target.entity)
+  if (attackerPersona === undefined || victimPersona === undefined) {
+    attackerSession?.send(refusal("cant-find-them"))
+    inFight.delete(actor)
+    return
+  }
+
+  const weapon = resolveWeapon(actor, context.world, objects, wielding)
+  const hit = rollAttack(
+    attackerPersona.level,
+    hasWornItem(target.entity, context.world, worn),
+    rng,
+  )
+
+  const victimName = target.principal
+
+  if (!hit) {
+    sendCombatResult(attackerSession, target.session, {
+      kind: "combat",
+      outcome: "miss",
+      attacker: attackerName,
+      victim: victimName,
+      weapon: weapon.definition?.name,
+    })
+    scheduleNextRound(actor, target.entity, runtime, inFight, clockId)
+    return
+  }
+
+  const damage = rollDamage(weapon.damage, rng)
+  sendCombatResult(attackerSession, target.session, {
+    kind: "combat",
+    outcome: "hit",
+    attacker: attackerName,
+    victim: victimName,
+    weapon: weapon.definition?.name,
+  })
+
+  const remainingStrength = victimPersona.strength - damage
+  personas.set(target.entity, { ...victimPersona, strength: remainingStrength })
+  personas.set(actor, { ...attackerPersona, score: attackerPersona.score + damage * 2 })
+
+  if (remainingStrength >= 0) {
+    scheduleNextRound(actor, target.entity, runtime, inFight, clockId)
+    return
+  }
+
+  inFight.delete(actor)
+  await handleDeath(
+    actor,
+    attackerSession,
+    attackerName,
+    target,
+    victimPersona,
+    location,
+    context,
+    personas,
+    worn,
+    wielding,
+    store,
+  )
+}
+
+/** Marks the actor as fighting `targetEntity` and schedules the next combat round if a clock is
+ * available. Matches `hitplayer()`'s `fighting=victim; in_fight=300;` at the end of each round. */
+function scheduleNextRound(
+  actor: EntityId,
+  targetEntity: EntityId,
+  runtime: Runtime,
+  inFight: Map<EntityId, EntityId>,
+  clockId: ClockId | undefined,
+): void {
+  inFight.set(actor, targetEntity)
+  if (clockId !== undefined) {
+    runtime.submit({ work: work(combatRound, { actor, target: targetEntity }) }, schedule.after(1, clockId))
+  }
+}
+
+/**
  * KILL: attacks another character. Verified against `killcom()`/`hitplayer()`/`bloodrcv()` in
  * `mud/blood.c`. The source's own synonyms are "shoot"/"hit"/"fire"/"launch"/"smash"/"break" (all
  * the same verb number in `mud/parse.c`'s `verbtxt`/`verbnum`) -- note there is no "attack" in the
@@ -192,16 +314,23 @@ async function handleDeath(
  * and `kill X with Y` (a specific-weapon override of what's wielded) -- both deliberately deferred,
  * since this slice's job is the smallest single attack, not the full command grammar.
  *
- * Not modeled from `hitplayer()`/`bloodrcv()`: `in_fight`/`fighting`'s per-actor combat lock and
- * `wpnheld`'s hit-time weapon reassignment, and monster targets (`victim<16`'s other branch,
- * `woundmn()`) -- a completely separate subsystem this slice doesn't touch, so KILL only resolves
- * against another controlled, connected character for now. Whether and how combat repeats is the
- * next question this slice exists to force, not answer.
+ * `in_fight` guard: `hitplayer()` checks `if(in_fight)` and returns "You are already fighting!"
+ * when the actor is mid-combat. Modeled here via `inFight.has(actor)`. The repeated combat rounds
+ * are driven by a clock (`clockId`); if no clock is registered the loop is one-and-done.
+ *
+ * Not yet modeled: monster targets (`victim<16`'s other branch, `woundmn()`) -- a completely
+ * separate subsystem this slice doesn't touch. Bilateral combat (victim auto-counterattacking) is
+ * also not yet modeled: `bloodrcv()` sets the victim's own `in_fight`/`fighting`, but the engine
+ * architecture for non-player-initiated periodic actions is still open.
  *
  * No room broadcast: the source itself has none here either, unlike GET/DROP/WIELD -- `hitplayer()`
  * only ever writes to the attacker directly and `sendsys`s the victim, nothing broader.
  */
 export const kill = workKind("abermud.kill")
+
+/** A scheduled follow-up attack, driven by the combat clock. Carries the actor/target entity pair
+ * established when the previous round landed -- the same role `fighting` plays in the source. */
+export const combatRound = workKind("abermud.combat-round")
 
 export function registerKill(
   runtime: Runtime,
@@ -213,6 +342,8 @@ export function registerKill(
   worn: Set<EntityId>,
   store: AberMUDPersonaStore | undefined,
   rng: Rng = Math.random,
+  inFight: Map<EntityId, EntityId> = new Map(),
+  clockId?: ClockId,
 ): void {
   runtime.handle(kill, async (task, context) => {
     const { session, name } = task.work.input as { session: Session | undefined; name: string }
@@ -223,6 +354,12 @@ export function registerKill(
     }
     if (name.trim().length === 0) {
       session?.send(refusal("kill-who"))
+      return
+    }
+
+    // in_fight guard: hitplayer() returns "You are already fighting!" if in_fight is set.
+    if (inFight.has(actor)) {
+      session?.send(refusal("already-fighting"))
       return
     }
 
@@ -246,63 +383,78 @@ export function registerKill(
       return
     }
 
-    const attackerPersona = personas.get(actor)
-    const victimPersona = personas.get(target.entity)
-    if (attackerPersona === undefined || victimPersona === undefined) {
-      session?.send(refusal("cant-find-them"))
-      return
-    }
-
-    const weapon = resolveWeapon(actor, context.world, objects, wielding)
-    const hit = rollAttack(
-      attackerPersona.level,
-      hasWornItem(target.entity, context.world, worn),
-      rng,
-    )
-
     const attackerName = session?.principalId ?? actor
-    const victimName = target.principal
 
-    if (!hit) {
-      sendCombatResult(session, target.session, {
-        kind: "combat",
-        outcome: "miss",
-        attacker: attackerName,
-        victim: victimName,
-        weapon: weapon.definition?.name,
-      })
-      return
-    }
-
-    const damage = rollDamage(weapon.damage, rng)
-    sendCombatResult(session, target.session, {
-      kind: "combat",
-      outcome: "hit",
-      attacker: attackerName,
-      victim: victimName,
-      weapon: weapon.definition?.name,
-    })
-
-    const remainingStrength = victimPersona.strength - damage
-    personas.set(target.entity, { ...victimPersona, strength: remainingStrength })
-    personas.set(actor, { ...attackerPersona, score: attackerPersona.score + damage * 2 })
-
-    if (remainingStrength >= 0) {
-      return
-    }
-
-    await handleDeath(
+    await executeAttack(
       actor,
       session,
       attackerName,
       target,
-      victimPersona,
       location,
       context,
+      runtime,
+      objects,
       personas,
-      worn,
       wielding,
+      worn,
       store,
+      inFight,
+      clockId,
+      rng,
+    )
+  })
+
+  runtime.handle(combatRound, async (task, context) => {
+    const { actor, target: targetEntity } = task.work.input as {
+      actor: EntityId
+      target: EntityId
+    }
+
+    // Guard: if inFight no longer points to this target, this round was superseded or cancelled.
+    if (inFight.get(actor) !== targetEntity) return
+
+    // Validate: target must still be alive (has persona) and in the same room.
+    const location = context.world?.locationOf(actor)
+    if (location === undefined) {
+      inFight.delete(actor)
+      return
+    }
+    if (context.world?.locationOf(targetEntity) !== location) {
+      inFight.delete(actor)
+      return
+    }
+
+    const target = resolveTargetByEntity(targetEntity, control, context.sessions)
+    if (target === undefined) {
+      inFight.delete(actor)
+      return
+    }
+
+    // Clear inFight before the attack so it can be re-set for the next round (or left clear on kill).
+    inFight.delete(actor)
+
+    const attackerPrincipal = principalControlling(control, actor)
+    const attackerSession = attackerPrincipal !== undefined
+      ? context.sessions?.activeFor(attackerPrincipal)
+      : undefined
+    const attackerName: PrincipalId | EntityId = attackerPrincipal ?? actor
+
+    await executeAttack(
+      actor,
+      attackerSession,
+      attackerName,
+      target,
+      location,
+      context,
+      runtime,
+      objects,
+      personas,
+      wielding,
+      worn,
+      store,
+      inFight,
+      clockId,
+      rng,
     )
   })
 }

@@ -46,6 +46,7 @@ export type RefusalReason =
   | "cant-kill-self"
   | "cant-find-them"
   | "not-here-to-fight"
+  | "already-fighting"
 
 /** An action that could not be performed. `target-absent` names who was asked for, as typed. */
 export type RefusalOutput =
@@ -253,6 +254,8 @@ export function renderRefusal(output: RefusalOutput): string {
       return "You can't do that"
     case "not-here-to-fight":
       return "They aren't here"
+    case "already-fighting":
+      return "You are already fighting!"
   }
 }
 

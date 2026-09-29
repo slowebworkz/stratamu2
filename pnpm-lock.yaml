@@ -248,6 +248,9 @@ importers:
         specifier: workspace:*
         version: link:../../libs/work
     devDependencies:
+      '@stratamu/clock':
+        specifier: workspace:*
+        version: link:../../libs/clock
       '@stratamu/entity':
         specifier: workspace:*
         version: link:../../libs/entity
