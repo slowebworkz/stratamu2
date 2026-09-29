@@ -394,6 +394,88 @@ describe("KILL", () => {
     expect(adapter.wielding.has(alicePlayer)).toBe(false)
   })
 
+  it("clears combat and allows a new KILL when the target leaves the room before the next round", async () => {
+    // Round 1: non-lethal hit → alice is in_fight, next round scheduled.
+    // Bob moves to another room before the tick fires.
+    // The combat-round handler sees target no longer co-located → clears inFight, no attack.
+    // Alice can then issue a fresh KILL (location refusal, not "already-fighting").
+    const {
+      runtime,
+      world,
+      sessions,
+      adapter,
+      here,
+      there,
+      alicePlayer,
+      bobPlayer,
+      combatClock,
+    } = abermudFixture({ rng: sequence([0, 0.5]), withCombatClock: true })
+    world.locate(bobPlayer, here)
+    const alice = testSession("session-1", "alice")
+    const bob = testSession("session-2", "bob")
+    sessions.open(alice)
+    sessions.open(bob)
+
+    for (const item of adapter.parse({ session: alice, raw: "kill bob" })) {
+      runtime.submit({ work: item })
+    }
+    await runtime.drain()
+    expect(adapter.inFight.get(alicePlayer)).toBe(bobPlayer)
+
+    // Bob moves away before the combat tick.
+    world.locate(bobPlayer, there)
+    ;(combatClock as CombatClock).tick(1)
+    await runtime.drain()
+
+    expect(adapter.inFight.size).toBe(0)
+
+    // Confirm alice is no longer locked: a new KILL gives the location refusal, not "already-fighting".
+    alice.output.length = 0
+    for (const item of adapter.parse({ session: alice, raw: "kill bob" })) {
+      runtime.submit({ work: item })
+    }
+    await runtime.drain()
+
+    expect(alice.output).toEqual([{ kind: "refusal", reason: "not-here-to-fight" }])
+  })
+
+  it("clears combat when the attacker's entity is removed before the next round fires", async () => {
+    // Simulates disconnect/death: world.remove() removes the actor.
+    // The combat-round handler sees locationOf(actor) === undefined → clears inFight, no attack.
+    const {
+      runtime,
+      world,
+      sessions,
+      adapter,
+      here,
+      alicePlayer,
+      bobPlayer,
+      combatClock,
+    } = abermudFixture({ rng: sequence([0, 0.5]), withCombatClock: true })
+    world.locate(bobPlayer, here)
+    const alice = testSession("session-1", "alice")
+    const bob = testSession("session-2", "bob")
+    sessions.open(alice)
+    sessions.open(bob)
+
+    for (const item of adapter.parse({ session: alice, raw: "kill bob" })) {
+      runtime.submit({ work: item })
+    }
+    await runtime.drain()
+    expect(adapter.inFight.get(alicePlayer)).toBe(bobPlayer)
+
+    const strengthBeforeTick = adapter.personas.get(bobPlayer)?.strength
+
+    // Actor's entity is removed (disconnect / death in another context).
+    world.remove(alicePlayer)
+    ;(combatClock as CombatClock).tick(1)
+    await runtime.drain()
+
+    // inFight cleared; bob untouched (no second attack fired).
+    expect(adapter.inFight.size).toBe(0)
+    expect(adapter.personas.get(bobPlayer)?.strength).toBe(strengthBeforeTick)
+  })
+
   it("does not lock the actor when no combat clock is configured", async () => {
     // Without a combat clock, KILL is single-round: inFight must not be set, so a second
     // player-initiated KILL must succeed rather than returning "already-fighting".
