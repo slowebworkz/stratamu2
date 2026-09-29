@@ -19,6 +19,7 @@
   },
   "dependencies": {
     "emittery": "catalog:",
+    "exceptional-errors": "catalog:",
     "tslog": "catalog:"
   },
   "devDependencies": {
