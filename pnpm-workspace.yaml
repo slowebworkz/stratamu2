@@ -30,6 +30,7 @@ catalog:
   tslog: ^5.2.0
 
   # Testing
+  lint-staged: ^16.0.0
   vitest: ^4.1.11
 
   # TypeScript (pinned to 6.x)
