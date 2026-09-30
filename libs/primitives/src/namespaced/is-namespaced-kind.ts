@@ -1,4 +1,4 @@
-import { isNonEmptyString } from "guardz"
+import { isNonEmptyString } from "@stratamu/guards"
 
 // This pattern must not have the `g` or `y` flag: `test` would then keep state between calls and
 // alternate between matching and not matching.

@@ -1,8 +1,9 @@
+import { isNonNullObject } from "@stratamu/guards"
 import { describe, expect, it } from "vitest"
 
 import { testSession } from "./fixtures/session.ts"
-import { abermudFixture } from "./fixtures/world.ts"
 import type { CombatClock } from "./fixtures/world.ts"
+import { abermudFixture } from "./fixtures/world.ts"
 
 /** A deterministic stand-in for `Math.random`, returning each of `values` in turn (cycling once
  * exhausted). `kill.ts` calls its `rng` once for the to-hit roll and, only on a hit, once more
@@ -654,7 +655,7 @@ describe("KILL", () => {
     // Bob is removed from the world (handleDeath calls world.remove).
     expect(world.locationOf(bobPlayer)).toBeUndefined()
     for (const output of alice.output) {
-      if (typeof output === "object" && output !== null && "perspective" in output) {
+      if (isNonNullObject(output) && "perspective" in output) {
         expect((output as { perspective: unknown }).perspective).toBe("attacker")
       }
     }

@@ -1,4 +1,4 @@
-import { isNonEmptyString } from "guardz"
+import { isNonEmptyString } from "@stratamu/guards"
 
 /**
  * The identity of an authenticated principal, independent of any particular connection: who is

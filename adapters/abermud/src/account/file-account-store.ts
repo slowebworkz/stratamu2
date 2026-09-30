@@ -4,6 +4,7 @@ import { dirname } from "node:path"
 import { promisify } from "node:util"
 
 import { Base } from "@stratamu/base"
+import { isNonNullObject, isString } from "@stratamu/guards"
 import { principalId } from "@stratamu/primitives"
 
 import type { AberMUDAccount, AberMUDAccountStore } from "./account.ts"
@@ -131,17 +132,16 @@ export class FileAccountStore extends Base implements AberMUDAccountStore {
 
   private parseRecord(value: unknown): AccountRecord {
     if (
-      typeof value !== "object" ||
-      value === null ||
-      (value as { version?: unknown }).version !== VERSION ||
-      typeof (value as { name?: unknown }).name !== "string" ||
-      typeof (value as { salt?: unknown }).salt !== "string" ||
-      typeof (value as { hash?: unknown }).hash !== "string"
+      !isNonNullObject(value) ||
+      value.version !== VERSION ||
+      !isString(value.name) ||
+      !isString(value.salt) ||
+      !isString(value.hash)
     ) {
       throw this.errors.create("Invalid AberMUD account record")
     }
 
-    const record = value as AccountRecord
+    const record = value as unknown as AccountRecord
 
     if (this.normalizeName(record.name) !== record.name) {
       throw this.errors.create("Invalid AberMUD account record")
@@ -240,5 +240,5 @@ async function derivePassword(password: string, salt: Buffer): Promise<Buffer> {
 }
 
 function isMissingFile(error: unknown): boolean {
-  return typeof error === "object" && error !== null && "code" in error && error.code === "ENOENT"
+  return isNonNullObject(error) && "code" in error && error.code === "ENOENT"
 }

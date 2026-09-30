@@ -19,6 +19,7 @@
   },
   "dependencies": {
     "@stratamu/base": "workspace:*",
+    "@stratamu/guards": "workspace:*",
     "@stratamu/capabilities": "workspace:*",
     "@stratamu/clock": "workspace:*",
     "@stratamu/engine-sessions": "workspace:*",

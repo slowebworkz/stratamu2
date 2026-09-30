@@ -1,5 +1,5 @@
 {
-  "name": "@stratamu/adapter-abermud",
+  "name": "@stratamu/guards",
   "version": "0.0.0",
   "private": true,
   "type": "module",
@@ -18,17 +18,9 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@stratamu/base": "workspace:*",
-    "@stratamu/guards": "workspace:*",
-    "@stratamu/engine-core": "workspace:*",
-    "@stratamu/engine-sessions": "workspace:*",
-    "@stratamu/engine-world": "workspace:*",
-    "@stratamu/primitives": "workspace:*",
-    "@stratamu/work": "workspace:*"
+    "guardz": "catalog:"
   },
   "devDependencies": {
-    "@stratamu/clock": "workspace:*",
-    "@stratamu/entity": "workspace:*",
     "@stratamu/eslint": "workspace:*",
     "@stratamu/typescript-config": "workspace:*",
     "@types/node": "catalog:",
