@@ -654,8 +654,8 @@ describe("KILL", () => {
     // Bob is removed from the world (handleDeath calls world.remove).
     expect(world.locationOf(bobPlayer)).toBeUndefined()
     for (const output of alice.output) {
-      if ("perspective" in output) {
-        expect(output.perspective).toBe("attacker")
+      if (typeof output === "object" && output !== null && "perspective" in output) {
+        expect((output as { perspective: unknown }).perspective).toBe("attacker")
       }
     }
   })
