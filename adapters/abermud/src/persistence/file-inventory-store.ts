@@ -89,11 +89,7 @@ export class FileInventoryStore extends Base implements AberMUDInventoryStore {
       !isNonEmptyString(value.name) ||
       !isArrayWithEachItem(isEntityIdString)(value.inventory) ||
       !isArrayWithEachItem(isEntityIdString)(value.worn) ||
-      !(
-        value.wielding === null ||
-        value.wielding === undefined ||
-        isNonEmptyString(value.wielding)
-      )
+      !(value.wielding === null || value.wielding === undefined || isNonEmptyString(value.wielding))
     ) {
       throw this.errors.create("Invalid AberMUD inventory record")
     }

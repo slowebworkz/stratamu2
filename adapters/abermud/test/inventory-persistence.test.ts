@@ -163,7 +163,12 @@ describe("inventory persistence", () => {
       const { world, adapter, sword, shield } = abermudFixture({ personaStore, inventoryStore })
       const session = testSession("session-carol", "carol")
 
-      await inventoryStore.save({ name: "carol", inventory: [sword, shield], worn: [shield], wielding: sword })
+      await inventoryStore.save({
+        name: "carol",
+        inventory: [sword, shield],
+        worn: [shield],
+        wielding: sword,
+      })
 
       const character = await adapter.login(world, session, "carol")
 
@@ -182,7 +187,12 @@ describe("inventory persistence", () => {
       const session = testSession("session-carol", "carol")
       const ghost = entityId("abermud.object:nonexistent")
 
-      await inventoryStore.save({ name: "carol", inventory: [sword, ghost], worn: [], wielding: undefined })
+      await inventoryStore.save({
+        name: "carol",
+        inventory: [sword, ghost],
+        worn: [],
+        wielding: undefined,
+      })
 
       const character = await adapter.login(world, session, "carol")
 
@@ -199,7 +209,12 @@ describe("inventory persistence", () => {
       const session = testSession("session-carol", "carol")
       const ghost = entityId("abermud.object:ghost-item")
 
-      await inventoryStore.save({ name: "carol", inventory: [ghost], worn: [ghost], wielding: ghost })
+      await inventoryStore.save({
+        name: "carol",
+        inventory: [ghost],
+        worn: [ghost],
+        wielding: ghost,
+      })
 
       const character = await adapter.login(world, session, "carol")
 
@@ -230,7 +245,10 @@ describe("inventory persistence", () => {
       const inventoryStore = new FileInventoryStore(join(dir, "inventory"))
       await personaStore.save({ name: "carol", score: 0, strength: 40, sex: 0, level: 1 })
 
-      const { world, runtime, adapter, sword, here } = abermudFixture({ personaStore, inventoryStore })
+      const { world, runtime, adapter, sword, here } = abermudFixture({
+        personaStore,
+        inventoryStore,
+      })
       world.locate(sword, here)
       const session = testSession("session-carol", "carol")
 

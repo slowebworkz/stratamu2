@@ -153,14 +153,30 @@ export class AberMUDAdapter implements EngineAdapter<SessionInput> {
     registerSay(runtime, this.control)
     registerTell(runtime, this.control, this.charactersByName)
     registerWho(runtime, this.control, this.charactersByName)
-    registerSave(runtime, this.control, this.personas, this.#personaStore, this.worn, this.wielding, this.#inventoryStore)
+    registerSave(
+      runtime,
+      this.control,
+      this.personas,
+      this.#personaStore,
+      this.worn,
+      this.wielding,
+      this.#inventoryStore,
+    )
     registerGet(runtime, this.control, this.objects)
     registerDrop(runtime, this.control, this.objects, this.worn, this.wielding)
     registerInventory(runtime, this.control, this.objects)
     registerWield(runtime, this.control, this.objects, this.wielding)
     registerWear(runtime, this.control, this.objects, this.worn)
     registerRemove(runtime, this.control, this.objects, this.worn)
-    registerQuit(runtime, this.control, this.personas, this.#personaStore, this.worn, this.wielding, this.#inventoryStore)
+    registerQuit(
+      runtime,
+      this.control,
+      this.personas,
+      this.#personaStore,
+      this.worn,
+      this.wielding,
+      this.#inventoryStore,
+    )
     registerKill(
       runtime,
       this.control,

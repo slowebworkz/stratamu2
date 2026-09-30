@@ -75,7 +75,15 @@ export async function loginCharacter(
     character = existingCharacter
   } else {
     const persona = await loadOrCreatePersona(store, options.name, options.sex)
-    character = createCharacter(world, charactersByName, personas, control, principal, options.name, persona)
+    character = createCharacter(
+      world,
+      charactersByName,
+      personas,
+      control,
+      principal,
+      options.name,
+      persona,
+    )
   }
 
   if (inventoryStore !== undefined) {
