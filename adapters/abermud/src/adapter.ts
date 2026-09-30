@@ -28,7 +28,11 @@ import type { Control } from "./control.ts"
 import { loginCharacter, type AberMUDSex } from "./character/index.ts"
 import type { SessionInput } from "./parser.ts"
 import { parseAberMUD } from "./parser.ts"
-import type { AberMUDPersona, AberMUDPersonaStore } from "./persistence/index.ts"
+import type {
+  AberMUDInventoryStore,
+  AberMUDPersona,
+  AberMUDPersonaStore,
+} from "./persistence/index.ts"
 import type {
   AberMobileDefinition,
   AberObjectDefinition,
@@ -42,6 +46,7 @@ import type {
  * not provided, KILL is a single-round action with no automatic follow-up. */
 export interface AberMUDAdapterOptions {
   readonly accountStore?: AberMUDAccountStore
+  readonly inventoryStore?: AberMUDInventoryStore
   readonly personaStore?: AberMUDPersonaStore
   readonly rng?: KillRng
   readonly combatClockId?: ClockId
@@ -82,12 +87,14 @@ export class AberMUDAdapter implements EngineAdapter<SessionInput> {
    * stays empty -- so `inFight.has(actor)` never becomes a permanent lockout. */
   readonly inFight: Map<EntityId, EntityId> = new Map()
   readonly #accountStore: AberMUDAccountStore | undefined
+  readonly #inventoryStore: AberMUDInventoryStore | undefined
   readonly #personaStore: AberMUDPersonaStore | undefined
   readonly #rng: KillRng | undefined
   readonly #combatClockId: ClockId | undefined
 
   constructor(options: AberMUDAdapterOptions = {}) {
     this.#accountStore = options.accountStore
+    this.#inventoryStore = options.inventoryStore
     this.#personaStore = options.personaStore
     this.#rng = options.rng
     this.#combatClockId = options.combatClockId
@@ -128,6 +135,9 @@ export class AberMUDAdapter implements EngineAdapter<SessionInput> {
       this.charactersByName,
       this.personas,
       this.#personaStore,
+      this.worn,
+      this.wielding,
+      this.#inventoryStore,
       {
         session,
         name,
@@ -143,14 +153,14 @@ export class AberMUDAdapter implements EngineAdapter<SessionInput> {
     registerSay(runtime, this.control)
     registerTell(runtime, this.control, this.charactersByName)
     registerWho(runtime, this.control, this.charactersByName)
-    registerSave(runtime, this.control, this.personas, this.#personaStore)
+    registerSave(runtime, this.control, this.personas, this.#personaStore, this.worn, this.wielding, this.#inventoryStore)
     registerGet(runtime, this.control, this.objects)
     registerDrop(runtime, this.control, this.objects, this.worn, this.wielding)
     registerInventory(runtime, this.control, this.objects)
     registerWield(runtime, this.control, this.objects, this.wielding)
     registerWear(runtime, this.control, this.objects, this.worn)
     registerRemove(runtime, this.control, this.objects, this.worn)
-    registerQuit(runtime, this.control, this.personas, this.#personaStore, this.worn, this.wielding)
+    registerQuit(runtime, this.control, this.personas, this.#personaStore, this.worn, this.wielding, this.#inventoryStore)
     registerKill(
       runtime,
       this.control,

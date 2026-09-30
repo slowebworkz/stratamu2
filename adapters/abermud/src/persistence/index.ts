@@ -1,5 +1,7 @@
+export { FileInventoryStore } from "./file-inventory-store.ts"
 export type { AberMUDPersonaStore } from "./file-persona-store.ts"
 export { FilePersonaStore } from "./file-persona-store.ts"
+export type { AberMUDInventoryRecord, AberMUDInventoryStore } from "./inventory.ts"
 export type { AberMUDPersona } from "./persona.ts"
 export type { UafRandLayout } from "./uaf-rand-codec.ts"
 export {

@@ -5,7 +5,11 @@ import { workKind } from "@stratamu/work"
 
 import type { Control } from "../control.ts"
 import { type QuitOutput, refusal } from "../output.ts"
-import type { AberMUDPersona, AberMUDPersonaStore } from "../persistence/index.ts"
+import type {
+  AberMUDInventoryStore,
+  AberMUDPersona,
+  AberMUDPersonaStore,
+} from "../persistence/index.ts"
 import { resolveActor } from "./look.ts"
 import { activeSessionsInRoom } from "./recipients.ts"
 
@@ -46,6 +50,7 @@ export function registerQuit(
   store: AberMUDPersonaStore | undefined,
   worn: Set<EntityId>,
   wielding: Map<EntityId, EntityId>,
+  inventoryStore: AberMUDInventoryStore | undefined,
 ): void {
   runtime.handle(quit, async (task, context) => {
     const { session } = task.work.input as { session: Session | undefined }
@@ -68,6 +73,9 @@ export function registerQuit(
     }
 
     const persona = personas.get(actor)
+    if (inventoryStore !== undefined && persona !== undefined) {
+      await inventoryStore.delete(persona.name)
+    }
     if (store !== undefined && persona !== undefined) {
       await store.save(persona)
     }

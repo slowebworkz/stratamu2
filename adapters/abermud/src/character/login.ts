@@ -3,7 +3,11 @@ import type { WorldState } from "@stratamu/engine-world"
 import type { EntityId, PrincipalId } from "@stratamu/primitives"
 
 import { type Control, principalControlling } from "../control.ts"
-import type { AberMUDPersona, AberMUDPersonaStore } from "../persistence/index.ts"
+import type {
+  AberMUDInventoryStore,
+  AberMUDPersona,
+  AberMUDPersonaStore,
+} from "../persistence/index.ts"
 import { createCharacter } from "./create-character.ts"
 import type { AberMUDSex } from "./create-persona.ts"
 import { establishControl } from "./establish-control.ts"
@@ -30,6 +34,9 @@ export interface LoginCharacterOptions {
  * The interactive prompt is deliberately represented here as `sex` input rather than being
  * embedded in the transport/session layer. The historical password/user-file authentication
  * path is not part of this slice.
+ *
+ * When an `inventoryStore` is provided, the character's last-saved carried items, worn set, and
+ * wielded weapon are restored into the world after the entity is established.
  */
 export async function loginCharacter(
   world: WorldState,
@@ -37,6 +44,9 @@ export async function loginCharacter(
   charactersByName: Map<string, EntityId>,
   personas: Map<EntityId, AberMUDPersona>,
   store: AberMUDPersonaStore,
+  worn: Set<EntityId>,
+  wielding: Map<EntityId, EntityId>,
+  inventoryStore: AberMUDInventoryStore | undefined,
   options: LoginCharacterOptions,
 ): Promise<EntityId> {
   const principal = requirePrincipal(options.session)
@@ -56,27 +66,50 @@ export async function loginCharacter(
     throw new Error(`Principal "${principal}" already controls "${control.get(principal)}"`)
   }
 
+  let character: EntityId
+
   if (existingCharacter !== undefined) {
     const persona = await loadPersona(store, options.name)
     personas.set(existingCharacter, persona)
     establishControl(control, principal, existingCharacter)
-    return existingCharacter
+    character = existingCharacter
+  } else {
+    const persona = await loadOrCreatePersona(store, options.name, options.sex)
+    character = createCharacter(world, charactersByName, personas, control, principal, options.name, persona)
   }
 
-  // For a new character this persists to `store` before the world/control state below exists;
-  // a failure in between leaves the persona saved with no matching character. Not atomic, and
-  // deliberately not made so here -- revisit once persistence/recovery semantics are developed.
-  const persona = await loadOrCreatePersona(store, options.name, options.sex)
+  if (inventoryStore !== undefined) {
+    await restoreInventory(world, worn, wielding, inventoryStore, character, options.name)
+  }
 
-  return createCharacter(
-    world,
-    charactersByName,
-    personas,
-    control,
-    principal,
-    options.name,
-    persona,
-  )
+  return character
+}
+
+async function restoreInventory(
+  world: WorldState,
+  worn: Set<EntityId>,
+  wielding: Map<EntityId, EntityId>,
+  inventoryStore: AberMUDInventoryStore,
+  character: EntityId,
+  name: string,
+): Promise<void> {
+  const record = await inventoryStore.load(name)
+  if (record === undefined) return
+
+  const located = new Set<EntityId>()
+  for (const itemId of record.inventory) {
+    if (!world.has(itemId)) continue
+    world.locate(itemId, character)
+    located.add(itemId)
+  }
+
+  for (const itemId of record.worn) {
+    if (located.has(itemId)) worn.add(itemId)
+  }
+
+  if (record.wielding !== undefined && located.has(record.wielding)) {
+    wielding.set(character, record.wielding)
+  }
 }
 
 function requirePrincipal(session: Session): PrincipalId {
