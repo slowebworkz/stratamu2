@@ -3,13 +3,13 @@ import turbo from "eslint-plugin-turbo"
 import tseslint from "typescript-eslint"
 
 /**
- * `guardz` is an implementation dependency of `@stratamu/primitives`, not part of Stratamu's own
- * vocabulary. Packages import the guards from `@stratamu/primitives`.
+ * `guardz` is an implementation dependency of `@stratamu/guards`, not part of Stratamu's own
+ * vocabulary. Packages import the guards from `@stratamu/guards`.
  */
 export const guardz = {
   group: ["guardz", "guardz/*"],
   message:
-    "guardz is an implementation detail of @stratamu/primitives. Import its guards, such as isTaskId, from @stratamu/primitives instead.",
+    "guardz is an implementation detail of @stratamu/guards. Import type guards from @stratamu/guards instead.",
 }
 
 /**
