@@ -192,8 +192,10 @@ function resolveTargetByEntity(
  * death handling. Called by the initial KILL handler and by the scheduled `combatRound` handler
  * — `hitplayer()` in `mud/blood.c`, reused the same way the source reuses it.
  *
- * Schedules the next round via `clockId` when the target survives. Clears `inFight` on kill;
- * sets it (and schedules the follow-up) on miss/non-lethal hit.
+ * Schedules the next attacker round and the victim's counterattack (`bloodrcv()`) when the target
+ * survives. `bloodrcv()` sets the victim's `fighting`/`in_fight` on both hit and miss; the same
+ * `scheduleNextRound` call used for the attacker serves for the victim, since the loop is
+ * symmetric. Clears `inFight[actor]` on kill (victim is dead; no counterattack).
  */
 async function executeAttack(
   actor: EntityId,
@@ -238,6 +240,8 @@ async function executeAttack(
       weapon: weapon.definition?.name,
     })
     scheduleNextRound(actor, target.entity, runtime, inFight, clockId)
+    // bloodrcv(): victim's fighting/in_fight set on miss too -- victim counterattacks regardless.
+    scheduleNextRound(target.entity, actor, runtime, inFight, clockId)
     return
   }
 
@@ -256,6 +260,9 @@ async function executeAttack(
 
   if (remainingStrength >= 0) {
     scheduleNextRound(actor, target.entity, runtime, inFight, clockId)
+    // bloodrcv(): victim's fighting/in_fight set on hit too (me_cal=1 also set, but that's the
+    // death-check flag for the already-handled kill path; here the victim survives and replies).
+    scheduleNextRound(target.entity, actor, runtime, inFight, clockId)
     return
   }
 
@@ -328,10 +335,12 @@ function scheduleNextRound(
  * when the actor is mid-combat. Modeled here via `inFight.has(actor)`. The repeated combat rounds
  * are driven by a clock (`clockId`); if no clock is registered the loop is one-and-done.
  *
+ * Bilateral combat: `bloodrcv()` sets the victim's own `in_fight`/`fighting` on both hit and miss,
+ * causing the victim to counterattack via the same `combatRound` loop. Modeled here by calling
+ * `scheduleNextRound(target, actor, ...)` from `executeAttack` on every non-kill outcome.
+ *
  * Not yet modeled: monster targets (`victim<16`'s other branch, `woundmn()`) -- a completely
- * separate subsystem this slice doesn't touch. Bilateral combat (victim auto-counterattacking) is
- * also not yet modeled: `bloodrcv()` sets the victim's own `in_fight`/`fighting`, but the engine
- * architecture for non-player-initiated periodic actions is still open.
+ * separate subsystem this slice doesn't touch.
  *
  * No room broadcast: the source itself has none here either, unlike GET/DROP/WIELD -- `hitplayer()`
  * only ever writes to the attacker directly and `sendsys`s the victim, nothing broader.
