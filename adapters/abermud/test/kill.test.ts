@@ -1,4 +1,4 @@
-import { isNonNullObject } from "@stratamu/primitives"
+import { isNonNullObject } from "@stratamu/guards"
 import { describe, expect, it } from "vitest"
 
 import { testSession } from "./fixtures/session.ts"

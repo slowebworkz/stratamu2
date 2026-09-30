@@ -1,3 +1,5 @@
+import { isNonNullObject } from "@stratamu/guards"
+
 import type { Schedule } from "../schedule/index.ts"
 
 /**
@@ -41,7 +43,7 @@ export function reschedule(schedule: Schedule, continuation?: unknown): TaskResc
 
 /** Whether `result` is a plain object whose `next` property is `value`. */
 function hasNext(result: unknown, value: TaskResult["next"]): boolean {
-  return typeof result === "object" && result !== null && "next" in result && result.next === value
+  return isNonNullObject(result) && "next" in result && result.next === value
 }
 
 export function isTaskSuspend(result: unknown): result is TaskSuspend {

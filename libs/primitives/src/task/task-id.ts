@@ -1,4 +1,4 @@
-import { isNonEmptyString } from "guardz"
+import { isNonEmptyString } from "@stratamu/guards"
 
 /**
  * The identity of a task. It is not a plain string, so an id cannot be confused with a kind or

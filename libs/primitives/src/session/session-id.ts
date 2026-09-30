@@ -1,4 +1,4 @@
-import { isNonEmptyString } from "guardz"
+import { isNonEmptyString } from "@stratamu/guards"
 
 /**
  * The identity of one session: a particular connection instance, not the person using it. A

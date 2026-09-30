@@ -1,4 +1,4 @@
-import { isOneOf } from "guardz"
+import { isOneOf } from "@stratamu/guards"
 
 /** Every task state, in the order a task moves through them. */
 export const TASK_STATES = [
@@ -35,7 +35,7 @@ export const TASK_STATES = [
  */
 export type TaskState = (typeof TASK_STATES)[number]
 
-const isState = isOneOf<TaskState>(...TASK_STATES)
+const isState = isOneOf(TASK_STATES)
 
 /**
  * Whether a value is a task state. Use it on data that has not been checked, such as a state read

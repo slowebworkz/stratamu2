@@ -1,5 +1,4 @@
 export * from "./entity/index.ts"
-export * from "./guards/index.ts"
 export * from "./namespaced/index.ts"
 export * from "./session/index.ts"
 export * from "./task/index.ts"
