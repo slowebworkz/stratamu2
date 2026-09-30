@@ -1,6 +1,7 @@
 import { Base } from "@stratamu/base"
 import type { Engine } from "@stratamu/engine-core"
 import type { Session } from "@stratamu/engine-sessions"
+import { isDefined } from "@stratamu/guards"
 import { type EntityId, sessionId } from "@stratamu/primitives"
 
 import type { AberMUDAdapter } from "../adapter.ts"
@@ -80,7 +81,7 @@ class LoginFlow extends Base {
 
   #onLine(raw: string): void {
     if (this.#stage === "playing") {
-      if (this.#session === undefined) {
+      if (!isDefined(this.#session)) {
         // Unreachable: `session` is always set before `stage` becomes "playing". Guarded so a
         // future refactor that breaks that invariant fails loudly instead of dereferencing
         // `undefined`.
@@ -142,7 +143,7 @@ class LoginFlow extends Base {
 
     if (this.#closed) return
 
-    if (principal === undefined) {
+    if (!isDefined(principal)) {
       this.#connection.write("Login incorrect.\r\n")
       this.#stage = "name"
       this.#connection.write("Name: ")
@@ -200,7 +201,7 @@ class LoginFlow extends Base {
 
   #onClose(): void {
     this.#closed = true
-    if (this.#session !== undefined) {
+    if (isDefined(this.#session)) {
       this.#engine.sessions.disconnect(this.#session.id)
     }
   }

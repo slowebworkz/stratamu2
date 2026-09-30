@@ -1,6 +1,7 @@
 import type { LoggingCapability } from "@stratamu/capabilities"
 import type { Runtime } from "@stratamu/engine-core"
 import type { Session } from "@stratamu/engine-sessions"
+import { isDefined } from "@stratamu/guards"
 import type { EntityId } from "@stratamu/primitives"
 import { workKind } from "@stratamu/work"
 
@@ -57,13 +58,13 @@ export function registerQuit(
   runtime.handle(quit, async (task, context) => {
     const { session } = task.work.input as { session: Session | undefined }
     const actor = resolveActor(control, session)
-    if (actor === undefined) {
+    if (!isDefined(actor)) {
       session?.send(refusal("not-controlling"))
       return
     }
 
     const location = context.world?.locationOf(actor)
-    if (location !== undefined) {
+    if (isDefined(location)) {
       const carried = [...(context.world?.occupants(actor) ?? [])]
       for (const id of carried) {
         context.world?.locate(id, location)
@@ -76,10 +77,10 @@ export function registerQuit(
 
     const persona = personas.get(actor)
     try {
-      if (inventoryStore !== undefined && persona !== undefined) {
+      if (isDefined(inventoryStore) && isDefined(persona)) {
         await inventoryStore.delete(persona.name)
       }
-      if (store !== undefined && persona !== undefined) {
+      if (isDefined(store) && isDefined(persona)) {
         await store.save(persona)
       }
     } catch (error) {
@@ -91,7 +92,7 @@ export function registerQuit(
     const actorName = session?.principalId ?? actor
     session?.send({ kind: "quit", perspective: "actor", name: actorName } satisfies QuitOutput)
 
-    if (location === undefined) {
+    if (!isDefined(location)) {
       return
     }
     for (const recipient of activeSessionsInRoom(

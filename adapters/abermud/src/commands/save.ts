@@ -1,5 +1,6 @@
 import type { Runtime } from "@stratamu/engine-core"
 import type { Session } from "@stratamu/engine-sessions"
+import { isDefined } from "@stratamu/guards"
 import type { EntityId } from "@stratamu/primitives"
 import { workKind } from "@stratamu/work"
 
@@ -30,22 +31,22 @@ export function registerSave(
   runtime.handle(save, async (task, context) => {
     const { session } = task.work.input as { session: Session | undefined }
     const actor = resolveActor(control, session)
-    if (actor === undefined) {
+    if (!isDefined(actor)) {
       session?.send(refusal("not-controlling"))
       return
     }
-    if (store === undefined) {
+    if (!isDefined(store)) {
       session?.send(refusal("save-unavailable"))
       return
     }
     const persona = personas.get(actor)
-    if (persona === undefined) {
+    if (!isDefined(persona)) {
       session?.send(refusal("nothing-to-save"))
       return
     }
     try {
       await store.save(persona)
-      if (inventoryStore !== undefined && context.world !== undefined) {
+      if (isDefined(inventoryStore) && isDefined(context.world)) {
         const carried = [...context.world.occupants(actor)]
         await inventoryStore.save({
           name: persona.name,
