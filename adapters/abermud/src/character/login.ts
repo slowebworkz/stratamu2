@@ -107,6 +107,20 @@ async function restoreInventory(
   const located = new Set<EntityId>()
   for (const itemId of record.inventory) {
     if (!world.has(itemId)) continue
+    const currentHolder = world.locationOf(itemId)
+    if (currentHolder === character) {
+      // Item is already in this character's inventory (e.g. reconnecting without a clean quit).
+      // Track it so worn/wielding state is still applied; don't re-locate.
+      located.add(itemId)
+      continue
+    }
+    if (currentHolder !== undefined) {
+      const holderType = world.get(currentHolder)?.type
+      if (holderType === "abermud.player" || holderType === "abermud.mobile") {
+        // Item is currently held by another entity. Don't claim it silently.
+        continue
+      }
+    }
     world.locate(itemId, character)
     located.add(itemId)
   }

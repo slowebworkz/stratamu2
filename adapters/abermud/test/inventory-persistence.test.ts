@@ -240,6 +240,64 @@ describe("inventory persistence", () => {
       expect([...world.occupants(character)]).toHaveLength(0)
     })
 
+    it("skips items currently held by another character", async () => {
+      const personaStore = new FilePersonaStore(join(dir, "uaf.rand"))
+      const inventoryStore = new FileInventoryStore(join(dir, "inventory"))
+      await personaStore.save({ name: "carol", score: 0, strength: 40, sex: 0, level: 1 })
+
+      const { world, adapter, sword, bobPlayer } = abermudFixture({ personaStore, inventoryStore })
+      const session = testSession("session-carol", "carol")
+
+      // Sword is currently in bob's inventory
+      world.locate(sword, bobPlayer)
+
+      // Carol's saved record says she had the sword last time
+      await inventoryStore.save({
+        name: "carol",
+        inventory: [sword],
+        worn: [],
+        wielding: sword,
+      })
+
+      const character = await adapter.login(world, session, "carol")
+
+      // Bob should still have the sword — restoration must not steal from another character
+      expect(world.locationOf(sword)).toBe(bobPlayer)
+      expect([...world.occupants(character)]).not.toContain(sword)
+      expect(adapter.wielding.has(character)).toBe(false)
+    })
+
+    it("restores worn/wielding for items already in the restoring character's inventory", async () => {
+      const personaStore = new FilePersonaStore(join(dir, "uaf.rand"))
+      const inventoryStore = new FileInventoryStore(join(dir, "inventory"))
+      await personaStore.save({ name: "carol", score: 0, strength: 40, sex: 0, level: 1 })
+
+      const { world, adapter, sword } = abermudFixture({ personaStore, inventoryStore })
+      const session1 = testSession("session-carol", "carol")
+
+      // First login — creates carol's entity
+      const character = await adapter.login(world, session1, "carol")
+      // Sword is in carol's possession (not moved back on disconnect)
+      world.locate(sword, character)
+
+      await inventoryStore.save({
+        name: "carol",
+        inventory: [sword],
+        worn: [],
+        wielding: sword,
+      })
+
+      // Simulate disconnect without QUIT: remove control but leave sword in world at carol
+      adapter.control.delete(principalId("carol"))
+
+      const session2 = testSession("session-carol-2", "carol")
+      const character2 = await adapter.login(world, session2, "carol")
+
+      expect(character2).toBe(character)
+      expect([...world.occupants(character2)]).toContain(sword)
+      expect(adapter.wielding.get(character2)).toBe(sword)
+    })
+
     it("full round-trip: GET → WIELD → SAVE → logout → re-login restores state", async () => {
       const personaStore = new FilePersonaStore(join(dir, "uaf.rand"))
       const inventoryStore = new FileInventoryStore(join(dir, "inventory"))
