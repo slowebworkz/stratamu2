@@ -1,3 +1,4 @@
+import { Base } from "@stratamu/base"
 import type { ClockId, EngineAdapter, Runtime } from "@stratamu/engine-core"
 import type { Session } from "@stratamu/engine-sessions"
 import type { WorldState } from "@stratamu/engine-world"
@@ -60,7 +61,7 @@ export interface AberMUDAdapterOptions {
  * score/strength/sex/level -- generic `WorldState`/`Entity` deliberately carry none of this),
  * and AberMUD's own room/mobile/object definitions -- none of it known to the generic engine.
  */
-export class AberMUDAdapter implements EngineAdapter<SessionInput> {
+export class AberMUDAdapter extends Base implements EngineAdapter<SessionInput> {
   readonly control: Control = new Map()
   /** Character name (lower case) -> the `EntityId` it names. TELL and WHO resolve a name to a
    * character here, then `control` resolves that character to whoever plays it. */
@@ -93,6 +94,7 @@ export class AberMUDAdapter implements EngineAdapter<SessionInput> {
   readonly #combatClockId: ClockId | undefined
 
   constructor(options: AberMUDAdapterOptions = {}) {
+    super()
     this.#accountStore = options.accountStore
     this.#inventoryStore = options.inventoryStore
     this.#personaStore = options.personaStore
@@ -176,6 +178,7 @@ export class AberMUDAdapter implements EngineAdapter<SessionInput> {
       this.worn,
       this.wielding,
       this.#inventoryStore,
+      this.log,
     )
     registerKill(
       runtime,

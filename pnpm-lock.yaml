@@ -238,6 +238,9 @@ importers:
       '@stratamu/base':
         specifier: workspace:*
         version: link:../../libs/base
+      '@stratamu/capabilities':
+        specifier: workspace:*
+        version: link:../../libs/capabilities
       '@stratamu/engine-core':
         specifier: workspace:*
         version: link:../../engine/core

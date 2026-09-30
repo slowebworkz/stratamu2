@@ -11,7 +11,7 @@ import {
 } from "@stratamu/adapter-abermud"
 import { Engine } from "@stratamu/engine-core"
 import { entityId } from "@stratamu/primitives"
-import { afterEach, describe, expect, it } from "vitest"
+import { afterEach, describe, expect, it, vi } from "vitest"
 
 import { createLineServer, type LineServer } from "../src/index.ts"
 import { receiver } from "./support/receiver.ts"
@@ -133,6 +133,86 @@ describe("AberMUD login over Telnet", () => {
     } finally {
       socket.destroy()
     }
+  })
+
+  it("reprompts for a name when authenticate throws unexpectedly", async () => {
+    const { adapter, engine } = await fixture()
+    // Make authenticate throw on the first call only, then succeed normally.
+    const spy = vi.spyOn(adapter, "authenticate").mockRejectedValueOnce(new Error("disk full"))
+    server = createLineServer(connection => {
+      runAberMUDLogin({ connection, engine, adapter })
+    })
+    const port = await server.listen(0, "127.0.0.1")
+    const socket = connect(port, "127.0.0.1")
+    try {
+      const { until } = receiver(socket)
+
+      await until("Name: ")
+      socket.write("alice\r\n")
+      await until("Password: ")
+      socket.write("secret\r\n")
+
+      // Login flow must catch the error and reprompt rather than crashing the server.
+      const afterFail = await until("Login failed.")
+      const afterReprompt = await until("Name: ", afterFail)
+
+      // Restore normal authenticate and log in successfully on the second attempt.
+      spy.mockRestore()
+      socket.write("alice\r\n")
+      await until("Password: ", afterReprompt)
+      socket.write("secret\r\n")
+      await until("ready", afterReprompt)
+    } finally {
+      socket.destroy()
+      vi.restoreAllMocks()
+    }
+  })
+
+  it("does not write to the connection after it closes during authentication", async () => {
+    const { adapter, engine } = await fixture()
+    let connectionsClosed = 0
+    server = createLineServer(connection => {
+      connection.onClose(() => {
+        connectionsClosed++
+      })
+      runAberMUDLogin({ connection, engine, adapter })
+    })
+    const port = await server.listen(0, "127.0.0.1")
+
+    // First connection: close immediately after sending the password (mid-auth).
+    await new Promise<void>(resolve => {
+      const socket = connect(port, "127.0.0.1")
+      const { until } = receiver(socket)
+      void until("Name: ")
+        .then(() => {
+          socket.write("alice\r\n")
+          return until("Password: ")
+        })
+        .then(() => {
+          socket.write("secret\r\n")
+          // Destroy before auth can resolve.
+          socket.destroy()
+          resolve()
+        })
+    })
+
+    // Give the in-flight authenticate time to resolve and attempt writes.
+    await new Promise(resolve => setTimeout(resolve, 150))
+
+    // The server must still be up: a second connection must complete normally.
+    const socket2 = connect(port, "127.0.0.1")
+    try {
+      const { until } = receiver(socket2)
+      await until("Name: ")
+      socket2.write("alice\r\n")
+      await until("Password: ")
+      socket2.write("secret\r\n")
+      await until("ready")
+    } finally {
+      socket2.destroy()
+    }
+
+    expect(connectionsClosed).toBeGreaterThanOrEqual(1)
   })
 
   it("ignores a line that arrives while authentication is still in flight", async () => {

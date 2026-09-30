@@ -1,5 +1,7 @@
+import type { LoggingCapability } from "@stratamu/capabilities"
 import type { Runtime } from "@stratamu/engine-core"
 import type { Session } from "@stratamu/engine-sessions"
+import { isDefined } from "@stratamu/guards"
 import type { EntityId } from "@stratamu/primitives"
 import { workKind } from "@stratamu/work"
 
@@ -51,17 +53,18 @@ export function registerQuit(
   worn: Set<EntityId>,
   wielding: Map<EntityId, EntityId>,
   inventoryStore: AberMUDInventoryStore | undefined,
+  log: LoggingCapability,
 ): void {
   runtime.handle(quit, async (task, context) => {
     const { session } = task.work.input as { session: Session | undefined }
     const actor = resolveActor(control, session)
-    if (actor === undefined) {
+    if (!isDefined(actor)) {
       session?.send(refusal("not-controlling"))
       return
     }
 
     const location = context.world?.locationOf(actor)
-    if (location !== undefined) {
+    if (isDefined(location)) {
       const carried = [...(context.world?.occupants(actor) ?? [])]
       for (const id of carried) {
         context.world?.locate(id, location)
@@ -73,17 +76,23 @@ export function registerQuit(
     }
 
     const persona = personas.get(actor)
-    if (inventoryStore !== undefined && persona !== undefined) {
-      await inventoryStore.delete(persona.name)
-    }
-    if (store !== undefined && persona !== undefined) {
-      await store.save(persona)
+    try {
+      if (isDefined(inventoryStore) && isDefined(persona)) {
+        await inventoryStore.delete(persona.name)
+      }
+      if (isDefined(store) && isDefined(persona)) {
+        await store.save(persona)
+      }
+    } catch (error) {
+      // Persistence failure during QUIT: the character is still leaving. Log it so the
+      // operator can see it, but let the disconnect proceed — the player already quit.
+      log.error({ err: error }, "Persistence failed during QUIT")
     }
 
     const actorName = session?.principalId ?? actor
     session?.send({ kind: "quit", perspective: "actor", name: actorName } satisfies QuitOutput)
 
-    if (location === undefined) {
+    if (!isDefined(location)) {
       return
     }
     for (const recipient of activeSessionsInRoom(
