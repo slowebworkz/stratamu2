@@ -1,3 +1,4 @@
+import type { LoggingCapability } from "@stratamu/capabilities"
 import type { Runtime } from "@stratamu/engine-core"
 import type { Session } from "@stratamu/engine-sessions"
 import type { EntityId } from "@stratamu/primitives"
@@ -51,6 +52,7 @@ export function registerQuit(
   worn: Set<EntityId>,
   wielding: Map<EntityId, EntityId>,
   inventoryStore: AberMUDInventoryStore | undefined,
+  log: LoggingCapability,
 ): void {
   runtime.handle(quit, async (task, context) => {
     const { session } = task.work.input as { session: Session | undefined }
@@ -73,11 +75,17 @@ export function registerQuit(
     }
 
     const persona = personas.get(actor)
-    if (inventoryStore !== undefined && persona !== undefined) {
-      await inventoryStore.delete(persona.name)
-    }
-    if (store !== undefined && persona !== undefined) {
-      await store.save(persona)
+    try {
+      if (inventoryStore !== undefined && persona !== undefined) {
+        await inventoryStore.delete(persona.name)
+      }
+      if (store !== undefined && persona !== undefined) {
+        await store.save(persona)
+      }
+    } catch (error) {
+      // Persistence failure during QUIT: the character is still leaving. Log it so the
+      // operator can see it, but let the disconnect proceed — the player already quit.
+      log.error({ err: error }, "Persistence failed during QUIT")
     }
 
     const actorName = session?.principalId ?? actor

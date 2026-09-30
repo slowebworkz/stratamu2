@@ -93,6 +93,11 @@ export interface SavedOutput {
   readonly name: string
 }
 
+/** A SAVE command failed because persistence threw an unexpected error. */
+export interface SaveFailedOutput {
+  readonly kind: "save-failed"
+}
+
 /**
  * An object was picked up. One event, sent to each recipient with `perspective` saying which
  * side of it they are on, the same reasoning `SpeechOutput` already uses -- but here the two
@@ -190,6 +195,7 @@ export type AberOutput =
   | ExitsOutput
   | PlayersOutput
   | SavedOutput
+  | SaveFailedOutput
   | TakenOutput
   | DroppedOutput
   | InventoryOutput
@@ -285,6 +291,10 @@ export function renderSaved(output: SavedOutput): string {
   return `Saving ${output.name}`
 }
 
+export function renderSaveFailed(): string {
+  return "Save failed."
+}
+
 /** How a pickup reads as text, from the recipient's side of it. Verbatim AberMUD II wording. */
 export function renderTaken(output: TakenOutput): string {
   return output.perspective === "actor" ? "Ok..." : `${output.actor} takes the ${output.item}`
@@ -362,6 +372,8 @@ export function renderOutput(output: AberOutput): string {
       return renderPlayers(output)
     case "saved":
       return renderSaved(output)
+    case "save-failed":
+      return renderSaveFailed()
     case "taken":
       return renderTaken(output)
     case "dropped":

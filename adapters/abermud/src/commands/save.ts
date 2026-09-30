@@ -4,7 +4,7 @@ import type { EntityId } from "@stratamu/primitives"
 import { workKind } from "@stratamu/work"
 
 import type { Control } from "../control.ts"
-import { refusal, type SavedOutput } from "../output.ts"
+import { refusal, type SavedOutput, type SaveFailedOutput } from "../output.ts"
 import type {
   AberMUDInventoryStore,
   AberMUDPersona,
@@ -43,15 +43,20 @@ export function registerSave(
       session?.send(refusal("nothing-to-save"))
       return
     }
-    await store.save(persona)
-    if (inventoryStore !== undefined && context.world !== undefined) {
-      const carried = [...context.world.occupants(actor)]
-      await inventoryStore.save({
-        name: persona.name,
-        inventory: carried,
-        worn: carried.filter(id => worn.has(id)),
-        wielding: wielding.get(actor),
-      })
+    try {
+      await store.save(persona)
+      if (inventoryStore !== undefined && context.world !== undefined) {
+        const carried = [...context.world.occupants(actor)]
+        await inventoryStore.save({
+          name: persona.name,
+          inventory: carried,
+          worn: carried.filter(id => worn.has(id)),
+          wielding: wielding.get(actor),
+        })
+      }
+    } catch {
+      session?.send({ kind: "save-failed" } satisfies SaveFailedOutput)
+      return
     }
     session?.send({ kind: "saved", name: persona.name } satisfies SavedOutput)
   })
