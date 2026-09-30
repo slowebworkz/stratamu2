@@ -1,0 +1,30 @@
+{
+  "name": "@stratamu/server",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "license": "MIT",
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "create-account": "node dist/create-account.js",
+    "dev": "tsc -p tsconfig.build.json && node dist/main.js",
+    "start": "node dist/main.js",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@stratamu/adapter-abermud": "workspace:*",
+    "@stratamu/engine-core": "workspace:*",
+    "@stratamu/engine-world": "workspace:*",
+    "@stratamu/plugin-telnet": "workspace:*",
+    "@stratamu/primitives": "workspace:*"
+  },
+  "devDependencies": {
+    "@stratamu/eslint": "workspace:*",
+    "@stratamu/typescript-config": "workspace:*",
+    "@types/node": "catalog:",
+    "eslint": "catalog:",
+    "typescript": "catalog:"
+  }
+}

@@ -1,6 +1,7 @@
 {
   "$schema": "https://turborepo.com/schema.json",
   "ui": "tui",
+  "globalPassThroughEnv": ["STRATAMU_DATA", "STRATAMU_PORT"],
   "tasks": {
     "build": {
       "dependsOn": ["^build"],
