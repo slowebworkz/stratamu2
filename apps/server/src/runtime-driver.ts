@@ -1,22 +1,44 @@
+import type { Clock, MonotonicTime } from "@stratamu/clock"
+import { MonotonicClock } from "@stratamu/clock"
 import type { Runtime } from "@stratamu/engine-core"
+import { Instant } from "@stratamu/primitives"
 
-/** What the driver needs from a combat clock: advance by one tick. `ManualClock<TDomain>` (see
- * `@stratamu/clock`) satisfies this with `advance(Duration.from<TDomain>(1n))`; kept this narrow
- * so the driver doesn't need to know the clock's domain. */
+/** What the driver needs from a combat clock: advance by a whole number of ticks. `ManualClock<TDomain>`
+ * (see `@stratamu/clock`) satisfies this with `advance(Duration.from<TDomain>(BigInt(units)))`;
+ * kept this narrow so the driver doesn't need to know the clock's domain. A count, not a fixed
+ * single bump, so a tick that fires having measured more than one `tickMs` of real elapsed time
+ * (see `RuntimeDriverOptions.monotonicClock`) can advance by that many units in one call, rather
+ * than silently falling behind real time. */
 export interface TickableClock {
-  advance(): void
+  advance(units: number): void
+}
+
+/** Just enough of a logger to report a tick failure -- not `Pick<Console, "error">` itself, whose
+ * overloaded signature a plain `{ error: vi.fn() }` test double can't structurally satisfy (the
+ * same fix already applied to `ShutdownLog` in `./shutdown.ts`). */
+export interface RuntimeDriverLog {
+  error(message: string, error: unknown): void
 }
 
 export interface RuntimeDriverOptions {
   readonly runtime: Runtime
   readonly combatClock: TickableClock
-  /** Real milliseconds between ticks. Default 1000: one combat round per second. */
+  /** Real milliseconds per combat-clock unit. Default 1000: one combat round per second. */
   readonly tickMs?: number
   /** `pump`'s step budget per tick -- a ceiling on work done in one tick, not a target; unused
    * budget is never wasted, since work left ready simply waits for the next tick (see
    * `Runtime.pump`'s own doc comment). Default 50, independent of `LoginFlow`'s own per-line
    * budget. */
   readonly stepBudget?: number
+  /** The real-time source a tick measures elapsed time against, to know how many whole `tickMs`
+   * units actually passed since the last one -- injected, not reached for, the same reason
+   * `combatClock` itself is a parameter rather than something the driver constructs: a test needs
+   * a controllable source of elapsed time, not real `performance.now()`. Defaults to
+   * `new MonotonicClock()`. */
+  readonly monotonicClock?: Clock<Instant<MonotonicTime>>
+  /** Where a tick failure (a thrown/rejected `combatClock.advance()` or `runtime.pump()`) is
+   * reported. Defaults to `console.error`. */
+  readonly log?: RuntimeDriverLog
 }
 
 export interface RuntimeDriver {
@@ -48,26 +70,59 @@ export interface RuntimeDriver {
  *
  * A recursive `setTimeout`, not a bare `setInterval`: each tick awaits its own `pump` to finish
  * before the next is scheduled, so a slow step never causes overlapping ticks.
+ *
+ * Each tick measures real elapsed time against `monotonicClock` rather than assuming exactly
+ * `tickMs` passed (a `setTimeout` callback can fire late -- event-loop lag, a slow pump, a GC
+ * pause -- never early), and advances the combat clock by however many whole `tickMs` units
+ * actually elapsed, carrying any fractional remainder forward into the next tick's own
+ * measurement rather than losing it every time (the standard fixed-timestep-with-accumulator
+ * technique).
+ *
+ * A tick failure -- `combatClock.advance()` or `runtime.pump()` throwing/rejecting -- is caught,
+ * logged, and does not stop future ticks from being scheduled: a single bad tick is survived, not
+ * fatal to the driver for the rest of the process's life.
  */
 export function createRuntimeDriver(options: RuntimeDriverOptions): RuntimeDriver {
-  const { runtime, combatClock, tickMs = 1000, stepBudget = 50 } = options
+  const {
+    runtime,
+    combatClock,
+    tickMs = 1000,
+    stepBudget = 50,
+    monotonicClock = new MonotonicClock(),
+    log = { error: (message, error) => console.error(message, error) },
+  } = options
 
   let running = false
   let busy = false
   let timer: NodeJS.Timeout | undefined
   let inFlight: Promise<void> = Promise.resolve()
+  let lastTickAt: Instant<MonotonicTime> = monotonicClock.now()
 
   const runPump = async (): Promise<void> => {
     busy = true
     try {
       await runtime.pump(stepBudget)
+    } catch (error) {
+      log.error("Runtime pump failed", error)
     } finally {
       busy = false
     }
   }
 
+  const advanceCombatClock = (): void => {
+    try {
+      const now = monotonicClock.now()
+      const elapsedMs = Number(now.value - lastTickAt.value)
+      const units = Math.max(1, Math.floor(elapsedMs / tickMs))
+      lastTickAt = Instant.from<MonotonicTime>(lastTickAt.value + BigInt(units) * BigInt(tickMs))
+      combatClock.advance(units)
+    } catch (error) {
+      log.error("Combat clock advance failed", error)
+    }
+  }
+
   const tick = async (): Promise<void> => {
-    combatClock.advance()
+    advanceCombatClock()
     await runPump()
     if (running) {
       timer = setTimeout(() => {
@@ -82,6 +137,7 @@ export function createRuntimeDriver(options: RuntimeDriverOptions): RuntimeDrive
         throw new Error("The runtime driver is already started")
       }
       running = true
+      lastTickAt = monotonicClock.now()
       timer = setTimeout(() => {
         inFlight = tick()
       }, tickMs)

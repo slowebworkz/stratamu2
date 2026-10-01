@@ -44,7 +44,9 @@ const combatClock = new ManualClock(Instant.from<CombatTick>(0n))
 engine.runtime.attachClock(COMBAT_CLOCK, combatClock)
 const driver = createRuntimeDriver({
   runtime: engine.runtime,
-  combatClock: { advance: () => combatClock.advance(Duration.from<CombatTick>(1n)) },
+  combatClock: {
+    advance: units => combatClock.advance(Duration.from<CombatTick>(BigInt(units))),
+  },
   tickMs: TICK_MS,
 })
 

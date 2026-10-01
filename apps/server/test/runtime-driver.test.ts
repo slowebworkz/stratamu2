@@ -1,22 +1,51 @@
+import type { Clock, MonotonicTime } from "@stratamu/clock"
 import type { Runtime } from "@stratamu/engine-core"
+import { Instant } from "@stratamu/primitives"
+import type { Mock } from "vitest"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
-import { createRuntimeDriver, type TickableClock } from "../src/runtime-driver.ts"
+import {
+  createRuntimeDriver,
+  type RuntimeDriverLog,
+  type TickableClock,
+} from "../src/runtime-driver.ts"
 
 function fakeRuntime(pumpImpl?: () => Promise<number>) {
   return { pump: vi.fn(pumpImpl ?? (() => Promise.resolve(0))) } as unknown as Runtime
 }
 
-function fakeClock(): TickableClock & { readonly ticks: number } {
+function fakeClock(): TickableClock & { readonly ticks: number; readonly calls: number[] } {
   let ticks = 0
+  const calls: number[] = []
   return {
     get ticks() {
       return ticks
     },
-    advance: () => {
-      ticks++
+    calls,
+    advance: units => {
+      ticks += units
+      calls.push(units)
     },
   }
+}
+
+/** A controllable monotonic time source, decoupled from vitest's fake timers (which still drive
+ * `setTimeout`/`kick` scheduling separately): a test sets elapsed time explicitly with `advance`,
+ * rather than inferring it from how many fake-timer callbacks fired. */
+function fakeMonotonicClock(
+  startMs = 0,
+): Clock<Instant<MonotonicTime>> & { advance(ms: number): void } {
+  let current = BigInt(startMs)
+  return {
+    now: () => Instant.from<MonotonicTime>(current),
+    advance: ms => {
+      current += BigInt(ms)
+    },
+  }
+}
+
+function quietLog(): RuntimeDriverLog & { error: Mock } {
+  return { error: vi.fn() }
 }
 
 describe("createRuntimeDriver", () => {
@@ -173,5 +202,106 @@ describe("createRuntimeDriver", () => {
     resolvePump?.()
     await stopping
     expect(stopped).toBe(true)
+  })
+
+  it("advances the combat clock by more than one unit when more than tickMs of monotonic time elapsed", async () => {
+    const runtime = fakeRuntime()
+    const combatClock = fakeClock()
+    const monotonicClock = fakeMonotonicClock(0)
+    const driver = createRuntimeDriver({ runtime, combatClock, monotonicClock, tickMs: 100 })
+
+    driver.start()
+    // Simulate 2.5x tickMs of real elapsed time passing before the scheduled callback fires --
+    // event-loop lag, a slow pump, a GC pause -- not just the nominal 100ms the timer itself waited.
+    monotonicClock.advance(250)
+    await vi.advanceTimersByTimeAsync(100)
+    expect(combatClock.calls).toEqual([2])
+
+    await driver.stop()
+  })
+
+  it("after a tick catches up on lag, the next normal tick credits one unit again, not zero or double", async () => {
+    const runtime = fakeRuntime()
+    const combatClock = fakeClock()
+    const monotonicClock = fakeMonotonicClock(0)
+    const driver = createRuntimeDriver({ runtime, combatClock, monotonicClock, tickMs: 100 })
+
+    driver.start()
+    monotonicClock.advance(250)
+    await vi.advanceTimersByTimeAsync(100)
+    expect(combatClock.calls).toEqual([2])
+
+    // Only one more tickMs of real time passes normally; the 50ms left over from the catch-up
+    // tick above must still be remembered, not rounded away -- but it also must not be
+    // double-credited into this tick.
+    monotonicClock.advance(100)
+    await vi.advanceTimersByTimeAsync(100)
+    expect(combatClock.calls).toEqual([2, 1])
+
+    await driver.stop()
+  })
+
+  it("logs and recovers when a scheduled tick's pump fails, continuing to tick afterward", async () => {
+    let shouldFail = true
+    const runtime = fakeRuntime(() => {
+      if (shouldFail) {
+        shouldFail = false
+        return Promise.reject(new Error("boom"))
+      }
+      return Promise.resolve(0)
+    })
+    const combatClock = fakeClock()
+    const log = quietLog()
+    const driver = createRuntimeDriver({ runtime, combatClock, tickMs: 100, log })
+
+    driver.start()
+    await vi.advanceTimersByTimeAsync(100)
+    expect(log.error).toHaveBeenCalledWith("Runtime pump failed", expect.any(Error))
+    expect(combatClock.ticks).toBe(1)
+
+    await vi.advanceTimersByTimeAsync(100)
+    expect(runtime.pump).toHaveBeenCalledTimes(2)
+    expect(combatClock.ticks).toBe(2)
+
+    await driver.stop()
+  })
+
+  it("logs and recovers when a scheduled tick's combatClock.advance() throws", async () => {
+    const runtime = fakeRuntime()
+    let shouldThrow = true
+    const combatClock: TickableClock = {
+      advance: () => {
+        if (shouldThrow) {
+          shouldThrow = false
+          throw new Error("clock boom")
+        }
+      },
+    }
+    const log = quietLog()
+    const driver = createRuntimeDriver({ runtime, combatClock, tickMs: 100, log })
+
+    driver.start()
+    await vi.advanceTimersByTimeAsync(100)
+    expect(log.error).toHaveBeenCalledWith("Combat clock advance failed", expect.any(Error))
+    // A clock failure isn't fatal to running already-ready work: pump still ran.
+    expect(runtime.pump).toHaveBeenCalledTimes(1)
+
+    await vi.advanceTimersByTimeAsync(100)
+    expect(runtime.pump).toHaveBeenCalledTimes(2)
+
+    await driver.stop()
+  })
+
+  it("logs a kick-triggered pump failure without throwing", async () => {
+    const runtime = fakeRuntime(() => Promise.reject(new Error("boom")))
+    const log = quietLog()
+    const driver = createRuntimeDriver({ runtime, combatClock: fakeClock(), log })
+
+    driver.start()
+    driver.kick()
+    await Promise.resolve()
+    expect(log.error).toHaveBeenCalledWith("Runtime pump failed", expect.any(Error))
+
+    await driver.stop()
   })
 })
