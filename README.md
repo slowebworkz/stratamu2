@@ -8,7 +8,7 @@ The goal is not to build a single predefined type of game. The goal is to provid
 
 > **Status: Early development**
 >
-> The engine substrate (`Runtime`, `WorldState`, `Sessions`), a Telnet transport plugin, and a first real game adapter (AberMUD II) are implemented and tested. There is no server application yet tying them together into something runnable end to end — see "Workspace Structure" and "Project Status" below for what exists package by package.
+> The engine substrate (`Runtime`, `WorldState`, `Sessions`), a Telnet transport plugin, and a first real game adapter (AberMUD II) are implemented and tested. `apps/server` composes them into a playable vertical slice: start it and connect with `telnet`. It does not yet run its own continuous runtime loop, shut down gracefully, or have a dedicated development workflow — see [Development Server](./docs/DEVELOPMENT_SERVER.md) for that plan, and "Workspace Structure" and "Project Status" below for what exists package by package.
 
 ## Project Goals
 
@@ -114,7 +114,7 @@ Not every game needs every plugin.
 
 `apps/` contains executable compositions of the engine.
 
-For example, a future server application can select:
+`apps/server` selects:
 
 ```text
 engine
@@ -123,7 +123,7 @@ engine
   + configuration
 ```
 
-and then start the engine.
+and then starts the engine.
 
 The application composition layer should not become responsible for the internal lifecycle of the running game.
 
@@ -138,7 +138,8 @@ published-internally (`private: true`) package with its own `README.md`, tests, 
 ├── adapters/                # Game profiles and adapter implementations
 │   ├── abermud/              # @stratamu/adapter-abermud — AberMUD II reimplemented on the engine
 │   └── test/                 # @stratamu/adapter-test — the smallest adapter that exercises it
-├── apps/                    # Executable applications -- no member yet
+├── apps/                    # Executable applications
+│   └── server/                # @stratamu/server — composes the engine, AberMUD adapter, and Telnet plugin into a playable server
 ├── docs/                    # Project and architecture documentation
 ├── engine/                  # Core engine: the execution substrate and world runtime
 │   ├── core/                 # @stratamu/engine-core — tasks, clocks, timelines, the Runtime
@@ -160,10 +161,9 @@ published-internally (`private: true`) package with its own `README.md`, tests, 
     └── telnet/                # @stratamu/plugin-telnet — Telnet Connection/Session transport
 ```
 
-`apps/` is the one workspace with no member yet; a directory becomes a workspace only when its
-responsibility is established, the same discipline the architecture document describes. Nothing
-above is speculative -- each package's own `README.md` documents what it actually does and cites
-its own tests; this table is a map, not a promise.
+A directory becomes a workspace only when its responsibility is established, the same discipline
+the architecture document describes. Nothing above is speculative -- each package's own `README.md`
+documents what it actually does and cites its own tests; this table is a map, not a promise.
 
 ## Engine Lifecycle
 
@@ -216,13 +216,32 @@ Build all workspaces:
 pnpm build
 ```
 
-### Development
+### Dev Tasks
 
 Run development tasks across the repository:
 
 ```sh
 pnpm dev
 ```
+
+### Development Server
+
+`apps/server` is the playable vertical slice. The current, manual development command — it builds
+and runs the server in the foreground, with no managed restart or watch behavior yet — is:
+
+```sh
+pnpm --filter @stratamu/server dev
+```
+
+Connect with a Telnet client:
+
+```sh
+telnet localhost 4000
+```
+
+A dedicated `dev:server`/`dev:server:kill`/`dev:server:restart` workflow, isolated dev
+configuration/data, and VS Code tasks are planned — see
+[Development Server](./docs/DEVELOPMENT_SERVER.md).
 
 ### Type Checking
 
@@ -276,6 +295,10 @@ It describes the current working design in greater detail, including:
 - Plugins
 - Domain systems
 - Monorepo organization
+
+The development workflow for running `apps/server` locally — the runtime loop, graceful shutdown,
+start/stop/restart commands, and isolated dev config/data — is tracked separately in
+**[Development Server](./docs/DEVELOPMENT_SERVER.md)**.
 
 The architecture is intentionally a **working design** and will change as implementation validates or challenges the current model.
 
@@ -365,8 +388,15 @@ slice at a time, rather than building out a generic core in the abstract.
       nothing at the core/engine level is generic yet)
 - [ ] First domain plugin (equipment/combat live inside the adapter so far, not factored out as an
       independent, adapter-agnostic plugin)
-- [ ] Complete playable vertical slice (no server application yet composes the adapter, the Telnet
-      plugin, and persistence into something a client can actually connect to and play)
+- [x] Complete playable vertical slice (`apps/server` composes the adapter, the Telnet plugin, and
+      persistence into something a client can connect to and play; a manual end-to-end walkthrough
+      over a real Telnet connection is still pending)
+- [ ] Server-owned continuous runtime driver (the engine currently only advances in response to
+      client input; see [Development Server](./docs/DEVELOPMENT_SERVER.md))
+- [ ] Graceful server shutdown (state persistence, session draining, resource/log flushing on
+      `SIGINT`/`SIGTERM`; see [Development Server](./docs/DEVELOPMENT_SERVER.md))
+- [ ] Development-server workflow (start/stop/restart commands, watch mode, isolated dev
+      config/data, VS Code tasks; see [Development Server](./docs/DEVELOPMENT_SERVER.md))
 
 The checklist is intentionally conservative. Architectural decisions will be validated through implementation rather than treated as final simply because they are documented.
 
