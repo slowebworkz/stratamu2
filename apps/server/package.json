@@ -11,10 +11,12 @@
     "start": "node dist/main.js",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
+    "test": "vitest run --passWithNoTests",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@stratamu/adapter-abermud": "workspace:*",
+    "@stratamu/clock": "workspace:*",
     "@stratamu/engine-core": "workspace:*",
     "@stratamu/engine-world": "workspace:*",
     "@stratamu/plugin-telnet": "workspace:*",
@@ -25,6 +27,7 @@
     "@stratamu/typescript-config": "workspace:*",
     "@types/node": "catalog:",
     "eslint": "catalog:",
-    "typescript": "catalog:"
+    "typescript": "catalog:",
+    "vitest": "catalog:"
   }
 }

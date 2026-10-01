@@ -9,6 +9,15 @@ function open(port: number): Promise<Socket> {
   })
 }
 
+/** Unlike `open`, rejects on a connection error instead of hanging -- for asserting that a port
+ * refuses a connection, which `open` has no way to observe. */
+function attemptOpen(port: number): Promise<Socket> {
+  return new Promise((resolve, reject) => {
+    const socket = connect(port, "127.0.0.1", () => resolve(socket))
+    socket.once("error", reject)
+  })
+}
+
 function nextData(socket: Socket): Promise<string> {
   return new Promise(resolve => socket.once("data", chunk => resolve(chunk.toString("utf8"))))
 }
@@ -75,5 +84,37 @@ describe("createLineServer", () => {
     sockets.push(await open(port), await open(port))
     await new Promise(resolve => setTimeout(resolve, 20))
     expect(new Set(ids).size).toBe(2)
+  })
+
+  it("stopAccepting refuses new connections", async () => {
+    const port = await start(() => {})
+    void server?.stopAccepting()
+    await expect(attemptOpen(port)).rejects.toThrow()
+  })
+
+  it("stopAccepting resolves only once every existing connection has ended", async () => {
+    // Waits for the server's own "connection" acceptance, not just the client's "connect" --
+    // the two fire on unrelated sockets with no ordering guarantee between them, and calling
+    // `stopAccepting` before the server side has registered the connection would race it.
+    let onAccepted: () => void = () => {}
+    const accepted = new Promise<void>(resolve => {
+      onAccepted = resolve
+    })
+    const port = await start(onAccepted)
+    const socket = await open(port)
+    sockets.push(socket)
+    await accepted
+
+    const stopped = server?.stopAccepting()
+    let settled = false
+    void stopped?.then(() => {
+      settled = true
+    })
+    await new Promise(resolve => setTimeout(resolve, 20))
+    expect(settled).toBe(false)
+
+    socket.end()
+    await stopped
+    expect(settled).toBe(true)
   })
 })
