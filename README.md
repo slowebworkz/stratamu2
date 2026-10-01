@@ -226,7 +226,8 @@ pnpm dev
 
 ### Development Server
 
-`apps/server` is the playable vertical slice. Run it directly for now:
+`apps/server` is the playable vertical slice. The current, manual development command — it builds
+and runs the server in the foreground, with no managed restart or watch behavior yet — is:
 
 ```sh
 pnpm --filter @stratamu/server dev

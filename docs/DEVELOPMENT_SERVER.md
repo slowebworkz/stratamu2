@@ -26,7 +26,7 @@ not preclude them later, but it should not be designed around them now.
 
 | Area | Current state | Target |
 |---|---|---|
-| Runtime loop | `engine.runtime.pump(100)` runs only in response to a logged-in connection's first `look` | Server-owned driver advances the runtime continuously, independent of client input |
+| Runtime loop | The runtime is pumped in response to login and client input; there is no server-owned continuous driver independent of client activity | Server-owned driver advances the runtime continuously, independent of client input |
 | Combat clock | Not yet configured | AberMUD adapter uses the appropriate combat clock for scheduled rounds |
 | Shutdown | `SIGINT`/`SIGTERM` close the Telnet server and exit; no draining of in-flight work or explicit persistence flush | Graceful shutdown: stop accepting connections, quiesce runtime work, handle active sessions, persist state, close resources, flush logs |
 | Start/stop/restart | `pnpm --filter @stratamu/server dev` builds and runs in the foreground; no managed restart | `pnpm dev:server` / `dev:server:kill` / `dev:server:restart`, tracking the process they started |
@@ -42,8 +42,10 @@ run continuously and stop cleanly:
 
 - A server-owned driver advances the engine's runtime clock on its own schedule, so scheduled work
   (combat rounds and similar) progresses without requiring a client to send input.
-- The AberMUD adapter selects its combat clock explicitly, rather than relying on an incidental
-  `pump` call from the login flow.
+- The AberMUD adapter selects its combat clock explicitly, rather than relying on the incidental
+  `pump` calls already made after login (`apps/server/src/main.ts`) and after each line of ordinary
+  game input (`adapters/abermud/src/login/abermud-login.ts`) — neither drives the runtime
+  continuously without client activity.
 - The runtime driver lives in `apps/server`, not in `@stratamu/plugin-telnet` or
   `@stratamu/adapter-abermud` — composition stays the application's responsibility, per
   [Game Engine Architecture §9](./GAME_ENGINE_ARCHITECTURE.md#9-adapters--game-profiles) and
@@ -144,17 +146,21 @@ implementation commitments:
 
 ## Implementation order
 
-| Phase | Work | Priority |
-|---|---|---|
-| 1 | Update README, roadmap, and architecture documentation. | Immediate |
-| 2 | Implement the continuous runtime driver. | Immediate |
-| 3 | Implement graceful server shutdown. | Immediate |
-| 4 | Add development start, stop, and restart commands. | Next |
-| 5 | Add isolated development configuration and data. | Next |
-| 6 | Integrate the commands with VS Code tasks. | Next |
-| 7 | Add lifecycle and end-to-end smoke tests. | Next |
-| 8 | Investigate Docker support and deployment requirements. | Later |
-| 9 | Design production CLI and distribution workflows. | Later |
+| Phase | Work | Priority | Status |
+|---|---|---|---|
+| 1 | Update README and architecture documentation. | Immediate | Done — this document, plus the README and [Game Engine Architecture](./GAME_ENGINE_ARCHITECTURE.md) updates that link to it |
+| 2 | Implement the continuous runtime driver. | Immediate | Pending |
+| 3 | Implement graceful server shutdown. | Immediate | Pending |
+| 4 | Add development start, stop, and restart commands. | Next | Pending |
+| 5 | Add isolated development configuration and data. | Next | Pending |
+| 6 | Integrate the commands with VS Code tasks. | Next | Pending |
+| 7 | Add lifecycle and end-to-end smoke tests. | Next | Pending |
+| 8 | Investigate Docker support and deployment requirements. | Later | Pending |
+| 9 | Design production CLI and distribution workflows. | Later | Pending |
+
+This document is the project's working plan for the development-server effort; there is no
+separate roadmap document to reconcile it against, and one should not be created merely to satisfy
+this table.
 
 ## Completion criteria
 
