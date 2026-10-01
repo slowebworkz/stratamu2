@@ -91,7 +91,7 @@ class LoginFlow extends Base {
       // `receive` only submits; running the Runtime is the transport loop's job. `pump`, not
       // `drain`: a guaranteed return regardless of what a handler does, not an assumption that
       // nothing here ever reschedules itself. See `STEP_BUDGET_PER_LINE`.
-      void this.#engine.runtime.pump(STEP_BUDGET_PER_LINE)
+      void this.#pump()
       return
     }
 
@@ -119,6 +119,14 @@ class LoginFlow extends Base {
     // line the way it normally would on Enter; move it now, before anything else is written.
     this.#connection.write("\r\n")
     void this.#authenticate(password)
+  }
+
+  async #pump(): Promise<void> {
+    try {
+      await this.#engine.runtime.pump(STEP_BUDGET_PER_LINE)
+    } catch (error) {
+      this.log.error({ err: error }, "Runtime pump failed")
+    }
   }
 
   async #authenticate(password: string): Promise<void> {
@@ -195,7 +203,19 @@ class LoginFlow extends Base {
     }
 
     this.#stage = "playing"
-    this.#onLoggedIn?.(character, newSession)
+    try {
+      this.#onLoggedIn?.(character, newSession)
+    } catch (error) {
+      this.log.error({ err: error }, "Post-login initialization failed")
+      this.#engine.sessions.disconnect(newSession.id)
+      this.#session = undefined
+      if (!this.#closed) {
+        this.#connection.write("Login failed. Please try again.\r\n")
+        this.#stage = "name"
+        this.#connection.write("Name: ")
+      }
+      return
+    }
     this.#connection.write("ready\r\n")
   }
 
