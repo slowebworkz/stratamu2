@@ -23,6 +23,7 @@ function fakeDriver(stopImpl?: () => Promise<void>): RuntimeDriver {
   return {
     start: vi.fn(),
     stop: vi.fn(stopImpl ?? (() => Promise.resolve())),
+    kick: vi.fn(),
   }
 }
 

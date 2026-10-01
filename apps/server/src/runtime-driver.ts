@@ -27,6 +27,17 @@ export interface RuntimeDriver {
    * so a caller that destroys sockets right after `stop()` never does so mid-step. Safe to call
    * before `start()` or more than once. */
   stop(): Promise<void>
+  /** Runs the runtime once, right now, without advancing the combat clock or disturbing the
+   * regular tick's own schedule -- for a caller that just submitted work (ordinary input, say)
+   * and wants it to run sooner than the next scheduled tick, without becoming a second owner of
+   * `pump`. A no-op if the driver isn't running, or if a pump -- scheduled or kicked -- is already
+   * in flight: that pump's own step loop re-checks what's ready on every iteration, so the new
+   * work is still picked up by it, or at worst by the next scheduled tick -- never worse than
+   * `tickMs` late, the same bound ordinary ticking already has. Never advancing the clock here
+   * matters: a continuously-typing player must not be able to speed up or stall combat by how
+   * often they send input, which is the entire reason this driver owns `pump` in the first
+   * place. */
+  kick(): void
 }
 
 /**
@@ -42,12 +53,22 @@ export function createRuntimeDriver(options: RuntimeDriverOptions): RuntimeDrive
   const { runtime, combatClock, tickMs = 1000, stepBudget = 50 } = options
 
   let running = false
+  let busy = false
   let timer: NodeJS.Timeout | undefined
   let inFlight: Promise<void> = Promise.resolve()
 
+  const runPump = async (): Promise<void> => {
+    busy = true
+    try {
+      await runtime.pump(stepBudget)
+    } finally {
+      busy = false
+    }
+  }
+
   const tick = async (): Promise<void> => {
     combatClock.advance()
-    await runtime.pump(stepBudget)
+    await runPump()
     if (running) {
       timer = setTimeout(() => {
         inFlight = tick()
@@ -72,6 +93,12 @@ export function createRuntimeDriver(options: RuntimeDriverOptions): RuntimeDrive
         timer = undefined
       }
       await inFlight
+    },
+    kick() {
+      if (!running || busy) {
+        return
+      }
+      inFlight = runPump()
     },
   }
 }

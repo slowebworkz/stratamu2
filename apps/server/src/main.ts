@@ -59,8 +59,9 @@ const server = createLineServer(connection => {
     onLoggedIn: (character, session) => {
       engine.world.locate(character, startingRoom)
       engine.receive({ session, raw: "look" })
-      void engine.runtime.pump(100)
+      driver.kick()
     },
+    kick: () => driver.kick(),
   })
 })
 

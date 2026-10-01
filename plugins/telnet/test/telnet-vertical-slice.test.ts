@@ -68,6 +68,7 @@ describe("Telnet vertical slice: negotiation, login, and a game command together
         engine,
         adapter,
         onLoggedIn: character => engine.world.locate(character, here),
+        kick: () => void engine.runtime.drain(),
       })
     })
     const port = await server.listen(0, "127.0.0.1")

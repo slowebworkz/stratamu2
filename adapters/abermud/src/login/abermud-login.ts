@@ -28,19 +28,15 @@ export interface AberMUDLoginOptions {
   /** Called once login succeeds, so a caller can do whatever placing a fresh character needs
    * (a starting room, for instance) before ordinary input starts flowing to it. */
   readonly onLoggedIn?: (character: EntityId, session: Session) => void
+  /** Called once, synchronously, right after ordinary game input is submitted via
+   * `engine.receive(...)` -- `receive` only submits, so whatever actually owns running the
+   * `Runtime` (a server-owned driver in production; a test's own `engine.runtime.drain()`) does so
+   * here, promptly, in the same turn the line was received rather than racing back to some later
+   * call site. Omitted, nothing executes automatically, matching `receive()`'s own contract. */
+  readonly kick?: () => void
 }
 
 type Stage = "name" | "password" | "authenticating" | "playing"
-
-/**
- * A step budget for `engine.runtime.pump()` after each line of ordinary game input. Not derived
- * from anything -- `docs/EXECUTION_POLICY.md` (in the main repository) leaves "what bound" an
- * open question, answerable once real use teaches us what a command actually needs, the same way
- * `TelnetNegotiator`'s ECHO taught us what it needed. Generous for what any current AberMUD
- * command does (LOOK/MOVE/SAY resolve in one step, or a handful for SAY's fan-out), while still
- * giving a guaranteed return `drain()` cannot, for a handler that reschedules itself.
- */
-const STEP_BUDGET_PER_LINE = 100
 
 /**
  * Starts the login flow on a freshly accepted `connection`: prompts for a name, then a password
@@ -57,6 +53,7 @@ class LoginFlow extends Base {
   readonly #engine: Engine<{ readonly session: Session; readonly raw: string }>
   readonly #adapter: AberMUDAdapter
   readonly #onLoggedIn?: (character: EntityId, session: Session) => void
+  readonly #kick?: () => void
 
   #stage: Stage = "name"
   #name = ""
@@ -71,6 +68,7 @@ class LoginFlow extends Base {
     this.#engine = options.engine
     this.#adapter = options.adapter
     this.#onLoggedIn = options.onLoggedIn
+    this.#kick = options.kick
   }
 
   start(): void {
@@ -88,10 +86,9 @@ class LoginFlow extends Base {
         throw new Error("Reached playing stage without an open session")
       }
       this.#engine.receive({ session: this.#session, raw })
-      // `receive` only submits; running the Runtime is the transport loop's job. `pump`, not
-      // `drain`: a guaranteed return regardless of what a handler does, not an assumption that
-      // nothing here ever reschedules itself. See `STEP_BUDGET_PER_LINE`.
-      void this.#pump()
+      // `receive` only submits; running the Runtime is whatever `kick` was given, the transport
+      // loop's own job, not this flow's. See `AberMUDLoginOptions.kick`'s own doc comment.
+      this.#kick?.()
       return
     }
 
@@ -119,14 +116,6 @@ class LoginFlow extends Base {
     // line the way it normally would on Enter; move it now, before anything else is written.
     this.#connection.write("\r\n")
     void this.#authenticate(password)
-  }
-
-  async #pump(): Promise<void> {
-    try {
-      await this.#engine.runtime.pump(STEP_BUDGET_PER_LINE)
-    } catch (error) {
-      this.log.error({ err: error }, "Runtime pump failed")
-    }
   }
 
   async #authenticate(password: string): Promise<void> {
