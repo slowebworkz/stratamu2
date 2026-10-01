@@ -103,4 +103,75 @@ describe("createRuntimeDriver", () => {
     await stopping
     expect(stopped).toBe(true)
   })
+
+  it("kick() runs an immediate pump without advancing the combat clock", async () => {
+    const runtime = fakeRuntime()
+    const combatClock = fakeClock()
+    const driver = createRuntimeDriver({ runtime, combatClock, tickMs: 1000, stepBudget: 9 })
+
+    driver.start()
+    driver.kick()
+    expect(runtime.pump).toHaveBeenCalledTimes(1)
+    expect(runtime.pump).toHaveBeenCalledWith(9)
+    expect(combatClock.ticks).toBe(0)
+
+    await driver.stop()
+  })
+
+  it("kick() is a no-op before start()", () => {
+    const runtime = fakeRuntime()
+    const driver = createRuntimeDriver({ runtime, combatClock: fakeClock() })
+
+    driver.kick()
+    expect(runtime.pump).not.toHaveBeenCalled()
+  })
+
+  it("kick() is a no-op while a pump is already in flight", async () => {
+    let resolvePump: (() => void) | undefined
+    const runtime = fakeRuntime(
+      () =>
+        new Promise<number>(resolve => {
+          resolvePump = () => resolve(0)
+        }),
+    )
+    const combatClock = fakeClock()
+    const driver = createRuntimeDriver({ runtime, combatClock, tickMs: 100 })
+
+    driver.start()
+    await vi.advanceTimersByTimeAsync(100)
+    expect(runtime.pump).toHaveBeenCalledTimes(1)
+
+    driver.kick()
+    driver.kick()
+    expect(runtime.pump).toHaveBeenCalledTimes(1)
+
+    resolvePump?.()
+    await driver.stop()
+  })
+
+  it("stop() also awaits a kick-triggered pump", async () => {
+    let resolvePump: (() => void) | undefined
+    const runtime = fakeRuntime(
+      () =>
+        new Promise<number>(resolve => {
+          resolvePump = () => resolve(0)
+        }),
+    )
+    const driver = createRuntimeDriver({ runtime, combatClock: fakeClock() })
+
+    driver.start()
+    driver.kick()
+    expect(runtime.pump).toHaveBeenCalledTimes(1)
+
+    let stopped = false
+    const stopping = driver.stop().then(() => {
+      stopped = true
+    })
+    await Promise.resolve()
+    expect(stopped).toBe(false)
+
+    resolvePump?.()
+    await stopping
+    expect(stopped).toBe(true)
+  })
 })

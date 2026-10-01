@@ -93,6 +93,7 @@ describe("runAberMUDLogin", () => {
         loggedInCharacter = character
         engine.world.locate(character, here)
       },
+      kick: () => void engine.runtime.drain(),
     })
 
     connection.sendLine("alice")
@@ -171,7 +172,7 @@ describe("runAberMUDLogin", () => {
   it("closes the connection once QUIT's own confirmation is sent, and only then", async () => {
     const { adapter, engine } = await fixture()
     const connection = fakeLoginConnection()
-    runAberMUDLogin({ connection, engine, adapter })
+    runAberMUDLogin({ connection, engine, adapter, kick: () => void engine.runtime.drain() })
 
     connection.sendLine("alice")
     connection.sendLine("secret")
@@ -214,6 +215,7 @@ describe("runAberMUDLogin", () => {
       engine,
       adapter,
       onLoggedIn: character => engine.world.locate(character, here),
+      kick: () => void engine.runtime.drain(),
     })
     aliceConnection.sendLine("alice")
     aliceConnection.sendLine("secret")
