@@ -2,7 +2,8 @@
   "$schema": "https://json.schemastore.org/tsconfig",
   "extends": "./tsconfig.json",
   "compilerOptions": {
+    "rootDir": "${configDir}/src",
     "outDir": "dist"
   },
-  "exclude": ["src/**/*.test.ts"]
+  "include": ["src"]
 }

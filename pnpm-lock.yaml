@@ -330,6 +330,9 @@ importers:
       '@stratamu/adapter-abermud':
         specifier: workspace:*
         version: link:../../adapters/abermud
+      '@stratamu/clock':
+        specifier: workspace:*
+        version: link:../../libs/clock
       '@stratamu/engine-core':
         specifier: workspace:*
         version: link:../../engine/core
@@ -358,6 +361,9 @@ importers:
       typescript:
         specifier: 'catalog:'
         version: 6.0.3
+      vitest:
+        specifier: 'catalog:'
+        version: 4.1.11(@types/node@26.6.2)(vite@8.3.0(@types/node@26.6.2))
 
   engine/core:
     dependencies:

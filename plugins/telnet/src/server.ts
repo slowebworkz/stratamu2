@@ -45,6 +45,13 @@ export interface LineServer {
   /** Starts listening and resolves to the port actually bound (useful when `port` is 0). */
   listen(port: number, host?: string): Promise<number>
   close(): Promise<void>
+  /** Stops accepting new connections, leaving every connection already open to end on its own.
+   * Resolves once they all have -- the same wait `close()` makes after it destroys them, the
+   * difference being that nothing here is destroyed. A caller that wants a graceful shutdown
+   * closes each connection it is tracking itself (so each gets to flush its own output first,
+   * the way a login flow's own QUIT/KILL handling already does) rather than waiting on this
+   * alone to end them. */
+  stopAccepting(): Promise<void>
 }
 
 /**
@@ -106,6 +113,15 @@ export function createLineServer(onConnection: (connection: TelnetConnection) =>
     })
   })
 
+  // `net.Server#close` throws if called a second time; `close()` and `stopAccepting()` both call
+  // it, and a caller may reasonably use one then the other (or the same one twice, as a test's
+  // own `afterEach` does), so every path shares one pending close.
+  let closing: Promise<void> | undefined
+  const stopListening = (): Promise<void> => {
+    closing ??= new Promise(resolve => server.close(() => resolve()))
+    return closing
+  }
+
   return {
     listen: (port, host) =>
       new Promise((resolve, reject) => {
@@ -116,12 +132,12 @@ export function createLineServer(onConnection: (connection: TelnetConnection) =>
           resolve(typeof address === "object" && address !== null ? address.port : port)
         })
       }),
-    close: () =>
-      new Promise(resolve => {
-        for (const socket of sockets) {
-          socket.destroy()
-        }
-        server.close(() => resolve())
-      }),
+    close: () => {
+      for (const socket of sockets) {
+        socket.destroy()
+      }
+      return stopListening()
+    },
+    stopAccepting: stopListening,
   }
 }

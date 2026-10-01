@@ -26,9 +26,9 @@ not preclude them later, but it should not be designed around them now.
 
 | Area | Current state | Target |
 |---|---|---|
-| Runtime loop | The runtime is pumped in response to login and client input; there is no server-owned continuous driver independent of client activity | Server-owned driver advances the runtime continuously, independent of client input |
-| Combat clock | Not yet configured | AberMUD adapter uses the appropriate combat clock for scheduled rounds |
-| Shutdown | `SIGINT`/`SIGTERM` close the Telnet server and exit; no draining of in-flight work or explicit persistence flush | Graceful shutdown: stop accepting connections, quiesce runtime work, handle active sessions, persist state, close resources, flush logs |
+| Runtime loop | Done — `apps/server/src/runtime-driver.ts`'s `createRuntimeDriver` advances a combat `ManualClock` and pumps the runtime on a fixed interval (`STRATAMU_TICK_MS`, default 1000ms), independent of client input | Server-owned driver advances the runtime continuously, independent of client input |
+| Combat clock | Done — `main.ts` attaches the combat clock and passes `combatClockId` to `AberMUDAdapter`, so `KILL`'s `scheduleNextRound` now reschedules real rounds instead of staying single-round | AberMUD adapter uses the appropriate combat clock for scheduled rounds |
+| Shutdown | Done — `apps/server/src/shutdown.ts`'s `createShutdown` stops accepting connections, stops the runtime driver, writes a notice to and closes every open connection, then waits (bounded by `drainTimeoutMs`, default 5000ms) for them to end before the process exits | Graceful shutdown: stop accepting connections, quiesce runtime work, handle active sessions, persist state, close resources, flush logs |
 | Start/stop/restart | `pnpm --filter @stratamu/server dev` builds and runs in the foreground; no managed restart | `pnpm dev:server` / `dev:server:kill` / `dev:server:restart`, tracking the process they started |
 | Watch mode | None | Restart on relevant source changes, without restarting for unrelated changes, with only one instance running at a time |
 | Config/data isolation | `STRATAMU_DATA` / `STRATAMU_PORT` env vars, defaulting to `./data` and `4000` | A development-specific default data directory, predictable dev port, repeatable test-world/account data, and an explicit (not automatic) reset action |
@@ -149,8 +149,8 @@ implementation commitments:
 | Phase | Work | Priority | Status |
 |---|---|---|---|
 | 1 | Update README and architecture documentation. | Immediate | Done — this document, plus the README and [Game Engine Architecture](./GAME_ENGINE_ARCHITECTURE.md) updates that link to it |
-| 2 | Implement the continuous runtime driver. | Immediate | Pending |
-| 3 | Implement graceful server shutdown. | Immediate | Pending |
+| 2 | Implement the continuous runtime driver. | Immediate | Done — `apps/server/src/runtime-driver.ts`, unit-tested in `apps/server/test/runtime-driver.test.ts` |
+| 3 | Implement graceful server shutdown. | Immediate | Done — `apps/server/src/shutdown.ts`, unit-tested in `apps/server/test/shutdown.test.ts`; required an additive `stopAccepting()` on `@stratamu/plugin-telnet`'s `LineServer` |
 | 4 | Add development start, stop, and restart commands. | Next | Pending |
 | 5 | Add isolated development configuration and data. | Next | Pending |
 | 6 | Integrate the commands with VS Code tasks. | Next | Pending |
