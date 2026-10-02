@@ -1,5 +1,10 @@
 import { readFileSync, unlinkSync, writeFileSync } from "node:fs"
 
+/** A pid is a point-in-time identifier, not a durable identity: once the process holding it exits,
+ * the OS is free to reuse the same number for something unrelated. `isAlive` can only ever confirm
+ * "a process with this pid currently exists", not "it's still the one this file originally
+ * named" -- an acceptable limitation for a local development-server runner, not something this
+ * module tries to paper over with stronger (and heavier) identity tracking. */
 function isValidPid(pid: number): boolean {
   return Number.isSafeInteger(pid) && pid > 0
 }
@@ -34,6 +39,27 @@ export function writePid(pidFile: string, pid: number): void {
     throw new RangeError(`Invalid PID: ${pid}`)
   }
   writeFileSync(pidFile, `${pid}\n`, "utf8")
+}
+
+/** Creates `pidFile` with `pid`, but only if it doesn't already exist -- an atomic claim (the
+ * underlying `O_EXCL` open is a single OS-level operation), unlike "check whether a pid file
+ * exists, then write one", which has a window between the check and the write where two
+ * concurrent callers can both see nothing there and both proceed. Returns whether the claim
+ * succeeded; `false` means something else already holds it (a real run, or another `start` that
+ * won the race). */
+export function tryClaimPid(pidFile: string, pid: number): boolean {
+  if (!isValidPid(pid)) {
+    throw new RangeError(`Invalid PID: ${pid}`)
+  }
+  try {
+    writeFileSync(pidFile, `${pid}\n`, { encoding: "utf8", flag: "wx" })
+    return true
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "EEXIST") {
+      return false
+    }
+    throw error
+  }
 }
 
 /** Removes `pidFile`. A no-op if it doesn't exist -- callers don't need to check first. */
