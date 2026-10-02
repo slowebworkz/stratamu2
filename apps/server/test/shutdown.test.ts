@@ -103,6 +103,23 @@ describe("createShutdown", () => {
     expect(server.stopAccepting).toHaveBeenCalledTimes(1)
   })
 
+  it("clears its timeout timer once shutdown completes normally, rather than leaving it pending", async () => {
+    const clearSpy = vi.spyOn(global, "clearTimeout")
+    const server = fakeServer()
+    server.resolveStopAccepting()
+    const shutdown = createShutdown({
+      server,
+      driver: fakeDriver(),
+      connections: new Set(),
+      drainTimeoutMs: 1000,
+      log: quietLog,
+    })
+
+    await shutdown()
+
+    expect(clearSpy).toHaveBeenCalled()
+  })
+
   describe("with fake timers", () => {
     beforeEach(() => {
       vi.useFakeTimers()

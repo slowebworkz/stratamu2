@@ -327,6 +327,40 @@ describe("createRuntimeDriver", () => {
     await driver.stop()
   })
 
+  it("preserves elapsed time for retry when combatClock.advance() throws, rather than discarding it", async () => {
+    const runtime = fakeRuntime()
+    let shouldThrow = true
+    const calls: number[] = []
+    const combatClock: TickableClock = {
+      advance: units => {
+        if (shouldThrow) {
+          shouldThrow = false
+          throw new Error("clock boom")
+        }
+        calls.push(units)
+      },
+    }
+    const monotonicClock = fakeMonotonicClock(0)
+    const log = quietLog()
+    const driver = createRuntimeDriver({ runtime, combatClock, monotonicClock, tickMs: 100, log })
+
+    driver.start()
+    monotonicClock.advance(100)
+    await vi.advanceTimersByTimeAsync(100)
+    expect(log.error).toHaveBeenCalledWith("Combat clock advance failed", expect.any(Error))
+    // The failed attempt never got to record a unit, and must not have silently moved past it.
+    expect(calls).toEqual([])
+
+    // A further 100ms of real time passes before the next tick fires.
+    monotonicClock.advance(100)
+    await vi.advanceTimersByTimeAsync(100)
+    // If the first tick's elapsed time had been discarded, this would only credit 1 unit. It
+    // credits 2: the unit the failed attempt never recorded, plus this tick's own.
+    expect(calls).toEqual([2])
+
+    await driver.stop()
+  })
+
   it("logs a kick-triggered pump failure without throwing", async () => {
     const runtime = fakeRuntime(() => Promise.reject(new Error("boom")))
     const log = quietLog()

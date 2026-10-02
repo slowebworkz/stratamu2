@@ -134,8 +134,12 @@ export function createRuntimeDriver(options: RuntimeDriverOptions): RuntimeDrive
       const now = monotonicClock.now()
       const elapsedMs = Number(now.value - lastTickAt.value)
       const units = Math.max(1, Math.floor(elapsedMs / tickMs))
-      lastTickAt = Instant.from<MonotonicTime>(lastTickAt.value + BigInt(units) * BigInt(tickMs))
+      // `lastTickAt` only moves once `advance` actually succeeds: if it throws, the elapsed time
+      // this tick measured stays outstanding rather than being silently discarded, so the next
+      // tick's own measurement naturally includes it and retries crediting it, instead of the
+      // combat clock quietly falling behind real time by whatever this tick failed to apply.
       combatClock.advance(units)
+      lastTickAt = Instant.from<MonotonicTime>(lastTickAt.value + BigInt(units) * BigInt(tickMs))
     } catch (error) {
       log.error("Combat clock advance failed", error)
     }
