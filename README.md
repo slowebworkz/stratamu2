@@ -8,7 +8,7 @@ The goal is not to build a single predefined type of game. The goal is to provid
 
 > **Status: Early development**
 >
-> The engine substrate (`Runtime`, `WorldState`, `Sessions`), a Telnet transport plugin, and a first real game adapter (AberMUD II) are implemented and tested. `apps/server` composes them into a playable vertical slice: start it and connect with `telnet`. It now runs its own continuous runtime loop and shuts down gracefully (see [Development Server](./docs/DEVELOPMENT_SERVER.md)); a dedicated start/stop/restart development workflow and VS Code tasks are still planned — see that same document, and "Workspace Structure" and "Project Status" below for what exists package by package.
+> The engine substrate (`Runtime`, `WorldState`, `Sessions`), a Telnet transport plugin, and a first real game adapter (AberMUD II) are implemented and tested. `apps/server` composes them into a playable vertical slice: start it and connect with `telnet`. It now runs its own continuous runtime loop, shuts down gracefully, and has a managed start/stop/restart development workflow (see [Development Server](./docs/DEVELOPMENT_SERVER.md)); isolated dev configuration/data and VS Code tasks are still planned — see that same document, and "Workspace Structure" and "Project Status" below for what exists package by package.
 
 ## Project Goals
 
@@ -226,11 +226,18 @@ pnpm dev
 
 ### Development Server
 
-`apps/server` is the playable vertical slice. The current, manual development command — it builds
-and runs the server in the foreground, with no managed restart or watch behavior yet — is:
+`apps/server` is the playable vertical slice. Run it directly in the foreground:
 
 ```sh
 pnpm --filter @stratamu/server dev
+```
+
+Or as a tracked, managed process you can stop or restart from another terminal:
+
+```sh
+pnpm --filter @stratamu/server dev:server
+pnpm --filter @stratamu/server dev:server:kill
+pnpm --filter @stratamu/server dev:server:restart
 ```
 
 Connect with a Telnet client:
@@ -239,8 +246,7 @@ Connect with a Telnet client:
 telnet localhost 4000
 ```
 
-A dedicated `dev:server`/`dev:server:kill`/`dev:server:restart` workflow, isolated dev
-configuration/data, and VS Code tasks are planned — see
+Isolated dev configuration/data and VS Code tasks are still planned — see
 [Development Server](./docs/DEVELOPMENT_SERVER.md).
 
 ### Type Checking
@@ -401,8 +407,12 @@ slice at a time, rather than building out a generic core in the abstract.
 - [x] Graceful server shutdown (`apps/server/src/shutdown.ts`: stop accepting connections, stop the
       driver, notify and close every open connection, bounded by a timeout that covers the whole
       sequence; see [Development Server](./docs/DEVELOPMENT_SERVER.md))
-- [ ] Development-server workflow (start/stop/restart commands, watch mode, isolated dev
-      config/data, VS Code tasks; see [Development Server](./docs/DEVELOPMENT_SERVER.md))
+- [x] Managed development-server start/stop/restart (`apps/server/src/dev-server.ts`, tracking the
+      started process by pid in `apps/server/.dev-server.pid`, reusing the server's own existing
+      graceful shutdown rather than duplicating it; see
+      [Development Server](./docs/DEVELOPMENT_SERVER.md))
+- [ ] Remaining development-server workflow (watch mode, isolated dev config/data, VS Code tasks;
+      see [Development Server](./docs/DEVELOPMENT_SERVER.md))
 
 The checklist is intentionally conservative. Architectural decisions will be validated through implementation rather than treated as final simply because they are documented.
 
