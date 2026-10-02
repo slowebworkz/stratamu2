@@ -194,7 +194,14 @@ class ManagedProcessImpl extends Base implements ManagedProcess {
 
     this.#child.on("spawn", () => {
       this.#hasSpawned = true
-      this.#state = "running"
+      // A pre-spawn termination request (an already-aborted signal, or timeoutMs: 0) can move
+      // #state to "stopping" before this fires. Only "starting" means nothing has asked this
+      // process to stop yet -- unconditionally setting "running" here would overwrite that and
+      // let a consumer briefly observe "running" after termination was already requested, even
+      // though #terminationPromise already prevents a second termination sequence from starting.
+      if (this.#state === "starting") {
+        this.#state = "running"
+      }
       if (this.#child.pid !== undefined) {
         this.#hooks.onStarted?.(this.#child.pid)
       }

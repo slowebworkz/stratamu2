@@ -275,6 +275,28 @@ describe("createManagedProcess", () => {
     expect(result.state).toBe("timed-out")
   }, 5000)
 
+  it("does not revert to running when spawn fires after termination was already requested", async () => {
+    const controller = new AbortController()
+    controller.abort()
+    let stateWhenSpawned: string | undefined
+    const process = createManagedProcess(nodeScript("setInterval(() => {}, 1000)"), {
+      signal: controller.signal,
+      stopTimeoutMs: 1000,
+      hooks: {
+        // Fires exactly when the "spawn" event does -- the one moment a buggy handler would have
+        // unconditionally reset #state to "running", even though termination was already
+        // requested before the process even had a pid.
+        onStarted: () => {
+          stateWhenSpawned = process.state
+        },
+      },
+    })
+    expect(process.state).toBe("stopping")
+
+    await process.settled
+    expect(stateWhenSpawned).toBe("stopping")
+  })
+
   it("removes its AbortSignal listener on a spawn failure too", async () => {
     const controller = new AbortController()
     const process = createManagedProcess(
