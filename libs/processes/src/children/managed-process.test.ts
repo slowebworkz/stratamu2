@@ -1,3 +1,5 @@
+import { getEventListeners } from "node:events"
+
 import { describe, expect, it } from "vitest"
 
 import { createManagedProcess } from "./managed-process.ts"
@@ -146,5 +148,83 @@ describe("createManagedProcess", () => {
     const process = createManagedProcess(nodeScript("process.exit(0)"))
     await process.settled
     expect(process.write("data")).toBe(false)
+  })
+
+  it("two termination triggers racing close together settle on only one reason, with one escalation", async () => {
+    let ready: () => void = () => {}
+    const readyPromise = new Promise<void>(resolve => {
+      ready = resolve
+    })
+    const controller = new AbortController()
+    // A long stopTimeoutMs keeps the first escalation (sent by the abort below) still waiting on
+    // its own SIGTERM grace period when the second trigger (stop()) arrives, so both are genuinely
+    // in flight together rather than one finishing before the other starts. Using two real
+    // termination triggers fired back-to-back, instead of letting a short `timeoutMs` race against
+    // the child process's own real, variable startup time, keeps this deterministic -- a `timeoutMs`
+    // short enough to reliably race an abort is also short enough to fire before a freshly spawned
+    // process has even reached its first `console.log`, which is a flaky test, not a real race.
+    const process = createManagedProcess(nodeScript(IGNORES_SIGTERM), {
+      signal: controller.signal,
+      stopTimeoutMs: 50,
+      hooks: {
+        onStdout: chunk => {
+          if (chunk.includes("ready")) {
+            ready()
+          }
+        },
+      },
+    })
+    await readyPromise
+
+    // The abort fires first and establishes "cancelled" as the reason. stop() arrives immediately
+    // after, while that escalation is still waiting out its SIGTERM grace period -- a buggy
+    // implementation that let this second call overwrite the reason, or re-enter escalation and
+    // send its own independent round of signals, would otherwise be invisible here.
+    controller.abort()
+    await process.stop({ timeoutMs: 50 })
+    const result = await process.settled
+    expect(result.state).toBe("cancelled")
+    expect(result.signal).toBe("SIGKILL")
+  })
+
+  it("stop() does not report an action when the process already exited on its own", async () => {
+    const process = createManagedProcess(nodeScript("process.exit(0)"))
+    const stopped: unknown[] = []
+    await process.settled
+
+    await process.stop()
+    expect(stopped).toHaveLength(0)
+  })
+
+  it("kill() does not report an action when the process already exited on its own", async () => {
+    const killed: unknown[] = []
+    const process = createManagedProcess(nodeScript("process.exit(0)"), {
+      hooks: { onKilled: () => killed.push(undefined) },
+    })
+    await process.settled
+
+    await process.kill()
+    expect(killed).toHaveLength(0)
+  })
+
+  it("removes its AbortSignal listener once the process exits normally", async () => {
+    const controller = new AbortController()
+    const process = createManagedProcess(nodeScript("process.exit(0)"), {
+      signal: controller.signal,
+    })
+    expect(getEventListeners(controller.signal, "abort")).toHaveLength(1)
+
+    await process.settled
+    expect(getEventListeners(controller.signal, "abort")).toHaveLength(0)
+  })
+
+  it("removes its AbortSignal listener on a spawn failure too", async () => {
+    const controller = new AbortController()
+    const process = createManagedProcess(
+      { id: "missing", executable: "stratamu-this-command-does-not-exist-xyz" },
+      { signal: controller.signal },
+    )
+    await process.settled
+    expect(getEventListeners(controller.signal, "abort")).toHaveLength(0)
   })
 })

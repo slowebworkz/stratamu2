@@ -45,6 +45,7 @@ export class ChildProcessManager extends Base {
       id,
       signal: options.signal,
       timeoutMs: options.timeoutMs,
+      stopTimeoutMs: options.stopTimeoutMs,
       maxOutputBytes: options.maxOutputBytes,
       hooks: {
         onStarted: pid => void this.events.emit("process.started", { id, pid }),

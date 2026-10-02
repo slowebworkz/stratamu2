@@ -13,6 +13,12 @@ const LONG_RUNNING = `
   setInterval(() => {}, 1000)
 `
 
+const IGNORES_SIGTERM = `
+  process.on("SIGTERM", () => {})
+  console.log("ready")
+  setInterval(() => {}, 1000)
+`
+
 describe("ChildProcessManager", () => {
   it("run() resolves with the process's result for a successful exit", async () => {
     const manager = new ChildProcessManager()
@@ -109,5 +115,33 @@ describe("ChildProcessManager", () => {
     await process.settled
 
     expect(failed).toHaveLength(1)
+  })
+
+  it("start() forwards stopTimeoutMs, instead of always falling back to the 5s default", async () => {
+    const manager = new ChildProcessManager()
+    const ready = new Promise<void>(resolve => {
+      manager.events.on("process.stdout", ({ chunk }) => {
+        if (chunk.includes("ready")) {
+          resolve()
+        }
+      })
+    })
+    // timeoutMs is generous enough that it only fires after the child has had time to reach its
+    // own "ready" line -- a short timeoutMs raced against the child process's real, variable
+    // startup time is a flaky test, not a real assertion about stopTimeoutMs.
+    const process = manager.start(nodeScript(IGNORES_SIGTERM), {
+      timeoutMs: 300,
+      stopTimeoutMs: 20,
+    })
+    await ready
+    const startedAt = Date.now()
+
+    const result = await process.settled
+    expect(result.state).toBe("timed-out")
+    expect(result.signal).toBe("SIGKILL")
+    // Without forwarding, the escalation grace period silently falls back to 5000ms -- this
+    // completing well under a second (measured from "ready", not from start, since timeoutMs
+    // itself accounts for most of the elapsed time here) confirms stopTimeoutMs was actually used.
+    expect(Date.now() - startedAt).toBeLessThan(1000)
   })
 })

@@ -129,6 +129,12 @@ class ManagedProcessImpl extends Base implements ManagedProcess {
   #settle: (result: ProcessResult) => void = () => {}
   #timeoutHandle: NodeJS.Timeout | undefined
   readonly #stopTimeoutMs: number
+  /** The single in-flight termination sequence, shared by `stop`, `kill`, and `#terminate` --
+   * whichever one is first establishes it, and every other concurrent call awaits the same
+   * sequence instead of re-entering it or racing signals against each other. */
+  #terminationPromise: Promise<void> | undefined
+  readonly #signalRef: AbortSignal | undefined
+  #abortListener: (() => void) | undefined
 
   constructor(definition: ProcessDefinition, options: ManagedProcessOptions = {}) {
     super()
@@ -171,12 +177,12 @@ class ManagedProcessImpl extends Base implements ManagedProcess {
     // would never resolve -- the exact gap apps/server/src/dev-server.ts's own review caught.
     this.#child.on("error", error => this.#handleSpawnError(error))
 
+    this.#signalRef = options.signal
     if (options.signal?.aborted) {
       void this.#terminate("cancelled")
-    } else {
-      options.signal?.addEventListener("abort", () => void this.#terminate("cancelled"), {
-        once: true,
-      })
+    } else if (options.signal) {
+      this.#abortListener = () => void this.#terminate("cancelled")
+      options.signal.addEventListener("abort", this.#abortListener, { once: true })
     }
     if (options.timeoutMs !== undefined) {
       this.#timeoutHandle = setTimeout(() => void this.#terminate("timed-out"), options.timeoutMs)
@@ -208,13 +214,21 @@ class ManagedProcessImpl extends Base implements ManagedProcess {
   }
 
   async stop(options: StopOptions = {}): Promise<void> {
-    await this.#escalate(options.signal ?? "SIGTERM", options.timeoutMs ?? DEFAULT_STOP_TIMEOUT_MS)
-    this.#hooks.onStopped?.()
+    const initiated = await this.#beginTermination(undefined, () =>
+      this.#escalate(options.signal ?? "SIGTERM", options.timeoutMs ?? this.#stopTimeoutMs),
+    )
+    if (initiated) {
+      this.#hooks.onStopped?.()
+    }
   }
 
   async kill(): Promise<void> {
-    await this.#signalAndWait("SIGKILL", DEFAULT_STOP_TIMEOUT_MS)
-    this.#hooks.onKilled?.()
+    const initiated = await this.#beginTermination(undefined, async () => {
+      await this.#signalAndWait("SIGKILL", this.#stopTimeoutMs)
+    })
+    if (initiated) {
+      this.#hooks.onKilled?.()
+    }
   }
 
   /** The caller-visible reason this process is ending because the library itself decided to end
@@ -222,18 +236,37 @@ class ManagedProcessImpl extends Base implements ManagedProcess {
    * `stop`/`kill`. Uses the same graceful-then-escalate path as an explicit `stop`, so the child
    * still gets a chance to clean up. */
   async #terminate(reason: "cancelled" | "timed-out"): Promise<void> {
+    await this.#beginTermination(reason, () => this.#escalate("SIGTERM", this.#stopTimeoutMs))
+  }
+
+  /** Runs `run` as the one in-flight termination sequence for this process. `reason`, if given, is
+   * established as the primary termination reason only by whichever call gets here first -- a
+   * second, concurrent call (a timeout racing an abort, say) just awaits the same sequence rather
+   * than overwriting the reason or re-entering escalation and signaling the child twice. Returns
+   * whether this call actually initiated termination, as opposed to finding the process already
+   * terminal or another termination already in flight -- callers use this to avoid reporting an
+   * action (`onStopped`/`onKilled`) that didn't happen. */
+  async #beginTermination(
+    reason: "cancelled" | "timed-out" | undefined,
+    run: () => Promise<void>,
+  ): Promise<boolean> {
     if (this.#isTerminal()) {
-      return
+      return false
     }
-    this.#pendingReason = reason
-    await this.#escalate("SIGTERM", this.#stopTimeoutMs)
+    if (this.#terminationPromise) {
+      await this.#terminationPromise
+      return false
+    }
+    if (reason !== undefined) {
+      this.#pendingReason = reason
+    }
+    this.#state = "stopping"
+    this.#terminationPromise = run()
+    await this.#terminationPromise
+    return true
   }
 
   async #escalate(signal: NodeJS.Signals, timeoutMs: number): Promise<void> {
-    if (this.#isTerminal()) {
-      return
-    }
-    this.#state = "stopping"
     const exited = await this.#signalAndWait(signal, timeoutMs)
     if (!exited && !this.#isTerminal()) {
       await this.#signalAndWait("SIGKILL", timeoutMs)
@@ -269,12 +302,24 @@ class ManagedProcessImpl extends Base implements ManagedProcess {
     return TERMINAL_STATES.has(this.#state)
   }
 
+  /** Removes the abort listener on every terminal path, not just an actual abort (which already
+   * removes itself via `{ once: true }`) -- otherwise a process that exits normally while its
+   * caller's `AbortSignal` is still alive leaks the listener closure, and this instance with it,
+   * for as long as that signal is referenced elsewhere. */
+  #detachAbortListener(): void {
+    if (this.#abortListener !== undefined) {
+      this.#signalRef?.removeEventListener("abort", this.#abortListener)
+      this.#abortListener = undefined
+    }
+  }
+
   #handleExit(code: number | null, signal: NodeJS.Signals | null): void {
     if (this.#settled) {
       return
     }
     this.#settled = true
     clearTimeout(this.#timeoutHandle)
+    this.#detachAbortListener()
     this.#exitCode = code ?? undefined
     this.#signal = signal ?? undefined
     const state: ProcessResult["state"] = this.#pendingReason ?? "completed"
@@ -289,6 +334,7 @@ class ManagedProcessImpl extends Base implements ManagedProcess {
     }
     this.#settled = true
     clearTimeout(this.#timeoutHandle)
+    this.#detachAbortListener()
     this.#state = "failed"
     const exceptional = this.errors.from(error)
     this.#hooks.onFailed?.(exceptional)
