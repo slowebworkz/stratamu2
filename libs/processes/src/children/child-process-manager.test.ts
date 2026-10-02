@@ -138,7 +138,7 @@ describe("ChildProcessManager", () => {
     // the point is distinguishing "used the configured value" from "used the 5s default", not
     // timing the escalation precisely.
     expect(Date.now() - startedAt).toBeLessThan(TIMEOUT_MS + 1000)
-  }, // An explicit, generous deadline so a regression (falling back to the 5s default, or a hang)
-  // fails loudly here rather than running into vitest's own default test timeout.
-  10_000)
+    // An explicit, generous deadline so a regression (falling back to the 5s default, or a hang)
+    // fails loudly here rather than running into vitest's own default test timeout.
+  }, 10_000)
 })
