@@ -29,7 +29,7 @@ not preclude them later, but it should not be designed around them now.
 | Runtime loop | Done — `apps/server/src/runtime-driver.ts`'s `createRuntimeDriver` advances a combat `ManualClock` by real monotonic elapsed time (not a fixed per-callback bump, so a late-firing tick catches up rather than falling behind) and pumps the runtime on a fixed interval (`STRATAMU_TICK_MS`, default 1000ms, validated finite and > 0 at startup), independent of client input. Scheduled ticks and client-input `kick()`s share one serialized pump chain, so they never run concurrently; a failed tick is caught, logged, and the driver keeps going | Server-owned driver advances the runtime continuously, independent of client input |
 | Combat clock | Done — `main.ts` attaches the combat clock and passes `combatClockId` to `AberMUDAdapter`, so `KILL`'s `scheduleNextRound` now reschedules real rounds instead of staying single-round | AberMUD adapter uses the appropriate combat clock for scheduled rounds |
 | Shutdown | Done — `apps/server/src/shutdown.ts`'s `createShutdown` stops accepting connections, stops the runtime driver, writes a notice to and closes every open connection, then waits for them to end, with `drainTimeoutMs` (default 5000ms) bounding the *entire* sequence from the start rather than just that final wait | Graceful shutdown: stop accepting connections, quiesce runtime work, handle active sessions, persist state, close resources, flush logs |
-| Start/stop/restart | `pnpm --filter @stratamu/server dev` builds and runs in the foreground; no managed restart | `pnpm dev:server` / `dev:server:kill` / `dev:server:restart`, tracking the process they started |
+| Start/stop/restart | Done — `pnpm --filter @stratamu/server dev:server` / `dev:server:kill` / `dev:server:restart`, backed by `apps/server/src/dev-server.ts` and `process-tracking.ts`, tracking the started process's pid in `apps/server/.dev-server.pid` | `pnpm dev:server` / `dev:server:kill` / `dev:server:restart`, tracking the process they started |
 | Watch mode | None | Restart on relevant source changes, without restarting for unrelated changes, with only one instance running at a time |
 | Config/data isolation | `STRATAMU_DATA` / `STRATAMU_PORT` env vars, defaulting to `./data` and `4000` | A development-specific default data directory, predictable dev port, repeatable test-world/account data, and an explicit (not automatic) reset action |
 | VS Code integration | `.vscode/tasks.json` covers git/repo-tools workflow only | Tasks for start/stop/restart/watch that invoke the same scripts as the command line |
@@ -70,24 +70,43 @@ than the other way around:
 
 ## Development-server workflow
 
-### Proposed commands
+### Commands
 
 | Command | Purpose |
 |---|---|
-| `pnpm dev:server` | Start the development server. |
-| `pnpm dev:server:kill` | Stop the development server. |
-| `pnpm dev:server:restart` | Restart the development server. |
+| `pnpm --filter @stratamu/server dev:server` | Start the development server as a tracked process. |
+| `pnpm --filter @stratamu/server dev:server:kill` | Stop the tracked development server. |
+| `pnpm --filter @stratamu/server dev:server:restart` | Stop (if running) and start again. |
 
-These names are proposals, to be reconciled with `apps/server`'s existing `dev`/`start` scripts
-before implementation — not a commitment to a specific script name.
+Each rebuilds (`tsc -p tsconfig.build.json`) before running, same as the existing `dev` script, so
+source changes are always picked up.
 
 ### Runner behavior
 
-- Starts the server as a managed process and tracks the process it started, rather than killing
-  arbitrary processes by port.
-- Supports predictable stop and restart behavior, reporting startup failures and exit status.
-- Keeps server output visible in a dedicated terminal.
-- Avoids leaving orphaned processes after a restart or failed startup.
+Implemented in `apps/server/src/dev-server.ts`, built on the small, directly tested
+`apps/server/src/process-tracking.ts` (`readPid`/`writePid`/`removePid`/`isAlive`):
+
+- `start` tracks the spawned process's pid in `apps/server/.dev-server.pid` (gitignored), rather
+  than killing arbitrary processes by port. It refuses to start a second instance while the PID
+  file points at a still-live process, and clears a stale one (pointing at a process that's no
+  longer running) with a one-line notice before proceeding.
+- The child runs attached to the invoking terminal (`stdio: "inherit"`), not detached, so its
+  output stays visible there exactly like the plain `dev` script — `dev:server:kill` and
+  `dev:server:restart` are separate invocations (from the same or another terminal) that find it
+  via the PID file, not a second owner of its stdio.
+- `kill` sends `SIGINT` — the same signal Ctrl+C sends, reusing the server's own existing graceful
+  shutdown (`shutdown.ts`) unchanged — and waits up to 8s (longer than `shutdown.ts`'s own 5s
+  default `drainTimeoutMs`, so a normal shutdown is never raced) before escalating to `SIGKILL`, so
+  it never leaves an orphan behind even if the server hangs.
+- `start`'s own exit handler removes the PID file and propagates the child's exit code whenever it
+  exits, for any reason — including a startup failure (a port already in use, say) — so "reporting
+  startup failures and exit status" falls out of the same cleanup path rather than needing its own
+  special case.
+- `restart` is `kill` (a no-op if nothing is running) followed by `start`, in one invocation, so
+  both the stop confirmation and the fresh server's own logs appear together.
+
+Process management stays entirely in this runner; the server's own graceful shutdown logic in
+`main.ts`/`shutdown.ts` is unmodified and unaware of it.
 
 ### Watch mode
 
@@ -164,7 +183,7 @@ implementation commitments:
 | 1 | Update README and architecture documentation. | Immediate | Done — this document, plus the README and [Game Engine Architecture](./GAME_ENGINE_ARCHITECTURE.md) updates that link to it |
 | 2 | Implement the continuous runtime driver. | Immediate | Done — `apps/server/src/runtime-driver.ts`, unit-tested in `apps/server/test/runtime-driver.test.ts` |
 | 3 | Implement graceful server shutdown. | Immediate | Done — `apps/server/src/shutdown.ts`, unit-tested in `apps/server/test/shutdown.test.ts`; required an additive `stopAccepting()` on `@stratamu/plugin-telnet`'s `LineServer` |
-| 4 | Add development start, stop, and restart commands. | Next | Pending |
+| 4 | Add development start, stop, and restart commands. | Next | Done — `apps/server/src/dev-server.ts` and `process-tracking.ts`, unit-tested in `apps/server/test/process-tracking.test.ts`; `dev-server.ts` itself manually smoke-tested |
 | 5 | Add isolated development configuration and data. | Next | Pending |
 | 6 | Integrate the commands with VS Code tasks. | Next | Pending |
 | 7 | Add lifecycle and end-to-end smoke tests. | Next | Pending |

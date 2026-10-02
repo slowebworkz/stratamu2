@@ -1,2 +1,3 @@
 data/
 dist/
+.dev-server.pid
