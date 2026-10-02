@@ -3,14 +3,19 @@ import { writeFileSync } from "node:fs"
 import { mkdtemp, rm } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
+
+import { isDefined } from "@stratamu/guards"
 import { afterEach, describe, expect, it, vi } from "vitest"
 
 import {
   isAlive,
   readPid,
+  readStartingClaim,
+  removeIfOwns,
   removePid,
   signalIfAlive,
   tryClaimPid,
+  tryClaimStarting,
   writePid,
 } from "../src/process-tracking.ts"
 
@@ -19,7 +24,7 @@ describe("process-tracking", () => {
 
   afterEach(async () => {
     vi.restoreAllMocks()
-    if (dir !== undefined) {
+    if (isDefined(dir)) {
       await rm(dir, { recursive: true, force: true })
       dir = undefined
     }
@@ -151,5 +156,58 @@ describe("process-tracking", () => {
       throw Object.assign(new Error("something else"), { code: "EINVAL" })
     })
     expect(() => signalIfAlive(123, "SIGINT")).toThrow("something else")
+  })
+
+  it("tryClaimStarting succeeds and encodes the runner pid when the file doesn't exist", async () => {
+    const file = await pidFile()
+    expect(tryClaimStarting(file, 42)).toBe(true)
+    expect(readStartingClaim(file)).toEqual({ runnerPid: 42 })
+  })
+
+  it("tryClaimStarting fails without overwriting when the file already exists", async () => {
+    const file = await pidFile()
+    writePid(file, 1)
+    expect(tryClaimStarting(file, 2)).toBe(false)
+    expect(readPid(file)).toBe(1)
+  })
+
+  it("tryClaimStarting rejects a non-positive or non-integer runner pid", async () => {
+    const file = await pidFile()
+    expect(() => tryClaimStarting(file, 0)).toThrow(RangeError)
+  })
+
+  it("readPid does not mistake a starting marker for a plain pid", async () => {
+    const file = await pidFile()
+    tryClaimStarting(file, 42)
+    expect(readPid(file)).toBeUndefined()
+  })
+
+  it("readStartingClaim returns undefined when the file doesn't exist or holds a plain pid", async () => {
+    const file = await pidFile()
+    expect(readStartingClaim(file)).toBeUndefined()
+    writePid(file, 7)
+    expect(readStartingClaim(file)).toBeUndefined()
+  })
+
+  it("removeIfOwns deletes the file when its contents match", async () => {
+    const file = await pidFile()
+    writePid(file, 1)
+    removeIfOwns(file, 1)
+    expect(readPid(file)).toBeUndefined()
+  })
+
+  it("removeIfOwns leaves the file untouched when its contents don't match", async () => {
+    const file = await pidFile()
+    writePid(file, 1)
+    // Simulates a newer claim (a concurrent start) having replaced this call's own tracked pid by
+    // the time it gets around to cleaning up -- it must not delete someone else's claim.
+    writePid(file, 2)
+    removeIfOwns(file, 1)
+    expect(readPid(file)).toBe(2)
+  })
+
+  it("removeIfOwns is a no-op when the file doesn't exist", async () => {
+    const file = await pidFile()
+    expect(() => removeIfOwns(file, 1)).not.toThrow()
   })
 })

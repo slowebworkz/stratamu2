@@ -3,12 +3,16 @@ import { spawn } from "node:child_process"
 import { join } from "node:path"
 import { fileURLToPath } from "node:url"
 
+import { isDefined } from "@stratamu/guards"
+
 import {
   isAlive,
   readPid,
+  readStartingClaim,
+  removeIfOwns,
   removePid,
   signalIfAlive,
-  tryClaimPid,
+  tryClaimStarting,
   writePid,
 } from "./process-tracking.ts"
 
@@ -34,7 +38,7 @@ export interface DevServerRunnerOptions {
   readonly killTimeoutMs?: number
   readonly pollIntervalMs?: number
   readonly log?: DevServerLog
-  /** Called once the spawned child's real pid is known, replacing the placeholder claim `start`
+  /** Called once the spawned child's real pid is known, replacing the "starting" claim `start`
    * makes before spawning -- a CLI wrapper uses this to forward signals its own process receives
    * to the child; tests can ignore it. */
   readonly onSpawned?: (pid: number) => void
@@ -75,18 +79,30 @@ export function createDevServerRunner(options: DevServerRunnerOptions): DevServe
     onSpawned,
   } = options
 
-  /** Clears a stale PID file (one whose process isn't actually running) if there is one,
-   * reporting it. Returns the still-live pid, if any. */
+  /** Clears a stale PID file (one whose process isn't actually running) or a stale "starting"
+   * marker (one left behind by a runner that crashed before it finished spawning) if there is
+   * one, reporting it either way. Returns the still-live server pid, if any -- a live "starting"
+   * claim has no pid to return yet, so that case (another start is genuinely still in progress)
+   * is also represented as `undefined`, the same as nothing being tracked at all; callers that
+   * need to tell the two apart check `readStartingClaim` themselves. */
   function reconcilePidFile(): number | undefined {
     const pid = readPid(pidFile)
-    if (pid === undefined) {
+    if (isDefined(pid)) {
+      if (isAlive(pid)) {
+        return pid
+      }
+      log.log(`Removing stale PID file from a previous run (pid ${pid} is no longer running).`)
+      removePid(pidFile)
       return undefined
     }
-    if (isAlive(pid)) {
-      return pid
+
+    const claim = readStartingClaim(pidFile)
+    if (isDefined(claim) && !isAlive(claim.runnerPid)) {
+      log.log(
+        `Removing a stale "starting" marker from a crashed start (pid ${claim.runnerPid} is no longer running).`,
+      )
+      removePid(pidFile)
     }
-    log.log(`Removing stale PID file from a previous run (pid ${pid} is no longer running).`)
-    removePid(pidFile)
     return undefined
   }
 
@@ -103,7 +119,7 @@ export function createDevServerRunner(options: DevServerRunnerOptions): DevServe
 
   async function kill(): Promise<boolean> {
     const pid = reconcilePidFile()
-    if (pid === undefined) {
+    if (!isDefined(pid)) {
       log.log("Server is not running.")
       return true
     }
@@ -122,46 +138,37 @@ export function createDevServerRunner(options: DevServerRunnerOptions): DevServe
         }
       }
     }
-    removePid(pidFile)
+    removeIfOwns(pidFile, pid)
     log.log("Server stopped.")
     return true
   }
 
   async function start(): Promise<number> {
     const existing = reconcilePidFile()
-    if (existing !== undefined) {
+    if (isDefined(existing)) {
       log.error(`Server already running (pid ${existing}).`)
       return 1
     }
 
-    // Claims the PID file exclusively before spawning anything, with this runner's own pid as a
-    // placeholder: two `start` invocations racing past the check above could otherwise both
-    // decide nothing is running and both spawn a server. The exclusive create (`tryClaimPid`) is
-    // atomic, so only one of them can win; the loser reports whatever the winner left behind
-    // instead of spawning a redundant second server.
-    //
-    // Gotcha for in-process testing: `process.pid` here is whatever process *calls* `start()` --
-    // a separate OS process from the eventual child in real CLI use, but the *same* process as
-    // the test itself when `createDevServerRunner` is exercised directly (as in
-    // `test/dev-server.test.ts`). A test that waits for "the pid file has some value" rather than
-    // "the pid file has the real child's value" can observe this placeholder and mistake the test
-    // runner's own process for the tracked server -- signaling it would signal the test process
-    // itself. Tests must wait for a value that isn't `process.pid`.
-    if (!tryClaimPid(pidFile, process.pid)) {
-      const racingPid = readPid(pidFile)
-      log.error(
-        racingPid === undefined
-          ? "Another start is already in progress."
-          : `Server already running (pid ${racingPid}).`,
-      )
+    // Claims the PID file exclusively before spawning anything, with a "starting" marker (not yet
+    // a server pid, since the real one isn't known until the child actually spawns): two `start`
+    // invocations racing past the check above could otherwise both decide nothing is running and
+    // both spawn a server. The exclusive create (`tryClaimStarting`) is atomic, so only one of
+    // them can win; the loser reports whatever the winner left behind instead of spawning a
+    // redundant second server. Unlike an earlier design that used this runner's own pid as the
+    // placeholder, the marker is never a plain digit string, so `readPid`/`isAlive` can never
+    // mistake it for a live, signalable server process -- a concurrent `kill()` during this window
+    // sees "nothing to stop yet" instead of risking a signal to the wrong process.
+    if (!tryClaimStarting(pidFile, process.pid)) {
+      log.error("Another start is already in progress.")
       return 1
     }
 
     const child = spawnServer()
     const result = await new Promise<{ code: number } | { error: Error }>(resolve => {
       child.on("spawn", () => {
-        // Only now do we know the real pid to track; until this point the placeholder above
-        // (this runner's own pid) holds the claim.
+        // Only now do we know the real pid to track; until this point the "starting" marker above
+        // holds the claim.
         if (child.pid !== undefined) {
           writePid(pidFile, child.pid)
           onSpawned?.(child.pid)
@@ -174,7 +181,12 @@ export function createDevServerRunner(options: DevServerRunnerOptions): DevServe
       child.on("error", error => resolve({ error }))
     })
 
-    removePid(pidFile)
+    // Removes only whatever this call itself claimed -- the real child pid once "spawn" fired, or
+    // still the original "starting" marker if it never got that far (e.g. an immediate "error").
+    // An unconditional removal here could otherwise delete a newer start's claim: if this
+    // tracked process had already been confirmed stopped and cleaned up by a concurrent `kill()`
+    // by the time this resolves, a new `start()` could already have claimed the file again.
+    removeIfOwns(pidFile, child.pid ?? `starting:${process.pid}`)
     if ("error" in result) {
       log.error("Failed to start the server:", result.error)
       return 1
@@ -183,7 +195,11 @@ export function createDevServerRunner(options: DevServerRunnerOptions): DevServe
   }
 
   async function restart(): Promise<number> {
-    await kill()
+    const stopped = await kill()
+    if (!stopped) {
+      log.error("Failed to stop the running server; not starting a new one.")
+      return 1
+    }
     return start()
   }
 

@@ -96,8 +96,10 @@ Implemented in `apps/server/src/dev-server.ts`, built on the small, directly tes
   via the PID file, not a second owner of its stdio.
 - `kill` sends `SIGINT` — the same signal Ctrl+C sends, reusing the server's own existing graceful
   shutdown (`shutdown.ts`) unchanged — and waits up to 8s (longer than `shutdown.ts`'s own 5s
-  default `drainTimeoutMs`, so a normal shutdown is never raced) before escalating to `SIGKILL`, so
-  it never leaves an orphan behind even if the server hangs.
+  default `drainTimeoutMs`, so a normal shutdown is never raced) before escalating to `SIGKILL`. A
+  timeout can only attempt forced termination, not guarantee it — a process stuck in
+  uninterruptible I/O, for instance, can outlive even `SIGKILL` delivery until that underlying
+  condition clears.
 - `start`'s own exit handler removes the PID file and propagates the child's exit code whenever it
   exits, for any reason — including a startup failure (a port already in use, say) — so "reporting
   startup failures and exit status" falls out of the same cleanup path rather than needing its own
@@ -217,7 +219,8 @@ The initial development-server work is complete when a developer can:
 - Start the server using one documented command.
 - Connect using a Telnet client and exercise supported gameplay.
 - Leave the server running while scheduled engine work continues.
-- Stop and restart the server without orphaned processes.
+- Stop and restart the server, with `kill` escalating to `SIGKILL` when the server doesn't respond
+  to `SIGINT`.
 - Preserve development data across normal restarts.
 - Reset disposable development data explicitly.
 - Shut down cleanly and restore persisted state after a restart.

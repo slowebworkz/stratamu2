@@ -22,6 +22,7 @@
     "@stratamu/clock": "workspace:*",
     "@stratamu/engine-core": "workspace:*",
     "@stratamu/engine-world": "workspace:*",
+    "@stratamu/guards": "workspace:*",
     "@stratamu/plugin-telnet": "workspace:*",
     "@stratamu/primitives": "workspace:*"
   },
