@@ -8,7 +8,7 @@ The goal is not to build a single predefined type of game. The goal is to provid
 
 > **Status: Early development**
 >
-> The engine substrate (`Runtime`, `WorldState`, `Sessions`), a Telnet transport plugin, and a first real game adapter (AberMUD II) are implemented and tested. `apps/server` composes them into a playable vertical slice: start it and connect with `telnet`. It does not yet run its own continuous runtime loop, shut down gracefully, or have a dedicated development workflow — see [Development Server](./docs/DEVELOPMENT_SERVER.md) for that plan, and "Workspace Structure" and "Project Status" below for what exists package by package.
+> The engine substrate (`Runtime`, `WorldState`, `Sessions`), a Telnet transport plugin, and a first real game adapter (AberMUD II) are implemented and tested. `apps/server` composes them into a playable vertical slice: start it and connect with `telnet`. It now runs its own continuous runtime loop and shuts down gracefully (see [Development Server](./docs/DEVELOPMENT_SERVER.md)); a dedicated start/stop/restart development workflow and VS Code tasks are still planned — see that same document, and "Workspace Structure" and "Project Status" below for what exists package by package.
 
 ## Project Goals
 
@@ -389,12 +389,18 @@ slice at a time, rather than building out a generic core in the abstract.
 - [ ] First domain plugin (equipment/combat live inside the adapter so far, not factored out as an
       independent, adapter-agnostic plugin)
 - [x] Complete playable vertical slice (`apps/server` composes the adapter, the Telnet plugin, and
-      persistence into something a client can connect to and play; a manual end-to-end walkthrough
-      over a real Telnet connection is still pending)
-- [ ] Server-owned continuous runtime driver (the engine currently only advances in response to
-      client input; see [Development Server](./docs/DEVELOPMENT_SERVER.md))
-- [ ] Graceful server shutdown (state persistence, session draining, resource/log flushing on
-      `SIGINT`/`SIGTERM`; see [Development Server](./docs/DEVELOPMENT_SERVER.md))
+      persistence into something a client can connect to and play; manually walked through login,
+      movement, and a full multi-round KILL fight to a lethal conclusion over a real socket
+      connection, confirming combat progresses on its own, with zero further client input, via the
+      runtime driver)
+- [x] Server-owned continuous runtime driver (`apps/server/src/runtime-driver.ts`: a single
+      serialized pump chain shared between scheduled ticks and client-input `kick()`s, advancing
+      the combat clock by real monotonic elapsed time rather than a fixed per-tick bump, surviving
+      and logging a failed tick instead of dying silently; see
+      [Development Server](./docs/DEVELOPMENT_SERVER.md))
+- [x] Graceful server shutdown (`apps/server/src/shutdown.ts`: stop accepting connections, stop the
+      driver, notify and close every open connection, bounded by a timeout that covers the whole
+      sequence; see [Development Server](./docs/DEVELOPMENT_SERVER.md))
 - [ ] Development-server workflow (start/stop/restart commands, watch mode, isolated dev
       config/data, VS Code tasks; see [Development Server](./docs/DEVELOPMENT_SERVER.md))
 

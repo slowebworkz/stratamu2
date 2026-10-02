@@ -26,9 +26,9 @@ not preclude them later, but it should not be designed around them now.
 
 | Area | Current state | Target |
 |---|---|---|
-| Runtime loop | Done — `apps/server/src/runtime-driver.ts`'s `createRuntimeDriver` advances a combat `ManualClock` and pumps the runtime on a fixed interval (`STRATAMU_TICK_MS`, default 1000ms), independent of client input | Server-owned driver advances the runtime continuously, independent of client input |
+| Runtime loop | Done — `apps/server/src/runtime-driver.ts`'s `createRuntimeDriver` advances a combat `ManualClock` by real monotonic elapsed time (not a fixed per-callback bump, so a late-firing tick catches up rather than falling behind) and pumps the runtime on a fixed interval (`STRATAMU_TICK_MS`, default 1000ms, validated finite and > 0 at startup), independent of client input. Scheduled ticks and client-input `kick()`s share one serialized pump chain, so they never run concurrently; a failed tick is caught, logged, and the driver keeps going | Server-owned driver advances the runtime continuously, independent of client input |
 | Combat clock | Done — `main.ts` attaches the combat clock and passes `combatClockId` to `AberMUDAdapter`, so `KILL`'s `scheduleNextRound` now reschedules real rounds instead of staying single-round | AberMUD adapter uses the appropriate combat clock for scheduled rounds |
-| Shutdown | Done — `apps/server/src/shutdown.ts`'s `createShutdown` stops accepting connections, stops the runtime driver, writes a notice to and closes every open connection, then waits (bounded by `drainTimeoutMs`, default 5000ms) for them to end before the process exits | Graceful shutdown: stop accepting connections, quiesce runtime work, handle active sessions, persist state, close resources, flush logs |
+| Shutdown | Done — `apps/server/src/shutdown.ts`'s `createShutdown` stops accepting connections, stops the runtime driver, writes a notice to and closes every open connection, then waits for them to end, with `drainTimeoutMs` (default 5000ms) bounding the *entire* sequence from the start rather than just that final wait | Graceful shutdown: stop accepting connections, quiesce runtime work, handle active sessions, persist state, close resources, flush logs |
 | Start/stop/restart | `pnpm --filter @stratamu/server dev` builds and runs in the foreground; no managed restart | `pnpm dev:server` / `dev:server:kill` / `dev:server:restart`, tracking the process they started |
 | Watch mode | None | Restart on relevant source changes, without restarting for unrelated changes, with only one instance running at a time |
 | Config/data isolation | `STRATAMU_DATA` / `STRATAMU_PORT` env vars, defaulting to `./data` and `4000` | A development-specific default data directory, predictable dev port, repeatable test-world/account data, and an explicit (not automatic) reset action |
@@ -37,23 +37,36 @@ not preclude them later, but it should not be designed around them now.
 
 ## Runtime loop and shutdown
 
-Before building a development runner on top of it, the server process itself needs to be able to
-run continuously and stop cleanly:
+Both are implemented ahead of the development runner described below, which builds on them rather
+than the other way around:
 
-- A server-owned driver advances the engine's runtime clock on its own schedule, so scheduled work
-  (combat rounds and similar) progresses without requiring a client to send input.
-- The AberMUD adapter selects its combat clock explicitly, rather than relying on the incidental
-  `pump` calls already made after login (`apps/server/src/main.ts`) and after each line of ordinary
-  game input (`adapters/abermud/src/login/abermud-login.ts`) — neither drives the runtime
-  continuously without client activity.
-- The runtime driver lives in `apps/server`, not in `@stratamu/plugin-telnet` or
-  `@stratamu/adapter-abermud` — composition stays the application's responsibility, per
-  [Game Engine Architecture §9](./GAME_ENGINE_ARCHITECTURE.md#9-adapters--game-profiles) and
-  §20's [Apps](./GAME_ENGINE_ARCHITECTURE.md#apps) boundary.
-- Shutdown stops accepting new connections, quiesces new runtime work, handles active sessions and
-  in-flight operations, persists player/world state, closes network connections and other
-  resources, and flushes logging before exit — testable independently of the development runner
-  described below.
+- `apps/server/src/runtime-driver.ts`'s `createRuntimeDriver` is a server-owned driver that
+  advances the engine's runtime clock on its own schedule, so scheduled work (combat rounds and
+  similar) progresses without requiring a client to send input. It lives in `apps/server`, not in
+  `@stratamu/plugin-telnet` or `@stratamu/adapter-abermud` — composition stays the application's
+  responsibility, per [Game Engine Architecture §9](./GAME_ENGINE_ARCHITECTURE.md#9-adapters--game-profiles)
+  and §20's [Apps](./GAME_ENGINE_ARCHITECTURE.md#apps) boundary.
+- Elapsed time is measured against an injected monotonic clock, not assumed to be exactly
+  `tickMs`: a late-firing tick (event-loop lag, a slow pump, a GC pause) advances the combat clock
+  by however many whole `tickMs` units actually elapsed, carrying any fractional remainder into the
+  next tick's own measurement rather than losing it.
+- Ordinary client input no longer pumps the runtime itself (`LoginFlow` only submits via
+  `engine.receive(...)`, in `adapters/abermud/src/login/abermud-login.ts`); it calls the driver's
+  `kick()` instead, which runs an extra pump right away — without advancing the combat clock or
+  disturbing the regular schedule — so the initial `look` after login and ordinary commands still
+  respond promptly instead of waiting out a full tick interval.
+- Scheduled ticks and `kick()`s are serialized through one shared pump chain, so the driver never
+  runs two `runtime.pump()` calls concurrently; a tick that comes due while a kicked pump is still
+  running queues behind it instead. A tick failure (the clock advance or the pump itself
+  throwing/rejecting) is caught and logged rather than silently killing the driver, and the elapsed
+  time a failed clock-advance attempt measured is preserved for the next tick to retry, not
+  discarded.
+- `apps/server/src/shutdown.ts`'s `createShutdown` stops accepting new connections, stops the
+  driver, notifies and closes every connection still open, and waits for them to end — bounded by a
+  single timeout that covers that entire sequence, not just the final wait, so a hung in-flight
+  pump can't block shutdown indefinitely. Testable independently of the development runner
+  described below, including against a real `LineServer` and real sockets
+  (`apps/server/test/shutdown-integration.test.ts`), not only fakes.
 
 ## Development-server workflow
 
