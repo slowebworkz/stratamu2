@@ -48,6 +48,32 @@ describe("createManagedProcess", () => {
     expect(process.state).toBe("failed")
   })
 
+  it("stop() racing a spawn failure does not report a confirmed stop", async () => {
+    const stopped: unknown[] = []
+    // Calling stop() immediately, before awaiting settled, starts termination while the child is
+    // still "starting" -- the spawn failure (an "error" event, not "exit") then arrives while that
+    // termination is in flight. "failed" is terminal, but the process never actually spawned, so
+    // this must not be reported as a confirmed stop.
+    const process = createManagedProcess(
+      { id: "missing", executable: "stratamu-this-command-does-not-exist-xyz" },
+      { hooks: { onStopped: () => stopped.push(undefined) } },
+    )
+    await process.stop()
+    expect(stopped).toHaveLength(0)
+    expect((await process.settled).state).toBe("failed")
+  })
+
+  it("kill() racing a spawn failure does not report a confirmed kill", async () => {
+    const killed: unknown[] = []
+    const process = createManagedProcess(
+      { id: "missing", executable: "stratamu-this-command-does-not-exist-xyz" },
+      { hooks: { onKilled: () => killed.push(undefined) } },
+    )
+    await process.kill()
+    expect(killed).toHaveLength(0)
+    expect((await process.settled).state).toBe("failed")
+  })
+
   it("captures stdout and stderr", async () => {
     const process = createManagedProcess(
       nodeScript('process.stdout.write("out"); process.stderr.write("err"); process.exit(0)'),

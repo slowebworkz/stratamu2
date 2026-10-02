@@ -152,6 +152,13 @@ class ManagedProcessImpl extends Base implements ManagedProcess {
    * unmanaged. */
   readonly #spawned: Promise<void>
   #resolveSpawned: () => void = () => {}
+  /** Synchronous twin of `#spawned`'s resolution, for the places that need to know "did this
+   * process ever actually start" right now rather than awaiting a promise: distinguishing the
+   * `"error"` event's two real meanings (spawning failed outright, vs. some later operation like
+   * signaling a running child failed) and confirming `stop`/`kill` actually terminated a process
+   * that had truly started, as opposed to one that merely reached a terminal `"failed"` state
+   * without ever spawning. */
+  #hasSpawned = false
 
   constructor(definition: ProcessDefinition, options: ManagedProcessOptions = {}) {
     super()
@@ -186,6 +193,7 @@ class ManagedProcessImpl extends Base implements ManagedProcess {
     })
 
     this.#child.on("spawn", () => {
+      this.#hasSpawned = true
       this.#state = "running"
       if (this.#child.pid !== undefined) {
         this.#hooks.onStarted?.(this.#child.pid)
@@ -196,7 +204,19 @@ class ManagedProcessImpl extends Base implements ManagedProcess {
     // Node emits "error" instead of -- or, in some Node versions, in addition to -- "exit" when
     // spawning fails outright. Without a listener here, an unhandled "error" throws and `settled`
     // would never resolve -- the exact gap apps/server/src/dev-server.ts's own review caught.
-    this.#child.on("error", error => this.#handleSpawnError(error))
+    //
+    // But "error" isn't exclusively a spawn failure: Node can also emit it for a later operation on
+    // an already-running child, most notably a failed signal delivery. Routing that case through
+    // #handleSpawnError would wrongly settle a still-running process as "failed". Once the child
+    // has actually spawned, log it instead and keep tracking the child -- its real "exit" still
+    // settles the lifecycle.
+    this.#child.on("error", error => {
+      if (this.#hasSpawned) {
+        this.log.error({ err: error, pid: this.#child.pid }, "Managed process reported an error")
+        return
+      }
+      this.#handleSpawnError(error)
+    })
 
     this.#signalRef = options.signal
     if (options.signal?.aborted) {
@@ -240,8 +260,10 @@ class ManagedProcessImpl extends Base implements ManagedProcess {
     )
     // Confirmed, not merely attempted: #escalate can finish its last wait without the process
     // actually having died (stuck in uninterruptible I/O, say), and onStopped should mean the
-    // process is actually gone, matching its past-tense name.
-    if (initiated && this.#isTerminal()) {
+    // process is actually gone, matching its past-tense name. "failed" is also terminal but isn't
+    // a stop/kill outcome -- it means the process never spawned in the first place (a termination
+    // request racing a spawn failure must not be reported as a confirmed stop or kill).
+    if (initiated && this.#hasSpawned && this.#isTerminal()) {
       this.#hooks.onStopped?.()
     }
   }
@@ -250,7 +272,7 @@ class ManagedProcessImpl extends Base implements ManagedProcess {
     const initiated = await this.#beginTermination(undefined, async () => {
       await this.#signalAndWait("SIGKILL", this.#stopTimeoutMs)
     })
-    if (initiated && this.#isTerminal()) {
+    if (initiated && this.#hasSpawned && this.#isTerminal()) {
       this.#hooks.onKilled?.()
     }
   }
