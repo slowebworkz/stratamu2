@@ -32,7 +32,7 @@ not preclude them later, but it should not be designed around them now.
 | Start/stop/restart | Done — `pnpm --filter @stratamu/server dev:server` / `dev:server:kill` / `dev:server:restart`, backed by `apps/server/src/dev-server.ts` and `process-tracking.ts`, tracking the started process's pid in `apps/server/.dev-server.pid` | `pnpm dev:server` / `dev:server:kill` / `dev:server:restart`, tracking the process they started |
 | Watch mode | None | Restart on relevant source changes, without restarting for unrelated changes, with only one instance running at a time |
 | Config/data isolation | `STRATAMU_DATA` / `STRATAMU_PORT` env vars, defaulting to `./data` and `4000` | A development-specific default data directory, predictable dev port, repeatable test-world/account data, and an explicit (not automatic) reset action |
-| VS Code integration | `.vscode/tasks.json` covers git/repo-tools workflow only | Tasks for start/stop/restart/watch that invoke the same scripts as the command line |
+| VS Code integration | `.vscode/` is conventionally untracked in this repo, so nothing here is shared centrally; task definitions for start/stop/restart are documented below for any developer to add locally | Tasks for start/stop/restart/watch that invoke the same scripts as the command line |
 | Lifecycle/integration tests | Adapter-level command tests exist; nothing exercises the server process end to end | Lifecycle tests plus an automated Telnet smoke test against a temporary data directory |
 
 ## Runtime loop and shutdown
@@ -96,8 +96,10 @@ Implemented in `apps/server/src/dev-server.ts`, built on the small, directly tes
   via the PID file, not a second owner of its stdio.
 - `kill` sends `SIGINT` — the same signal Ctrl+C sends, reusing the server's own existing graceful
   shutdown (`shutdown.ts`) unchanged — and waits up to 8s (longer than `shutdown.ts`'s own 5s
-  default `drainTimeoutMs`, so a normal shutdown is never raced) before escalating to `SIGKILL`, so
-  it never leaves an orphan behind even if the server hangs.
+  default `drainTimeoutMs`, so a normal shutdown is never raced) before escalating to `SIGKILL`. A
+  timeout can only attempt forced termination, not guarantee it — a process stuck in
+  uninterruptible I/O, for instance, can outlive even `SIGKILL` delivery until that underlying
+  condition clears.
 - `start`'s own exit handler removes the PID file and propagates the child's exit code whenever it
   exits, for any reason — including a startup failure (a port already in use, say) — so "reporting
   startup failures and exit status" falls out of the same cleanup path rather than needing its own
@@ -133,16 +135,32 @@ configuration:
 
 ## VS Code integration
 
-Add tasks alongside the existing `repo-tools.sh`-backed tasks in `.vscode/tasks.json`:
+`.vscode/` is conventionally untracked in this repo (editor configuration is a per-developer
+choice, not shared project state), so these tasks can't be committed centrally -- any developer who
+wants them adds this to their own `.vscode/tasks.json`, alongside the existing `repo-tools.sh`-backed
+tasks:
 
-- Start the server in a dedicated terminal.
-- Stop the managed server process.
-- Restart the server.
-- Optionally, a separate watch-mode task.
-- Display logs and startup errors clearly.
+```jsonc
+{
+  "label": "Server: Start",
+  "detail": "Starts the development server as a managed, tracked process (pnpm dev:server).",
+  "type": "shell",
+  "command": "pnpm --filter @stratamu/server dev:server",
+  "options": { "cwd": "${workspaceFolder}" },
+  "presentation": { "reveal": "always", "panel": "dedicated", "close": false },
+  "problemMatcher": []
+}
+```
 
-Tasks should invoke the same underlying scripts used from the command line, not duplicate
-process-management logic.
+(and matching `"Server: Stop"` / `"Server: Restart"` entries for `dev:server:kill` /
+`dev:server:restart`.) Each is a direct invocation of the same scripts used from the command line,
+not a reimplementation of any process-management logic. Unlike the existing quick, silent git tasks
+(`reveal: never, close: true`), these use `reveal: always, panel: dedicated, close: false`: the
+server is a long-running foreground process whose output needs to stay visible, matching this
+plan's own "start the server in a dedicated terminal" and "display logs and startup errors clearly"
+goals.
+
+A separate watch-mode task remains pending, tracked below alongside watch mode itself.
 
 ## Lifecycle and integration tests
 
@@ -183,9 +201,9 @@ implementation commitments:
 | 1 | Update README and architecture documentation. | Immediate | Done — this document, plus the README and [Game Engine Architecture](./GAME_ENGINE_ARCHITECTURE.md) updates that link to it |
 | 2 | Implement the continuous runtime driver. | Immediate | Done — `apps/server/src/runtime-driver.ts`, unit-tested in `apps/server/test/runtime-driver.test.ts` |
 | 3 | Implement graceful server shutdown. | Immediate | Done — `apps/server/src/shutdown.ts`, unit-tested in `apps/server/test/shutdown.test.ts`; required an additive `stopAccepting()` on `@stratamu/plugin-telnet`'s `LineServer` |
-| 4 | Add development start, stop, and restart commands. | Next | Done — `apps/server/src/dev-server.ts` and `process-tracking.ts`, unit-tested in `apps/server/test/process-tracking.test.ts`; `dev-server.ts` itself manually smoke-tested |
+| 4 | Add development start, stop, and restart commands. | Next | Done — `apps/server/src/dev-server.ts` and `process-tracking.ts`, both unit-tested (`test/dev-server.test.ts` exercises the lifecycle against real child processes: normal start/stop, restart, SIGKILL escalation, spawn failure, exit-code propagation, the concurrent-start race; `test/process-tracking.test.ts` covers the PID-file/liveness primitives directly) |
 | 5 | Add isolated development configuration and data. | Next | Pending |
-| 6 | Integrate the commands with VS Code tasks. | Next | Pending |
+| 6 | Integrate the commands with VS Code tasks. | Next | Documented, not shared — `.vscode/` is conventionally untracked in this repo, so the task definitions live in the "VS Code integration" section above for any developer to add locally, rather than as committed repo state |
 | 7 | Add lifecycle and end-to-end smoke tests. | Next | Pending |
 | 8 | Investigate Docker support and deployment requirements. | Later | Pending |
 | 9 | Design production CLI and distribution workflows. | Later | Pending |
@@ -201,7 +219,8 @@ The initial development-server work is complete when a developer can:
 - Start the server using one documented command.
 - Connect using a Telnet client and exercise supported gameplay.
 - Leave the server running while scheduled engine work continues.
-- Stop and restart the server without orphaned processes.
+- Stop and restart the server, with `kill` escalating to `SIGKILL` when the server doesn't respond
+  to `SIGINT`.
 - Preserve development data across normal restarts.
 - Reset disposable development data explicitly.
 - Shut down cleanly and restore persisted state after a restart.

@@ -339,6 +339,9 @@ importers:
       '@stratamu/engine-world':
         specifier: workspace:*
         version: link:../../engine/world
+      '@stratamu/guards':
+        specifier: workspace:*
+        version: link:../../libs/guards
       '@stratamu/plugin-telnet':
         specifier: workspace:*
         version: link:../../plugins/telnet
