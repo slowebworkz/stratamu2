@@ -5,7 +5,14 @@ import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { afterEach, describe, expect, it, vi } from "vitest"
 
-import { isAlive, readPid, removePid, tryClaimPid, writePid } from "../src/process-tracking.ts"
+import {
+  isAlive,
+  readPid,
+  removePid,
+  signalIfAlive,
+  tryClaimPid,
+  writePid,
+} from "../src/process-tracking.ts"
 
 describe("process-tracking", () => {
   let dir: string | undefined
@@ -117,5 +124,32 @@ describe("process-tracking", () => {
       throw Object.assign(new Error("something else"), { code: "EINVAL" })
     })
     expect(() => isAlive(123)).toThrow("something else")
+  })
+
+  it("signalIfAlive delivers the signal and returns true when the process exists", () => {
+    const kill = vi.spyOn(process, "kill").mockImplementation(() => true)
+    expect(signalIfAlive(123, "SIGINT")).toBe(true)
+    expect(kill).toHaveBeenCalledWith(123, "SIGINT")
+  })
+
+  it("signalIfAlive returns false when the process has already exited (ESRCH)", () => {
+    vi.spyOn(process, "kill").mockImplementation(() => {
+      throw Object.assign(new Error("No such process"), { code: "ESRCH" })
+    })
+    expect(signalIfAlive(123, "SIGINT")).toBe(false)
+  })
+
+  it("signalIfAlive rethrows EPERM, unlike isAlive", () => {
+    vi.spyOn(process, "kill").mockImplementation(() => {
+      throw Object.assign(new Error("Operation not permitted"), { code: "EPERM" })
+    })
+    expect(() => signalIfAlive(123, "SIGINT")).toThrow("Operation not permitted")
+  })
+
+  it("signalIfAlive rethrows an unexpected error", () => {
+    vi.spyOn(process, "kill").mockImplementation(() => {
+      throw Object.assign(new Error("something else"), { code: "EINVAL" })
+    })
+    expect(() => signalIfAlive(123, "SIGINT")).toThrow("something else")
   })
 })

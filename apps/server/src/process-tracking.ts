@@ -1,10 +1,5 @@
 import { readFileSync, unlinkSync, writeFileSync } from "node:fs"
 
-/** A pid is a point-in-time identifier, not a durable identity: once the process holding it exits,
- * the OS is free to reuse the same number for something unrelated. `isAlive` can only ever confirm
- * "a process with this pid currently exists", not "it's still the one this file originally
- * named" -- an acceptable limitation for a local development-server runner, not something this
- * module tries to paper over with stronger (and heavier) identity tracking. */
 function isValidPid(pid: number): boolean {
   return Number.isSafeInteger(pid) && pid > 0
 }
@@ -77,7 +72,13 @@ export function removePid(pidFile: string): void {
  * it only probes for the process's existence. `ESRCH` means there is none; `EPERM` means there
  * is one but this process lacks permission to signal it -- still alive, just not ours to confirm
  * further -- so only `ESRCH` means "dead" and anything else unexpected is rethrown rather than
- * silently treated as either. */
+ * silently treated as either.
+ *
+ * A pid is a point-in-time identifier, not a durable identity: once the process holding it exits,
+ * the OS is free to reuse the same number for something unrelated. This can only ever confirm "a
+ * process with this pid currently exists", not "it's still the one this file originally named" --
+ * an acceptable limitation for a local development-server runner, not something this module tries
+ * to paper over with stronger (and heavier) identity tracking. */
 export function isAlive(pid: number): boolean {
   if (!isValidPid(pid)) {
     return false
@@ -92,6 +93,25 @@ export function isAlive(pid: number): boolean {
     }
     if (code === "EPERM") {
       return true
+    }
+    throw error
+  }
+}
+
+/** Sends `signal` to `pid`, returning whether it was actually delivered. `ESRCH` means the
+ * process already exited between the caller's own liveness check and this call -- a real, if
+ * narrow, race (nothing stops the target process from finishing its own shutdown in that window),
+ * not a programming error, so it's reported as "not delivered" rather than thrown. Unlike
+ * `isAlive`, `EPERM` is rethrown here rather than treated as success: this signals a process the
+ * caller itself spawned, so a permission failure is a genuine, unexpected problem worth
+ * surfacing, not evidence the process is merely alive. */
+export function signalIfAlive(pid: number, signal: NodeJS.Signals): boolean {
+  try {
+    process.kill(pid, signal)
+    return true
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ESRCH") {
+      return false
     }
     throw error
   }

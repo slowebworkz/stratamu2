@@ -411,8 +411,10 @@ slice at a time, rather than building out a generic core in the abstract.
       started process by pid in `apps/server/.dev-server.pid`, reusing the server's own existing
       graceful shutdown rather than duplicating it; see
       [Development Server](./docs/DEVELOPMENT_SERVER.md))
-- [ ] Remaining development-server workflow (watch mode, isolated dev config/data, VS Code tasks;
-      see [Development Server](./docs/DEVELOPMENT_SERVER.md))
+- [ ] Remaining development-server workflow (watch mode, isolated dev config/data, VS Code tasks --
+      `.vscode/` is conventionally untracked in this repo, so task definitions are documented but
+      not shared centrally; see
+      [Development Server](./docs/DEVELOPMENT_SERVER.md))
 
 The checklist is intentionally conservative. Architectural decisions will be validated through implementation rather than treated as final simply because they are documented.
 

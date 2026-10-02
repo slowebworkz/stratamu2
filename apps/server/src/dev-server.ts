@@ -1,179 +1,227 @@
+import type { ChildProcess } from "node:child_process"
 import { spawn } from "node:child_process"
 import { join } from "node:path"
 import { fileURLToPath } from "node:url"
 
-import { isAlive, readPid, removePid, tryClaimPid, writePid } from "./process-tracking.ts"
+import {
+  isAlive,
+  readPid,
+  removePid,
+  signalIfAlive,
+  tryClaimPid,
+  writePid,
+} from "./process-tracking.ts"
 
-const PACKAGE_ROOT = fileURLToPath(new URL("..", import.meta.url))
-const PID_FILE = join(PACKAGE_ROOT, ".dev-server.pid")
-const MAIN_SCRIPT = join(PACKAGE_ROOT, "dist", "main.js")
+/** Just enough of `Console` to report the runner's own lifecycle messages -- not `Console` itself,
+ * whose overloaded signatures a plain `{ log: vi.fn(), ... }` test double can't structurally
+ * satisfy (the same fix already applied to `ShutdownLog`/`RuntimeDriverLog`). */
+export interface DevServerLog {
+  log(message: string): void
+  warn(message: string): void
+  error(message: string, error?: unknown): void
+}
 
-/** How long `kill` waits for a graceful `SIGINT` shutdown before escalating to `SIGKILL`, and
- * again after `SIGKILL` before giving up. Comfortably longer than `shutdown.ts`'s own 5000ms
- * default `drainTimeoutMs`, so a normal graceful shutdown is never raced. */
-const KILL_TIMEOUT_MS = 8000
-const POLL_INTERVAL_MS = 150
+export interface DevServerRunnerOptions {
+  readonly pidFile: string
+  /** Starts the server, returning the `ChildProcess` to track. Injected, not a hardcoded
+   * `spawn(...)` call, so a test can launch a trivial, controllable script instead of the real
+   * server build. */
+  readonly spawnServer: () => ChildProcess
+  /** How long `kill` waits for a graceful `SIGINT` shutdown before escalating to `SIGKILL`, and
+   * again after `SIGKILL` before giving up. Default 8000ms -- comfortably longer than
+   * `shutdown.ts`'s own 5000ms default `drainTimeoutMs`, so a normal graceful shutdown is never
+   * raced. */
+  readonly killTimeoutMs?: number
+  readonly pollIntervalMs?: number
+  readonly log?: DevServerLog
+  /** Called once the spawned child's real pid is known, replacing the placeholder claim `start`
+   * makes before spawning -- a CLI wrapper uses this to forward signals its own process receives
+   * to the child; tests can ignore it. */
+  readonly onSpawned?: (pid: number) => void
+}
+
+export interface DevServerRunner {
+  /** Starts the server. Resolves with its exit code once it stops, for any reason -- including a
+   * failure to spawn at all, represented as `1` -- so a caller can always set `process.exitCode`
+   * from the result without a separate error-handling path. Refuses (resolving `1` immediately)
+   * if the server is already tracked and running, or if a concurrent `start` wins the race to
+   * claim the PID file first. */
+  start(): Promise<number>
+  /** Stops the tracked server, if one is running. Resolves `true` once confirmed stopped (or if
+   * nothing was running), `false` if it's still alive even after escalating to `SIGKILL`. */
+  kill(): Promise<boolean>
+  /** `kill()` (a no-op if nothing is running) followed by `start()`. */
+  restart(): Promise<number>
+}
 
 function sleep(ms: number): Promise<void> {
   return new Promise(resolve => setTimeout(resolve, ms))
 }
 
-/** Clears a stale PID file (one whose process isn't actually running) if there is one, reporting
- * it. Returns the still-live pid, if any. */
-function reconcilePidFile(): number | undefined {
-  const pid = readPid(PID_FILE)
-  if (pid === undefined) {
+/**
+ * The start/stop/restart lifecycle behind `pnpm dev:server`/`dev:server:kill`/`dev:server:restart`
+ * (see `docs/DEVELOPMENT_SERVER.md`). Deliberately free of global side effects -- no `process.on`,
+ * no `process.exitCode` mutation -- so it's directly testable with injected, trivial child
+ * processes (see `test/dev-server.test.ts`) instead of only through manual smoke testing; the real
+ * CLI entry point at the bottom of this file is the one place that wires it to the actual process.
+ */
+export function createDevServerRunner(options: DevServerRunnerOptions): DevServerRunner {
+  const {
+    pidFile,
+    spawnServer,
+    killTimeoutMs = 8000,
+    pollIntervalMs = 150,
+    log = console,
+    onSpawned,
+  } = options
+
+  /** Clears a stale PID file (one whose process isn't actually running) if there is one,
+   * reporting it. Returns the still-live pid, if any. */
+  function reconcilePidFile(): number | undefined {
+    const pid = readPid(pidFile)
+    if (pid === undefined) {
+      return undefined
+    }
+    if (isAlive(pid)) {
+      return pid
+    }
+    log.log(`Removing stale PID file from a previous run (pid ${pid} is no longer running).`)
+    removePid(pidFile)
     return undefined
   }
-  if (isAlive(pid)) {
-    return pid
-  }
-  console.log(`Removing stale PID file from a previous run (pid ${pid} is no longer running).`)
-  removePid(PID_FILE)
-  return undefined
-}
 
-async function waitWhileAlive(pid: number, timeoutMs: number): Promise<boolean> {
-  const deadline = Date.now() + timeoutMs
-  while (isAlive(pid)) {
-    if (Date.now() > deadline) {
-      return false
+  async function waitWhileAlive(pid: number, timeoutMs: number): Promise<boolean> {
+    const deadline = Date.now() + timeoutMs
+    while (isAlive(pid)) {
+      if (Date.now() > deadline) {
+        return false
+      }
+      await sleep(pollIntervalMs)
     }
-    await sleep(POLL_INTERVAL_MS)
-  }
-  return true
-}
-
-/** Sends `signal` to `pid`, returning whether it was actually delivered. `ESRCH` means the
- * process already exited between the caller's own liveness check and this call -- a real,
- * if narrow, race (nothing stops the server from finishing its own shutdown in that window), not
- * a programming error, so it's reported as "not delivered" rather than thrown. */
-function signalIfAlive(pid: number, signal: NodeJS.Signals): boolean {
-  try {
-    process.kill(pid, signal)
     return true
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === "ESRCH") {
-      return false
+  }
+
+  async function kill(): Promise<boolean> {
+    const pid = reconcilePidFile()
+    if (pid === undefined) {
+      log.log("Server is not running.")
+      return true
     }
-    throw error
-  }
-}
 
-/** Stops the tracked server, if one is running: `SIGINT` (the same signal Ctrl+C sends, reusing
- * the server's own existing graceful shutdown), escalating to `SIGKILL` if it doesn't stop in
- * time. Reports failure, and leaves the PID file in place, if the process is still alive even
- * after `SIGKILL` -- that's a real problem for the caller to know about, not something to paper
- * over by declaring success anyway. */
-async function kill(): Promise<void> {
-  const pid = reconcilePidFile()
-  if (pid === undefined) {
-    console.log("Server is not running.")
-    return
-  }
-
-  console.log(`Stopping server (pid ${pid})...`)
-  if (signalIfAlive(pid, "SIGINT")) {
-    const stopped = await waitWhileAlive(pid, KILL_TIMEOUT_MS)
-    if (!stopped) {
-      console.warn(`Server did not stop within ${KILL_TIMEOUT_MS}ms; sending SIGKILL.`)
-      if (signalIfAlive(pid, "SIGKILL")) {
-        const killed = await waitWhileAlive(pid, KILL_TIMEOUT_MS)
-        if (!killed) {
-          console.error(`Server (pid ${pid}) is still running after SIGKILL.`)
-          process.exitCode = 1
-          return
+    log.log(`Stopping server (pid ${pid})...`)
+    if (signalIfAlive(pid, "SIGINT")) {
+      const stopped = await waitWhileAlive(pid, killTimeoutMs)
+      if (!stopped) {
+        log.warn(`Server did not stop within ${killTimeoutMs}ms; sending SIGKILL.`)
+        if (signalIfAlive(pid, "SIGKILL")) {
+          const killed = await waitWhileAlive(pid, killTimeoutMs)
+          if (!killed) {
+            log.error(`Server (pid ${pid}) is still running after SIGKILL.`)
+            return false
+          }
         }
       }
     }
+    removePid(pidFile)
+    log.log("Server stopped.")
+    return true
   }
-  removePid(PID_FILE)
-  console.log("Server stopped.")
+
+  async function start(): Promise<number> {
+    const existing = reconcilePidFile()
+    if (existing !== undefined) {
+      log.error(`Server already running (pid ${existing}).`)
+      return 1
+    }
+
+    // Claims the PID file exclusively before spawning anything, with this runner's own pid as a
+    // placeholder: two `start` invocations racing past the check above could otherwise both
+    // decide nothing is running and both spawn a server. The exclusive create (`tryClaimPid`) is
+    // atomic, so only one of them can win; the loser reports whatever the winner left behind
+    // instead of spawning a redundant second server.
+    //
+    // Gotcha for in-process testing: `process.pid` here is whatever process *calls* `start()` --
+    // a separate OS process from the eventual child in real CLI use, but the *same* process as
+    // the test itself when `createDevServerRunner` is exercised directly (as in
+    // `test/dev-server.test.ts`). A test that waits for "the pid file has some value" rather than
+    // "the pid file has the real child's value" can observe this placeholder and mistake the test
+    // runner's own process for the tracked server -- signaling it would signal the test process
+    // itself. Tests must wait for a value that isn't `process.pid`.
+    if (!tryClaimPid(pidFile, process.pid)) {
+      const racingPid = readPid(pidFile)
+      log.error(
+        racingPid === undefined
+          ? "Another start is already in progress."
+          : `Server already running (pid ${racingPid}).`,
+      )
+      return 1
+    }
+
+    const child = spawnServer()
+    const result = await new Promise<{ code: number } | { error: Error }>(resolve => {
+      child.on("spawn", () => {
+        // Only now do we know the real pid to track; until this point the placeholder above
+        // (this runner's own pid) holds the claim.
+        if (child.pid !== undefined) {
+          writePid(pidFile, child.pid)
+          onSpawned?.(child.pid)
+        }
+      })
+      child.on("exit", code => resolve({ code: code ?? 1 }))
+      // If spawning fails outright (the executable can't be launched at all), Node emits "error"
+      // instead of -- or in addition to -- "exit". Without a listener here, an unhandled "error"
+      // event throws and this promise would never settle, leaving the PID file claimed forever.
+      child.on("error", error => resolve({ error }))
+    })
+
+    removePid(pidFile)
+    if ("error" in result) {
+      log.error("Failed to start the server:", result.error)
+      return 1
+    }
+    return result.code
+  }
+
+  async function restart(): Promise<number> {
+    await kill()
+    return start()
+  }
+
+  return { start, kill, restart }
 }
 
-/** Starts the server as a managed child process, attached to this terminal (`stdio: "inherit"`)
- * so its output stays visible here, exactly like the plain `dev` script -- the difference is that
- * its pid is tracked so a separate `dev:server:kill`/`dev:server:restart` invocation can find and
- * stop it. Refuses to start a second instance while one is already tracked and running. */
-async function start(): Promise<void> {
-  const existing = reconcilePidFile()
-  if (existing !== undefined) {
-    console.error(`Server already running (pid ${existing}).`)
-    process.exitCode = 1
-    return
-  }
+// Everything below is the CLI entry point, not part of the testable factory above -- guarded so
+// that importing `createDevServerRunner` (as `test/dev-server.test.ts` does) never also runs it
+// as a side effect of the import. ES modules execute all of a file's top-level code regardless of
+// which export a caller actually wanted, so without this check, merely importing this module from
+// a test would also invoke `main()` against the test runner's own `process.argv`.
+if (import.meta.url === `file://${process.argv[1]}`) {
+  const PACKAGE_ROOT = fileURLToPath(new URL("..", import.meta.url))
+  const PID_FILE = join(PACKAGE_ROOT, ".dev-server.pid")
+  const MAIN_SCRIPT = join(PACKAGE_ROOT, "dist", "main.js")
 
-  // Claims the PID file exclusively before spawning anything, with this runner's own pid as a
-  // placeholder: two `start` invocations racing past the check above could otherwise both decide
-  // nothing is running and both spawn a server. The exclusive create (`tryClaimPid`) is atomic,
-  // so only one of them can win; the loser reports whatever the winner left behind instead of
-  // spawning a redundant second server.
-  if (!tryClaimPid(PID_FILE, process.pid)) {
-    const racingPid = readPid(PID_FILE)
-    console.error(
-      racingPid === undefined
-        ? "Another start is already in progress."
-        : `Server already running (pid ${racingPid}).`,
-    )
-    process.exitCode = 1
-    return
-  }
-
-  const child = spawn(process.execPath, [MAIN_SCRIPT], { stdio: "inherit" })
-
-  const forward = (signal: NodeJS.Signals): void => {
-    if (child.pid !== undefined) {
-      signalIfAlive(child.pid, signal)
-    }
-  }
-  process.on("SIGINT", () => forward("SIGINT"))
-  process.on("SIGTERM", () => forward("SIGTERM"))
-
-  const result = await new Promise<{ code: number } | { error: Error }>(resolve => {
-    child.on("spawn", () => {
-      // Only now do we know the real pid to track; until this point the placeholder above (this
-      // runner's own pid) holds the claim.
-      if (child.pid !== undefined) {
-        writePid(PID_FILE, child.pid)
-      }
-    })
-    child.on("exit", code => resolve({ code: code ?? 1 }))
-    // If spawning fails outright (the executable can't be launched at all), Node emits "error"
-    // instead of -- or in addition to -- "exit". Without a listener here, an unhandled "error"
-    // event throws and this promise would never settle, leaving the PID file claimed forever.
-    child.on("error", error => resolve({ error }))
+  const runner = createDevServerRunner({
+    pidFile: PID_FILE,
+    spawnServer: () => spawn(process.execPath, [MAIN_SCRIPT], { stdio: "inherit" }),
+    onSpawned: pid => {
+      process.on("SIGINT", () => signalIfAlive(pid, "SIGINT"))
+      process.on("SIGTERM", () => signalIfAlive(pid, "SIGTERM"))
+    },
   })
 
-  removePid(PID_FILE)
-  if ("error" in result) {
-    console.error("Failed to start the server:", result.error)
-    process.exitCode = 1
-    return
-  }
-  process.exitCode = result.code
-}
-
-async function restart(): Promise<void> {
-  await kill()
-  await start()
-}
-
-async function main(): Promise<void> {
   const command = process.argv[2]
   switch (command) {
     case "start":
-      await start()
-      return
+      process.exitCode = await runner.start()
+      break
     case "kill":
-      await kill()
-      return
+      process.exitCode = (await runner.kill()) ? 0 : 1
+      break
     case "restart":
-      await restart()
-      return
+      process.exitCode = await runner.restart()
+      break
     default:
       console.error("Usage: dev-server <start|kill|restart>")
       process.exitCode = 1
   }
 }
-
-await main()
