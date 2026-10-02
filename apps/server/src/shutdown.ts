@@ -69,10 +69,17 @@ export function createShutdown(options: ShutdownOptions): () => Promise<void> {
       })()
 
       const timedOut = Symbol("timed out")
+      let timeoutHandle: NodeJS.Timeout | undefined
       const result = await Promise.race([
         sequence.then(() => undefined),
-        new Promise(resolve => setTimeout(() => resolve(timedOut), drainTimeoutMs)),
+        new Promise(resolve => {
+          timeoutHandle = setTimeout(() => resolve(timedOut), drainTimeoutMs)
+        }),
       ])
+      // Cleared either way: a `sequence` win leaves this timer with nothing left to do, and an
+      // uncleared one would otherwise keep the process's event loop alive on its own until it
+      // eventually fires, on top of whatever `sequence` itself is still doing in the background.
+      clearTimeout(timeoutHandle)
       if (result === timedOut) {
         log.warn(`Shutdown timed out after ${drainTimeoutMs}ms waiting for shutdown to complete`)
       }
