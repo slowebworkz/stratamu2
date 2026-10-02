@@ -22,6 +22,13 @@ const DATA_DIR = process.env.STRATAMU_DATA ?? join(process.cwd(), "data")
 const PORT = Number(process.env.STRATAMU_PORT ?? 4000)
 const TICK_MS = Number(process.env.STRATAMU_TICK_MS ?? 1000)
 
+if (!Number.isFinite(TICK_MS) || TICK_MS <= 0) {
+  console.error(
+    `STRATAMU_TICK_MS must be a finite number greater than 0; got ${JSON.stringify(process.env.STRATAMU_TICK_MS)}`,
+  )
+  process.exit(1)
+}
+
 const accountStore = new FileAccountStore(join(DATA_DIR, "accounts.json"))
 const personaStore = new FilePersonaStore(join(DATA_DIR, "uaf.rand"))
 const inventoryStore = new FileInventoryStore(join(DATA_DIR, "inventory"))

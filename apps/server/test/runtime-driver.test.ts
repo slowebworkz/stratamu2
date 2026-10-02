@@ -140,11 +140,11 @@ describe("createRuntimeDriver", () => {
 
     driver.start()
     driver.kick()
+    await driver.stop()
+
     expect(runtime.pump).toHaveBeenCalledTimes(1)
     expect(runtime.pump).toHaveBeenCalledWith(9)
     expect(combatClock.ticks).toBe(0)
-
-    await driver.stop()
   })
 
   it("kick() is a no-op before start()", () => {
@@ -178,6 +178,40 @@ describe("createRuntimeDriver", () => {
     await driver.stop()
   })
 
+  it("a scheduled tick queues behind a kick-triggered pump still in flight, instead of running concurrently", async () => {
+    let resolveKickedPump: (() => void) | undefined
+    let calls = 0
+    const runtime = fakeRuntime(() => {
+      calls++
+      if (calls === 1) {
+        return new Promise<number>(resolve => {
+          resolveKickedPump = () => resolve(0)
+        })
+      }
+      return Promise.resolve(0)
+    })
+    const combatClock = fakeClock()
+    const driver = createRuntimeDriver({ runtime, combatClock, tickMs: 100 })
+
+    driver.start()
+    driver.kick()
+    await vi.advanceTimersByTimeAsync(0)
+    expect(runtime.pump).toHaveBeenCalledTimes(1)
+
+    // The scheduled tick comes due while the kicked pump above is still unresolved. Without the
+    // fix for this (both paths serialized through one chain), this would start a second,
+    // concurrent `runtime.pump()` call right here.
+    await vi.advanceTimersByTimeAsync(100)
+    expect(runtime.pump).toHaveBeenCalledTimes(1)
+
+    resolveKickedPump?.()
+    // Only once the kicked pump finishes does the scheduled tick's own, queued pump get to run.
+    await vi.advanceTimersByTimeAsync(0)
+    expect(runtime.pump).toHaveBeenCalledTimes(2)
+
+    await driver.stop()
+  })
+
   it("stop() also awaits a kick-triggered pump", async () => {
     let resolvePump: (() => void) | undefined
     const runtime = fakeRuntime(
@@ -190,6 +224,7 @@ describe("createRuntimeDriver", () => {
 
     driver.start()
     driver.kick()
+    await vi.advanceTimersByTimeAsync(0)
     expect(runtime.pump).toHaveBeenCalledTimes(1)
 
     let stopped = false
@@ -299,9 +334,7 @@ describe("createRuntimeDriver", () => {
 
     driver.start()
     driver.kick()
-    await Promise.resolve()
-    expect(log.error).toHaveBeenCalledWith("Runtime pump failed", expect.any(Error))
-
     await driver.stop()
+    expect(log.error).toHaveBeenCalledWith("Runtime pump failed", expect.any(Error))
   })
 })

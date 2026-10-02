@@ -45,20 +45,21 @@ export interface RuntimeDriver {
   /** Starts ticking. Calling it again while already started is an error -- the same discipline
    * `Runtime.step` uses for re-entrant calls. */
   start(): void
-  /** Stops scheduling further ticks and resolves once any tick already in flight has finished,
-   * so a caller that destroys sockets right after `stop()` never does so mid-step. Safe to call
-   * before `start()` or more than once. */
+  /** Stops scheduling further ticks and resolves once every pump already queued or in flight --
+   * scheduled or kicked -- has finished, so a caller that destroys sockets right after `stop()`
+   * never does so mid-step. Safe to call before `start()` or more than once. */
   stop(): Promise<void>
   /** Runs the runtime once, right now, without advancing the combat clock or disturbing the
    * regular tick's own schedule -- for a caller that just submitted work (ordinary input, say)
    * and wants it to run sooner than the next scheduled tick, without becoming a second owner of
    * `pump`. A no-op if the driver isn't running, or if a pump -- scheduled or kicked -- is already
-   * in flight: that pump's own step loop re-checks what's ready on every iteration, so the new
-   * work is still picked up by it, or at worst by the next scheduled tick -- never worse than
-   * `tickMs` late, the same bound ordinary ticking already has. Never advancing the clock here
-   * matters: a continuously-typing player must not be able to speed up or stall combat by how
-   * often they send input, which is the entire reason this driver owns `pump` in the first
-   * place. */
+   * queued or in flight: whichever one is already there re-checks what's ready on every
+   * iteration, so the new work is still picked up by it, or at worst by the next scheduled tick --
+   * never worse than `tickMs` late, the same bound ordinary ticking already has. Every pump,
+   * whichever path requests it, runs through one serialized chain, so this never starts a second
+   * `runtime.pump()` call alongside one already running. Never advancing the clock here matters:
+   * a continuously-typing player must not be able to speed up or stall combat by how often they
+   * send input, which is the entire reason this driver owns `pump` in the first place. */
   kick(): void
 }
 
@@ -69,7 +70,10 @@ export interface RuntimeDriver {
  * or `@stratamu/adapter-abermud` -- see `docs/GAME_ENGINE_ARCHITECTURE.md`'s Apps section.
  *
  * A recursive `setTimeout`, not a bare `setInterval`: each tick awaits its own `pump` to finish
- * before the next is scheduled, so a slow step never causes overlapping ticks.
+ * before the next is scheduled, so a slow step never causes overlapping ticks. Scheduled ticks
+ * and `kick()` share one serialized pump chain, so a kick's pump running long never causes a
+ * concurrent second `runtime.pump()` call either -- a scheduled tick that comes due while a kick
+ * is still running queues behind it instead.
  *
  * Each tick measures real elapsed time against `monotonicClock` rather than assuming exactly
  * `tickMs` passed (a `setTimeout` callback can fire late -- event-loop lag, a slow pump, a GC
@@ -93,20 +97,36 @@ export function createRuntimeDriver(options: RuntimeDriverOptions): RuntimeDrive
   } = options
 
   let running = false
-  let busy = false
   let timer: NodeJS.Timeout | undefined
-  let inFlight: Promise<void> = Promise.resolve()
   let lastTickAt: Instant<MonotonicTime> = monotonicClock.now()
 
+  // Every pump -- scheduled or kicked -- runs through this one chain, never concurrently: a new
+  // request is appended after whatever is already running or queued, rather than starting
+  // alongside it. `pending` is the chain's current depth, so `kick()` can cheaply skip adding
+  // another link while one is already queued or in flight (the queued one will pick up the same
+  // work once its turn comes -- see `kick`'s own doc comment). `stop()` awaits this same chain, so
+  // it reliably waits for everything in it, whichever path put it there.
+  let pumpChain: Promise<void> = Promise.resolve()
+  let pending = 0
+
   const runPump = async (): Promise<void> => {
-    busy = true
     try {
       await runtime.pump(stepBudget)
     } catch (error) {
       log.error("Runtime pump failed", error)
-    } finally {
-      busy = false
     }
+  }
+
+  const enqueuePump = (): Promise<void> => {
+    pending++
+    pumpChain = pumpChain.then(async () => {
+      try {
+        await runPump()
+      } finally {
+        pending--
+      }
+    })
+    return pumpChain
   }
 
   const advanceCombatClock = (): void => {
@@ -122,11 +142,13 @@ export function createRuntimeDriver(options: RuntimeDriverOptions): RuntimeDrive
   }
 
   const tick = async (): Promise<void> => {
+    // Advancing happens on this tick's own schedule, unaffected by queueing; only running the
+    // pump itself waits its turn.
     advanceCombatClock()
-    await runPump()
+    await enqueuePump()
     if (running) {
       timer = setTimeout(() => {
-        inFlight = tick()
+        void tick()
       }, tickMs)
     }
   }
@@ -139,7 +161,7 @@ export function createRuntimeDriver(options: RuntimeDriverOptions): RuntimeDrive
       running = true
       lastTickAt = monotonicClock.now()
       timer = setTimeout(() => {
-        inFlight = tick()
+        void tick()
       }, tickMs)
     },
     async stop() {
@@ -148,13 +170,13 @@ export function createRuntimeDriver(options: RuntimeDriverOptions): RuntimeDrive
         clearTimeout(timer)
         timer = undefined
       }
-      await inFlight
+      await pumpChain
     },
     kick() {
-      if (!running || busy) {
+      if (!running || pending > 0) {
         return
       }
-      inFlight = runPump()
+      void enqueuePump()
     },
   }
 }

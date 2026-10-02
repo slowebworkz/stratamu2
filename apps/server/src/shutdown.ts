@@ -33,10 +33,14 @@ export interface ShutdownOptions {
  * Order: stop accepting new connections, stop the runtime driver (so nothing destroys a socket
  * mid-step), notify and close every connection still open -- reusing each connection's own
  * `close()`, the same write-then-close ordering `LoginFlow`'s QUIT/KILL handling already
- * establishes, not reimplemented here -- then wait for them all to actually end, bounded by
- * `drainTimeoutMs`. No separate persistence flush step: every AberMUD store already writes
- * synchronously per command, so waiting for in-flight commands to finish (which closing a
- * connection only does once its own output, if any, has already been written) is sufficient.
+ * establishes, not reimplemented here -- then wait for them all to actually end. `drainTimeoutMs`
+ * bounds that *entire* sequence from the start, not just the final wait: if `driver.stop()` itself
+ * never resolves (an in-flight `runtime.pump()` stuck on a handler that never settles, say), the
+ * timeout still fires and lets shutdown give up and log a warning, rather than hanging
+ * indefinitely before the race even begins. No separate persistence flush step: every AberMUD
+ * store already writes synchronously per command, so waiting for in-flight commands to finish
+ * (which closing a connection only does once its own output, if any, has already been written) is
+ * sufficient.
  *
  * Returns a function rather than running immediately, and guards re-entry, so calling it from
  * both `SIGINT` and `SIGTERM` -- or from the same signal firing twice -- only runs it once.
@@ -49,25 +53,28 @@ export function createShutdown(options: ShutdownOptions): () => Promise<void> {
     shuttingDown ??= (async () => {
       log.log("Shutting down...")
 
-      // Resolves once every connection the server itself is tracking has ended -- exactly the
-      // connections closed below, so this doubles as the "all drained" signal to race against
-      // the timeout, with no separate per-connection bookkeeping needed.
+      // Invoked immediately, synchronously, regardless of how the race below settles: new
+      // connections stop being accepted right away either way.
       const stopped = server.stopAccepting()
 
-      await driver.stop()
-
-      for (const connection of connections) {
-        connection.write(SHUTDOWN_NOTICE)
-        connection.close()
-      }
+      const sequence = (async () => {
+        await driver.stop()
+        for (const connection of connections) {
+          connection.write(SHUTDOWN_NOTICE)
+          connection.close()
+        }
+        // Resolves once every connection the server itself is tracking has ended -- exactly the
+        // connections closed above.
+        await stopped
+      })()
 
       const timedOut = Symbol("timed out")
       const result = await Promise.race([
-        stopped.then(() => undefined),
+        sequence.then(() => undefined),
         new Promise(resolve => setTimeout(() => resolve(timedOut), drainTimeoutMs)),
       ])
       if (result === timedOut) {
-        log.warn(`Shutdown timed out after ${drainTimeoutMs}ms waiting for connections to close`)
+        log.warn(`Shutdown timed out after ${drainTimeoutMs}ms waiting for shutdown to complete`)
       }
     })()
     return shuttingDown
