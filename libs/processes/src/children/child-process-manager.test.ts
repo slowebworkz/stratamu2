@@ -119,29 +119,26 @@ describe("ChildProcessManager", () => {
 
   it("start() forwards stopTimeoutMs, instead of always falling back to the 5s default", async () => {
     const manager = new ChildProcessManager()
-    const ready = new Promise<void>(resolve => {
-      manager.events.on("process.stdout", ({ chunk }) => {
-        if (chunk.includes("ready")) {
-          resolve()
-        }
-      })
-    })
-    // timeoutMs is generous enough that it only fires after the child has had time to reach its
-    // own "ready" line -- a short timeoutMs raced against the child process's real, variable
-    // startup time is a flaky test, not a real assertion about stopTimeoutMs.
-    const process = manager.start(nodeScript(IGNORES_SIGTERM), {
-      timeoutMs: 300,
-      stopTimeoutMs: 20,
-    })
-    await ready
+    const TIMEOUT_MS = 2000
+    const STOP_TIMEOUT_MS = 20
+    // Generous even on a slow CI runner, where spawning a process and reaching its first
+    // console.log can itself take a noticeable fraction of a second -- a timeoutMs tight enough
+    // to race that startup time is a flaky test, not a real assertion about stopTimeoutMs.
     const startedAt = Date.now()
+    const process = manager.start(nodeScript(IGNORES_SIGTERM), {
+      timeoutMs: TIMEOUT_MS,
+      stopTimeoutMs: STOP_TIMEOUT_MS,
+    })
 
     const result = await process.settled
     expect(result.state).toBe("timed-out")
     expect(result.signal).toBe("SIGKILL")
-    // Without forwarding, the escalation grace period silently falls back to 5000ms -- this
-    // completing well under a second (measured from "ready", not from start, since timeoutMs
-    // itself accounts for most of the elapsed time here) confirms stopTimeoutMs was actually used.
-    expect(Date.now() - startedAt).toBeLessThan(1000)
-  })
+    // Without forwarding, the escalation grace period silently falls back to 5000ms, which would
+    // push this well past TIMEOUT_MS + STOP_TIMEOUT_MS -- generously bounded, not tight, since
+    // the point is distinguishing "used the configured value" from "used the 5s default", not
+    // timing the escalation precisely.
+    expect(Date.now() - startedAt).toBeLessThan(TIMEOUT_MS + 1000)
+  }, // An explicit, generous deadline so a regression (falling back to the 5s default, or a hang)
+  // fails loudly here rather than running into vitest's own default test timeout.
+  10_000)
 })

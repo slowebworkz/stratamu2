@@ -21,6 +21,9 @@ export type ProcessManagerEvents = {
   "process.stderr": { id: string; chunk: string }
   "process.exited": { id: string; exitCode: number | undefined; signal: NodeJS.Signals | undefined }
   "process.failed": { id: string; error: ExceptionalError }
+  /** Confirmed, not merely requested: fires only once `stop`/`kill` has actually observed the
+   * process exit, and only for the call that initiated termination -- see
+   * `ManagedProcessHooks.onStopped`/`onKilled`. */
   "process.stopped": { id: string }
   "process.killed": { id: string }
 }

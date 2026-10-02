@@ -163,6 +163,7 @@ describe("createManagedProcess", () => {
     // the child process's own real, variable startup time, keeps this deterministic -- a `timeoutMs`
     // short enough to reliably race an abort is also short enough to fire before a freshly spawned
     // process has even reached its first `console.log`, which is a flaky test, not a real race.
+    const signals: NodeJS.Signals[] = []
     const process = createManagedProcess(nodeScript(IGNORES_SIGTERM), {
       signal: controller.signal,
       stopTimeoutMs: 50,
@@ -172,6 +173,7 @@ describe("createManagedProcess", () => {
             ready()
           }
         },
+        onSignal: signal => signals.push(signal),
       },
     })
     await readyPromise
@@ -179,17 +181,22 @@ describe("createManagedProcess", () => {
     // The abort fires first and establishes "cancelled" as the reason. stop() arrives immediately
     // after, while that escalation is still waiting out its SIGTERM grace period -- a buggy
     // implementation that let this second call overwrite the reason, or re-enter escalation and
-    // send its own independent round of signals, would otherwise be invisible here.
+    // send its own independent round of signals, would otherwise be invisible here. Two
+    // independent escalations could produce the same final state and signal while still having
+    // sent SIGTERM and SIGKILL twice each -- counting actual signals is what rules that out.
     controller.abort()
     await process.stop({ timeoutMs: 50 })
     const result = await process.settled
     expect(result.state).toBe("cancelled")
     expect(result.signal).toBe("SIGKILL")
+    expect(signals).toEqual(["SIGTERM", "SIGKILL"])
   })
 
   it("stop() does not report an action when the process already exited on its own", async () => {
-    const process = createManagedProcess(nodeScript("process.exit(0)"))
     const stopped: unknown[] = []
+    const process = createManagedProcess(nodeScript("process.exit(0)"), {
+      hooks: { onStopped: () => stopped.push(undefined) },
+    })
     await process.settled
 
     await process.stop()
@@ -217,6 +224,30 @@ describe("createManagedProcess", () => {
     await process.settled
     expect(getEventListeners(controller.signal, "abort")).toHaveLength(0)
   })
+
+  it("an already-aborted signal at construction still reaches the process once it spawns", async () => {
+    // Before the fix, kill() was called before the child had a pid (ChildProcess#kill silently
+    // does nothing in that window), so escalation could run to completion -- and stop() would
+    // report success -- without the signal ever reaching the process, leaving it running
+    // unmanaged. If that regresses, this hangs until the explicit test timeout below instead of
+    // settling quickly.
+    const controller = new AbortController()
+    controller.abort()
+    const process = createManagedProcess(nodeScript("setInterval(() => {}, 1000)"), {
+      signal: controller.signal,
+      stopTimeoutMs: 0,
+    })
+    const result = await process.settled
+    expect(result.state).toBe("cancelled")
+  }, 5000)
+
+  it("a zero timeoutMs set at construction still reaches the process once it spawns", async () => {
+    const process = createManagedProcess(nodeScript("setInterval(() => {}, 1000)"), {
+      timeoutMs: 0,
+    })
+    const result = await process.settled
+    expect(result.state).toBe("timed-out")
+  }, 5000)
 
   it("removes its AbortSignal listener on a spawn failure too", async () => {
     const controller = new AbortController()

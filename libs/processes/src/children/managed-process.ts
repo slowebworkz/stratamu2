@@ -23,8 +23,16 @@ export interface ManagedProcessHooks {
   onStarted?: (pid: number) => void
   onStdout?: (chunk: string) => void
   onStderr?: (chunk: string) => void
+  /** Called immediately before each signal this process actually sends to the child -- a narrow
+   * seam for tests to observe exactly how many signals a termination sequence sent, since nothing
+   * else exposes that. */
+  onSignal?: (signal: NodeJS.Signals) => void
   onExited?: (exitCode: number | undefined, signal: NodeJS.Signals | undefined) => void
   onFailed?: (error: ExceptionalError) => void
+  /** Called once termination is confirmed -- the process has actually exited -- and this call was
+   * the one that initiated it. Not called if escalation completes without the process actually
+   * dying (a process stuck in uninterruptible I/O can outlive even `SIGKILL`) or if the process
+   * was already terminal when `stop`/`kill` was called. */
   onStopped?: () => void
   onKilled?: () => void
 }
@@ -135,6 +143,15 @@ class ManagedProcessImpl extends Base implements ManagedProcess {
   #terminationPromise: Promise<void> | undefined
   readonly #signalRef: AbortSignal | undefined
   #abortListener: (() => void) | undefined
+  /** Resolves once the child has actually spawned (a real pid exists to signal) or has settled
+   * without ever spawning (a startup failure) -- whichever comes first. Signaling before this
+   * resolves is a real race, not a theoretical one: `ChildProcess#kill` silently does nothing
+   * before the child has a pid, so a termination requested in the same tick as construction (an
+   * already-aborted signal, or `timeoutMs: 0`) could otherwise complete its whole escalation
+   * sequence without ever actually reaching the process, which would then go on running
+   * unmanaged. */
+  readonly #spawned: Promise<void>
+  #resolveSpawned: () => void = () => {}
 
   constructor(definition: ProcessDefinition, options: ManagedProcessOptions = {}) {
     super()
@@ -147,6 +164,9 @@ class ManagedProcessImpl extends Base implements ManagedProcess {
 
     this.settled = new Promise<ProcessResult>(resolve => {
       this.#settle = resolve
+    })
+    this.#spawned = new Promise(resolve => {
+      this.#resolveSpawned = resolve
     })
 
     this.#child = spawn(definition.executable, definition.args ?? [], {
@@ -170,6 +190,7 @@ class ManagedProcessImpl extends Base implements ManagedProcess {
       if (this.#child.pid !== undefined) {
         this.#hooks.onStarted?.(this.#child.pid)
       }
+      this.#resolveSpawned()
     })
     this.#child.on("exit", (code, signal) => this.#handleExit(code, signal))
     // Node emits "error" instead of -- or, in some Node versions, in addition to -- "exit" when
@@ -217,7 +238,10 @@ class ManagedProcessImpl extends Base implements ManagedProcess {
     const initiated = await this.#beginTermination(undefined, () =>
       this.#escalate(options.signal ?? "SIGTERM", options.timeoutMs ?? this.#stopTimeoutMs),
     )
-    if (initiated) {
+    // Confirmed, not merely attempted: #escalate can finish its last wait without the process
+    // actually having died (stuck in uninterruptible I/O, say), and onStopped should mean the
+    // process is actually gone, matching its past-tense name.
+    if (initiated && this.#isTerminal()) {
       this.#hooks.onStopped?.()
     }
   }
@@ -226,7 +250,7 @@ class ManagedProcessImpl extends Base implements ManagedProcess {
     const initiated = await this.#beginTermination(undefined, async () => {
       await this.#signalAndWait("SIGKILL", this.#stopTimeoutMs)
     })
-    if (initiated) {
+    if (initiated && this.#isTerminal()) {
       this.#hooks.onKilled?.()
     }
   }
@@ -274,9 +298,14 @@ class ManagedProcessImpl extends Base implements ManagedProcess {
   }
 
   async #signalAndWait(signal: NodeJS.Signals, timeoutMs: number): Promise<boolean> {
+    // Waiting for a real pid closes the startup race: signaling before the child has actually
+    // spawned would silently do nothing, yet the wait that follows would still elapse as if it
+    // had, leaving the process running unmanaged despite a caller being told it was terminated.
+    await this.#spawned
     if (this.#isTerminal()) {
       return true
     }
+    this.#hooks.onSignal?.(signal)
     this.#child.kill(signal)
     return this.#raceExit(timeoutMs)
   }
@@ -320,6 +349,7 @@ class ManagedProcessImpl extends Base implements ManagedProcess {
     this.#settled = true
     clearTimeout(this.#timeoutHandle)
     this.#detachAbortListener()
+    this.#resolveSpawned()
     this.#exitCode = code ?? undefined
     this.#signal = signal ?? undefined
     const state: ProcessResult["state"] = this.#pendingReason ?? "completed"
@@ -335,6 +365,7 @@ class ManagedProcessImpl extends Base implements ManagedProcess {
     this.#settled = true
     clearTimeout(this.#timeoutHandle)
     this.#detachAbortListener()
+    this.#resolveSpawned()
     this.#state = "failed"
     const exceptional = this.errors.from(error)
     this.#hooks.onFailed?.(exceptional)
