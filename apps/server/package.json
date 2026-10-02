@@ -9,7 +9,7 @@
     "create-account": "node dist/create-account.js",
     "dev": "tsc -p tsconfig.build.json && node dist/main.js",
     "dev:server": "tsc -p tsconfig.build.json && node dist/dev-server.js start",
-    "dev:server:kill": "tsc -p tsconfig.build.json && node dist/dev-server.js kill",
+    "dev:server:kill": "node dist/dev-server.js kill",
     "dev:server:restart": "tsc -p tsconfig.build.json && node dist/dev-server.js restart",
     "start": "node dist/main.js",
     "lint": "eslint .",

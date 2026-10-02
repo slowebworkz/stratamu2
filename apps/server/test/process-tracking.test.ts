@@ -5,7 +5,7 @@ import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { afterEach, describe, expect, it, vi } from "vitest"
 
-import { isAlive, readPid, removePid, writePid } from "../src/process-tracking.ts"
+import { isAlive, readPid, removePid, tryClaimPid, writePid } from "../src/process-tracking.ts"
 
 describe("process-tracking", () => {
   let dir: string | undefined
@@ -53,6 +53,24 @@ describe("process-tracking", () => {
     expect(() => writePid(file, -1)).toThrow(RangeError)
     expect(() => writePid(file, 1.5)).toThrow(RangeError)
     expect(() => writePid(file, Number.NaN)).toThrow(RangeError)
+  })
+
+  it("tryClaimPid succeeds and writes the pid when the file doesn't exist", async () => {
+    const file = await pidFile()
+    expect(tryClaimPid(file, 42)).toBe(true)
+    expect(readPid(file)).toBe(42)
+  })
+
+  it("tryClaimPid fails without overwriting when the file already exists", async () => {
+    const file = await pidFile()
+    writePid(file, 1)
+    expect(tryClaimPid(file, 2)).toBe(false)
+    expect(readPid(file)).toBe(1)
+  })
+
+  it("tryClaimPid rejects a non-positive or non-integer pid", async () => {
+    const file = await pidFile()
+    expect(() => tryClaimPid(file, 0)).toThrow(RangeError)
   })
 
   it("removePid is a no-op when the file doesn't exist", async () => {
