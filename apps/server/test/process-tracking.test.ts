@@ -16,6 +16,7 @@ import {
   signalIfAlive,
   tryClaimPid,
   tryClaimStarting,
+  withPidFileLock,
   writePid,
 } from "../src/process-tracking.ts"
 
@@ -209,5 +210,72 @@ describe("process-tracking", () => {
   it("removeIfOwns is a no-op when the file doesn't exist", async () => {
     const file = await pidFile()
     expect(() => removeIfOwns(file, 1)).not.toThrow()
+  })
+
+  it("withPidFileLock serializes overlapping critical sections instead of interleaving them", async () => {
+    const file = await pidFile()
+    const events: string[] = []
+
+    async function criticalSection(id: string): Promise<void> {
+      await withPidFileLock(file, async () => {
+        events.push(`${id}:enter`)
+        await new Promise(resolve => setTimeout(resolve, 20))
+        events.push(`${id}:exit`)
+      })
+    }
+
+    await Promise.all([criticalSection("a"), criticalSection("b")])
+
+    // Each section's enter/exit must be adjacent -- if the lock let them interleave, a second
+    // section's "enter" would land between the first's "enter" and "exit".
+    for (let i = 0; i < events.length; i += 2) {
+      const id = events[i]?.split(":")[0]
+      expect(events[i]).toBe(`${id}:enter`)
+      expect(events[i + 1]).toBe(`${id}:exit`)
+    }
+  })
+
+  it("withPidFileLock closes the race where a cleanup could delete a newer claim", async () => {
+    const file = await pidFile()
+    writePid(file, 1)
+    const events: string[] = []
+
+    // Simulates the exact race this was written to close: one caller is in the middle of
+    // confirming pid 1 is done and cleaning up, while a second caller is waiting to claim the
+    // file for a new pid 2. Without the lock, the cleanup's read-then-unlink could interleave with
+    // the new claim and delete pid 2's entry instead of pid 1's.
+    const cleanup = withPidFileLock(file, async () => {
+      events.push("cleanup:start")
+      await new Promise(resolve => setTimeout(resolve, 30))
+      removeIfOwns(file, 1)
+      events.push("cleanup:end")
+    })
+    await new Promise(resolve => setTimeout(resolve, 5))
+    const newClaim = withPidFileLock(file, () => {
+      events.push("claim:start")
+      tryClaimPid(file, 2)
+      events.push("claim:end")
+    })
+
+    await Promise.all([cleanup, newClaim])
+
+    expect(events).toEqual(["cleanup:start", "cleanup:end", "claim:start", "claim:end"])
+    expect(readPid(file)).toBe(2)
+  })
+
+  it("withPidFileLock reclaims a lock left behind by a holder that's since died", async () => {
+    const file = await pidFile()
+    const lockFile = `${file}.lock`
+    const child = spawn(process.execPath, ["-e", "process.exit(0)"])
+    const deadPid = await new Promise<number>(resolve => {
+      child.on("exit", () => resolve(child.pid as number))
+    })
+    // A lock claimed by a runner that crashed before releasing it -- `withPidFileLock` must
+    // recognize this as stale and reclaim it, not wait out its full acquisition timeout.
+    writePid(lockFile, deadPid)
+
+    const start = Date.now()
+    await withPidFileLock(file, () => {})
+    expect(Date.now() - start).toBeLessThan(1000)
   })
 })

@@ -82,14 +82,67 @@ export function removePid(pidFile: string): void {
   }
 }
 
-/** Removes `pidFile` only if its contents still match `expectedContents`. A plain `removePid`
- * after confirming "the thing I was tracking is done" has a race: between that confirmation and
- * the unlink, a new claim (a new `start`) can land in the same file, and an unconditional removal
- * would delete someone else's claim instead of the caller's own. Comparing contents first makes
- * cleanup conditional on still owning what's there. */
+/** Removes `pidFile` only if its contents still match `expectedContents`. Reading and unlinking
+ * are still two separate filesystem operations -- this narrows the window in which an unrelated
+ * cleanup could delete a newer claim, but doesn't close it. Callers that need the window fully
+ * closed run through `withPidFileLock` instead, which serializes every read-decide-mutate
+ * sequence against this pid file so no second caller's claim can land in the gap in the first
+ * place. */
 export function removeIfOwns(pidFile: string, expectedContents: string | number): void {
   if (readRaw(pidFile) === String(expectedContents)) {
     removePid(pidFile)
+  }
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise(resolve => setTimeout(resolve, ms))
+}
+
+function lockFileFor(pidFile: string): string {
+  return `${pidFile}.lock`
+}
+
+const LOCK_ACQUIRE_TIMEOUT_MS = 10_000
+const LOCK_POLL_INTERVAL_MS = 20
+
+async function acquireLock(lockFile: string): Promise<void> {
+  const deadline = Date.now() + LOCK_ACQUIRE_TIMEOUT_MS
+  for (;;) {
+    if (tryClaimPid(lockFile, process.pid)) {
+      return
+    }
+    // The lock is held by someone else -- unless its holder has died without releasing it (e.g.
+    // crashed mid-critical-section), in which case it's stale and safe to reclaim immediately.
+    // Two callers racing to clear the same stale lock is harmless: `removeIfOwns` is a no-op for
+    // whichever one loses, and both simply retry the atomic claim above.
+    const holder = readPid(lockFile)
+    if (isDefined(holder) && !isAlive(holder)) {
+      removeIfOwns(lockFile, holder)
+      continue
+    }
+    if (Date.now() > deadline) {
+      throw new Error(`Timed out waiting for the dev-server PID-file lock (${lockFile}).`)
+    }
+    await sleep(LOCK_POLL_INTERVAL_MS)
+  }
+}
+
+/** Runs `fn` while holding an exclusive, cross-process lock on `pidFile`'s own lifecycle --
+ * claimed and released with the same atomic `O_EXCL` primitive as `tryClaimPid`, so the lock's own
+ * lifecycle carries no equivalent race. Every read-decide-mutate sequence against `pidFile`
+ * (reconciling a stale claim, claiming it, or removing it) should run inside this to actually
+ * close the ownership race `removeIfOwns` only narrows: without it, two concurrent callers can
+ * both read the same contents before either acts, and the first's cleanup can delete a second
+ * caller's claim that lands in the gap. Held only around each individual mutation, not across an
+ * entire `start`/`kill` call, so a long-running wait (for a child to exit, say) doesn't block
+ * unrelated lifecycle operations on the same pid file. */
+export async function withPidFileLock<T>(pidFile: string, fn: () => T | Promise<T>): Promise<T> {
+  const lockFile = lockFileFor(pidFile)
+  await acquireLock(lockFile)
+  try {
+    return await fn()
+  } finally {
+    removeIfOwns(lockFile, process.pid)
   }
 }
 

@@ -105,7 +105,17 @@ Implemented in `apps/server/src/dev-server.ts`, built on the small, directly tes
   startup failures and exit status" falls out of the same cleanup path rather than needing its own
   special case.
 - `restart` is `kill` (a no-op if nothing is running) followed by `start`, in one invocation, so
-  both the stop confirmation and the fresh server's own logs appear together.
+  both the stop confirmation and the fresh server's own logs appear together — if `kill` can't
+  confirm the old process actually stopped, `restart` reports that failure and does not attempt to
+  start a new one.
+- Every read-then-act step against the PID file (checking what's running, claiming it, cleaning up
+  afterward) runs under a short-lived, cross-process file lock, so two overlapping invocations
+  (two terminals running `kill` at once, say) can't interleave and corrupt each other's view of
+  what's tracked.
+- `kill` has nothing to signal yet while a `start` is between claiming the PID file and the child
+  actually spawning, and reports "Server is not running" rather than guessing at a pid — a `kill`
+  issued in that narrow window is a no-op; running it again once the new server has started stops
+  it normally. Accepted behavior for a local development runner, not a bug.
 
 Process management stays entirely in this runner; the server's own graceful shutdown logic in
 `main.ts`/`shutdown.ts` is unmodified and unaware of it.

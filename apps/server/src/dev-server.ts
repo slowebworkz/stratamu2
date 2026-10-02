@@ -13,6 +13,7 @@ import {
   removePid,
   signalIfAlive,
   tryClaimStarting,
+  withPidFileLock,
   writePid,
 } from "./process-tracking.ts"
 
@@ -118,8 +119,16 @@ export function createDevServerRunner(options: DevServerRunnerOptions): DevServe
   }
 
   async function kill(): Promise<boolean> {
-    const pid = reconcilePidFile()
+    // reconcilePidFile reads the file and may conditionally remove a stale claim; running it
+    // under the lock closes the gap between that read and removal where a concurrent `start`
+    // could otherwise land a new claim that this call would then wrongly delete.
+    const pid = await withPidFileLock(pidFile, () => reconcilePidFile())
     if (!isDefined(pid)) {
+      // Also reached while a "starting" claim is live (another `start` is mid-flight, past this
+      // point's reconcile but before the child's real pid is written): accepted behavior for a
+      // local development runner, not a bug -- `kill` has no process to signal yet, and cannot
+      // safely guess that the about-to-exist child is the one a caller means to stop. Calling
+      // `kill` again after that `start` finishes stops it normally.
       log.log("Server is not running.")
       return true
     }
@@ -138,37 +147,56 @@ export function createDevServerRunner(options: DevServerRunnerOptions): DevServe
         }
       }
     }
-    removeIfOwns(pidFile, pid)
+    await withPidFileLock(pidFile, () => removeIfOwns(pidFile, pid))
     log.log("Server stopped.")
     return true
   }
 
   async function start(): Promise<number> {
-    const existing = reconcilePidFile()
-    if (isDefined(existing)) {
-      log.error(`Server already running (pid ${existing}).`)
+    // Reconciling and claiming happen as one atomic step under the lock: without it, two
+    // concurrent `start` calls could both see nothing tracked (reconcile) before either claims,
+    // and both would spawn a server. The exclusive create inside `tryClaimStarting` prevents that
+    // specifically for the claim step; the lock extends the same guarantee to the "is anything
+    // already running" check that precedes it.
+    const claim = await withPidFileLock(pidFile, () => {
+      const existing = reconcilePidFile()
+      if (isDefined(existing)) {
+        return { claimed: false as const, existing }
+      }
+      // Claims the PID file with a "starting" marker, not yet a server pid, since the real one
+      // isn't known until the child actually spawns. Unlike an earlier design that used this
+      // runner's own pid as the placeholder, the marker is never a plain digit string, so
+      // `readPid`/`isAlive` can never mistake it for a live, signalable server process -- a
+      // concurrent `kill()` during this window sees "nothing to stop yet" instead of risking a
+      // signal to the wrong process.
+      return { claimed: tryClaimStarting(pidFile, process.pid) }
+    })
+    if (!claim.claimed) {
+      log.error(
+        isDefined(claim.existing)
+          ? `Server already running (pid ${claim.existing}).`
+          : "Another start is already in progress.",
+      )
       return 1
     }
 
-    // Claims the PID file exclusively before spawning anything, with a "starting" marker (not yet
-    // a server pid, since the real one isn't known until the child actually spawns): two `start`
-    // invocations racing past the check above could otherwise both decide nothing is running and
-    // both spawn a server. The exclusive create (`tryClaimStarting`) is atomic, so only one of
-    // them can win; the loser reports whatever the winner left behind instead of spawning a
-    // redundant second server. Unlike an earlier design that used this runner's own pid as the
-    // placeholder, the marker is never a plain digit string, so `readPid`/`isAlive` can never
-    // mistake it for a live, signalable server process -- a concurrent `kill()` during this window
-    // sees "nothing to stop yet" instead of risking a signal to the wrong process.
-    if (!tryClaimStarting(pidFile, process.pid)) {
-      log.error("Another start is already in progress.")
+    let child: ChildProcess
+    try {
+      child = spawnServer()
+    } catch (error) {
+      // spawnServer is caller-injected and can throw synchronously (as opposed to the child
+      // itself failing to launch, which instead surfaces as an "error" event below) -- without
+      // this, the "starting" claim above would never be released.
+      await withPidFileLock(pidFile, () => removeIfOwns(pidFile, `starting:${process.pid}`))
+      log.error("Failed to start the server:", error)
       return 1
     }
 
-    const child = spawnServer()
     const result = await new Promise<{ code: number } | { error: Error }>(resolve => {
       child.on("spawn", () => {
         // Only now do we know the real pid to track; until this point the "starting" marker above
-        // holds the claim.
+        // holds the claim. An unconditional write is safe here without the lock: this call is the
+        // exclusive owner of that claim, so nothing else is concurrently writing to it.
         if (child.pid !== undefined) {
           writePid(pidFile, child.pid)
           onSpawned?.(child.pid)
@@ -183,10 +211,9 @@ export function createDevServerRunner(options: DevServerRunnerOptions): DevServe
 
     // Removes only whatever this call itself claimed -- the real child pid once "spawn" fired, or
     // still the original "starting" marker if it never got that far (e.g. an immediate "error").
-    // An unconditional removal here could otherwise delete a newer start's claim: if this
-    // tracked process had already been confirmed stopped and cleaned up by a concurrent `kill()`
-    // by the time this resolves, a new `start()` could already have claimed the file again.
-    removeIfOwns(pidFile, child.pid ?? `starting:${process.pid}`)
+    await withPidFileLock(pidFile, () =>
+      removeIfOwns(pidFile, child.pid ?? `starting:${process.pid}`),
+    )
     if ("error" in result) {
       log.error("Failed to start the server:", result.error)
       return 1
