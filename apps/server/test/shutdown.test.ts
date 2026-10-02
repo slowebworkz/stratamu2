@@ -131,6 +131,26 @@ describe("createShutdown", () => {
       )
     })
 
+    it("times out even if driver.stop() itself never resolves", async () => {
+      const server = fakeServer()
+      server.resolveStopAccepting()
+      const shutdown = createShutdown({
+        server,
+        driver: fakeDriver(() => new Promise(() => {})), // a hung in-flight pump, never settles
+        connections: new Set([fakeConnection()]),
+        drainTimeoutMs: 1000,
+        log: quietLog,
+      })
+
+      const done = shutdown()
+      await vi.advanceTimersByTimeAsync(1000)
+      await done
+
+      expect(quietLog.warn).toHaveBeenCalledWith(
+        expect.stringContaining("Shutdown timed out after 1000ms"),
+      )
+    })
+
     it("does not warn when every connection closes before the timeout", async () => {
       const server = fakeServer()
       server.resolveStopAccepting()
